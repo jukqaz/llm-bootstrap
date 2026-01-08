@@ -5,7 +5,7 @@
 - 목표 릴리스: 상시 갱신.
 
 ## 아키텍처
-- 루트: `README.md`, `AGENTS.md`, `PRD.md`, `TRD.md`
+- 루트: `README.md`, `AGENTS.md`, `PRD.md`, `TRD.md`, `CHANGELOG.md`, `ROLE-MAP.md`
 - 스킬: `skills/<skill-name>/` 아래에 `SKILL.md`와 리소스 폴더
 
 ## 컴포넌트
