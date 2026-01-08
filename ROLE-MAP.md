@@ -114,6 +114,12 @@
 - 이미 구현됨: management-ops, ops-admin, cost-tracking, policy-docs
 - 추가 예정: 없음
 
+## 중복 산출물 교차 참조
+
+- 자산 로그: IT는 `skills/it-internal-systems/references/it-asset-log.md` (체크리스트: `skills/it-internal-systems/references/it-ops-checklist.md`), 시설은 `skills/facilities-admin/references/facilities-asset-log.md` (체크리스트: `skills/facilities-admin/references/facilities-checklist.md`)
+- FAQ: 세일즈는 `skills/pricing-faq/references/pricing-faq-template.md` (체크리스트: `skills/pricing-faq/references/pricing-faq-checklist.md`), 고객지원은 `skills/faq-builder/references/faq-template.md` (체크리스트: `skills/faq-builder/references/faq-checklist.md`)
+- 예산/비용: 재무는 `skills/finance-accounting/references/budget-template.md`, 운영은 `skills/cost-tracking/references/cost-tracking-template.md` (체크리스트 없음)
+
 ## 스킬 현황
 
 ### 이미 구현된 스킬
