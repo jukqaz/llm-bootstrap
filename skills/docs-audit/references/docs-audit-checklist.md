@@ -6,6 +6,8 @@
 - TRD.md
 - README.md
 - CHANGELOG.md (있을 때)
+- SKILLS.md
+- ROLE-MAP.md
 
 ## 링크 정합성
 - 링크 대상 파일 존재 여부

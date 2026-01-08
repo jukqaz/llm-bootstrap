@@ -26,10 +26,11 @@ description: README.md를 작업 종료 시점에 생성하거나 갱신하라. 
 - `assets/README-template.md`를 기본 템플릿으로 사용하라.
 - 기존 README가 있으면 중복을 피하고 필요한 섹션만 추가하라.
 - 변경 사항 요약, 프로젝트 목적, 문서 링크를 포함하라.
- - 기존 헤딩을 유지해 링크 깨짐을 방지하라.
+- 기존 헤딩을 유지해 링크 깨짐을 방지하라.
 
 ### 4) 링크 정리
-- 문서 링크는 `AGENTS.md`, `PRD.md`, `TRD.md` 순서로 유지하라.
+- 문서 링크는 `AGENTS.md` → `PRD.md` → `TRD.md` → `CHANGELOG.md` → `SKILLS.md` → `ROLE-MAP.md` 순서로 유지하라.
+- README 자체는 목록에서 제외하라.
 - 링크 텍스트와 파일명이 일치하는지 확인하라.
 
 ### 5) 리뷰 및 승인

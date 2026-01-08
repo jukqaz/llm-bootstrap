@@ -34,6 +34,9 @@ description: 저장소의 스킬 구조와 SKILL.md 프론트매터를 검사하
 - 오류/경고를 구분해 제시하라.
 - 수정은 승인 후에만 진행하라.
 
+### 6) 자동화(선택)
+- `scripts/validate_skills.py`로 구조/참조 검증을 수행하라.
+
 ## Output checklist
 
 - 스킬 목록과 검사 결과가 포함된다.
@@ -43,3 +46,5 @@ description: 저장소의 스킬 구조와 SKILL.md 프론트매터를 검사하
 
 ### references/
 - `skill-validator-checklist.md`: 스킬 검증 체크리스트
+### scripts/
+- `validate_skills.py`: 스킬 구조 검증 스크립트

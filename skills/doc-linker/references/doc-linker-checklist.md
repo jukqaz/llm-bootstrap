@@ -6,6 +6,8 @@
 - PRD.md
 - TRD.md
 - CHANGELOG.md
+- SKILLS.md
+- ROLE-MAP.md
 
 ## 링크 규칙
 - 정해진 순서 유지
