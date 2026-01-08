@@ -9,6 +9,46 @@
 - 이미 구현됨: role-dispatcher, decision-log, postmortem, stakeholder-update, kpi-dashboard-brief
 - 추가 예정: 없음
 
+### 법무/계약
+- 산출물: 계약/약관 요약, 변경 이력
+- 이미 구현됨: legal-contracts
+- 추가 예정: 없음
+
+### 재무/회계
+- 산출물: 재무 요약, 예산 템플릿
+- 이미 구현됨: finance-accounting
+- 추가 예정: 없음
+
+### HR/피플 Ops
+- 산출물: 채용/온보딩 산출물
+- 이미 구현됨: hr-people-ops
+- 추가 예정: 없음
+
+### 조달/벤더
+- 산출물: 벤더 브리프, 조달 체크리스트
+- 이미 구현됨: procurement-vendor
+- 추가 예정: 없음
+
+### IT/내부 시스템
+- 산출물: IT 운영 체크리스트, 자산 로그
+- 이미 구현됨: it-internal-systems
+- 추가 예정: 없음
+
+### DevRel/커뮤니티
+- 산출물: 커뮤니티 브리프, 이벤트 체크리스트
+- 이미 구현됨: devrel-community
+- 추가 예정: 없음
+
+### 로컬라이징/국제화
+- 산출물: 로컬라이징 가이드, 체크리스트
+- 이미 구현됨: localization-i18n
+- 추가 예정: 없음
+
+### 시설/총무
+- 산출물: 시설 운영 체크리스트, 자산 로그
+- 이미 구현됨: facilities-admin
+- 추가 예정: 없음
+
 ### 제품/전략
 - 산출물: PRD, TRD, 로드맵, 기능/모듈 맵
 - 이미 구현됨: project-planning-docs, agents-followup-docs, agents-md, product-strategy, roadmap-planner, feature-map-builder, requirements-review
@@ -87,20 +127,27 @@
 - design-spec
 - design-ux
 - dev-cycle
+- devrel-community
 - doc-linker
 - doc-style-enforcer
 - docs-audit
 - engineering
 - experiment-report
+- facilities-admin
 - faq-builder
 - feature-map-builder
+- finance-accounting
 - github-pr-ci
+- hr-people-ops
 - incident-brief
 - infra-handoff
 - infra-platform
 - infra-release-runbook
+- it-internal-systems
 - kpi-dashboard-brief
+- legal-contracts
 - local-skill-installer
+- localization-i18n
 - management-ops
 - marketing-brand
 - marketing-content
@@ -115,6 +162,7 @@
 - postmortem
 - pre-work-plan
 - pricing-faq
+- procurement-vendor
 - product-strategy
 - project-ops
 - project-planning-docs
@@ -148,6 +196,7 @@
 - wireframe-brief
 
 ### 우선 확장 후보
+- 없음
 - 없음
 - 없음
 - 없음
