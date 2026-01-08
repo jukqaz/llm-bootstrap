@@ -35,10 +35,11 @@
 - 범위가 큰 변경은 분리 커밋을 우선한다.
 
 ## 문서 & 기록
-- `PRD.md`, `TRD.md`를 최신 상태로 유지한다.
+- `PRD.md`, `TRD.md`, `CHANGELOG.md`를 최신 상태로 유지한다.
 - 문서 위치가 바뀌면 링크를 갱신한다.
 
 ## 참고 문서
 - PRD.md
 - TRD.md
+- CHANGELOG.md
 - README.md
