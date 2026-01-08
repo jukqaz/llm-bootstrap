@@ -5,7 +5,8 @@
 2) PRD.md
 3) TRD.md
 4) CHANGELOG.md
-5) README.md
+5) SKILLS.md
+6) README.md
 
 Notes:
 - 실제 존재하는 문서만 링크하라.

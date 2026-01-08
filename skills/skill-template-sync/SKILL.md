@@ -38,3 +38,4 @@ description: 스킬 템플릿을 동기화하고 중복을 줄여라. PRD/TRD/PL
 
 ### references/
 - `template-map.md`: 템플릿 매핑
+- `skill-template-sync-checklist.md`: 스킬 템플릿 동기화 체크리스트

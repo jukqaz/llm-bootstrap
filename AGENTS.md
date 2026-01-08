@@ -8,7 +8,7 @@
 
 ## 언어
 - 응답 및 문서는 한국어를 기본으로 한다.
-- 문서 파일명은 `AGENTS.md`, `PRD.md`, `TRD.md`, `CHANGELOG.md`, `ROLE-MAP.md`를 사용한다.
+- 문서 파일명은 `AGENTS.md`, `PRD.md`, `TRD.md`, `CHANGELOG.md`, `SKILLS.md`, `ROLE-MAP.md`를 사용한다.
 
 ## 커뮤니케이션
 - 요구사항이 모호하면 질문한다.
@@ -42,5 +42,6 @@
 - PRD.md
 - TRD.md
 - CHANGELOG.md
+- SKILLS.md
 - ROLE-MAP.md
 - README.md

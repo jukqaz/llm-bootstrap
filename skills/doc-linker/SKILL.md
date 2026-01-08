@@ -19,7 +19,7 @@ description: AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새
 - 문서가 없으면 생성 여부를 사용자에게 확인하라.
 
 ### 2) 링크 규칙
-- 링크 순서는 `AGENTS.md` → `PRD.md` → `TRD.md` → `CHANGELOG.md` → `README.md`를 기본값으로 한다.
+- 링크 순서는 `AGENTS.md` → `PRD.md` → `TRD.md` → `CHANGELOG.md` → `SKILLS.md` → `README.md`를 기본값으로 한다.
 - 파일명 대소문자는 실제 파일과 일치해야 한다.
 
 ### 3) 링크 추가/갱신
@@ -36,3 +36,4 @@ description: AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새
 
 ### references/
 - `link-order.md`: 링크 순서 규칙
+- `doc-linker-checklist.md`: 문서 링크 정리 체크리스트

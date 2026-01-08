@@ -45,5 +45,6 @@ description: README.md를 작업 종료 시점에 생성하거나 갱신하라. 
 
 ### references/
 - `readme-maintainer-question-bank.md`: README 질문 목록
+- `readme-maintainer-checklist.md`: README 유지관리 체크리스트
 ### assets/
 - `README-template.md`: 기본 README 템플릿.

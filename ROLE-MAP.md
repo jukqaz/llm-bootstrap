@@ -118,7 +118,32 @@
 
 - 자산 로그: IT는 `skills/it-internal-systems/references/it-asset-log.md` (체크리스트: `skills/it-internal-systems/references/it-ops-checklist.md`), 시설은 `skills/facilities-admin/references/facilities-asset-log.md` (체크리스트: `skills/facilities-admin/references/facilities-checklist.md`)
 - FAQ: 세일즈는 `skills/pricing-faq/references/pricing-faq-template.md` (체크리스트: `skills/pricing-faq/references/pricing-faq-checklist.md`), 고객지원은 `skills/faq-builder/references/faq-template.md` (체크리스트: `skills/faq-builder/references/faq-checklist.md`)
-- 예산/비용: 재무는 `skills/finance-accounting/references/budget-template.md`, 운영은 `skills/cost-tracking/references/cost-tracking-template.md` (체크리스트 없음)
+- 예산/비용: 재무는 `skills/finance-accounting/references/budget-template.md` (체크리스트: `skills/finance-accounting/references/finance-accounting-checklist.md`), 운영은 `skills/cost-tracking/references/cost-tracking-template.md` (체크리스트: `skills/cost-tracking/references/cost-tracking-checklist.md`)
+
+## 역할별 플레이북 (단문 예시)
+
+- 공통/메타: role-dispatcher -> decision-log -> stakeholder-update
+- 법무/계약: legal-contracts -> decision-log
+- 재무/회계: finance-accounting -> decision-log
+- HR/피플 운영: hr-people-ops -> decision-log
+- 문서/스킬 운영: docs-audit -> doc-linker -> readme-maintainer
+- 조달/벤더: procurement-vendor -> decision-log
+- IT/내부 시스템: it-internal-systems -> access-audit
+- DevRel/커뮤니티: devrel-community -> marketing-content
+- 로컬라이징/국제화: localization-i18n -> readme-maintainer
+- 시설/총무: facilities-admin -> procurement-vendor
+- 제품/전략: agents-md -> project-planning-docs -> requirements-review -> roadmap-planner
+- 프로젝트/운영: pre-work-plan -> project-ops -> status-report -> risk-register
+- 디자인/UX: ux-research -> wireframe-brief -> design-spec -> ux-copy
+- 엔지니어링: dev-cycle -> review-checklist -> github-pr-ci -> dependency-upgrade
+- 인프라/플랫폼: deploy-checklist -> infra-release-runbook -> ops-monitoring -> infra-handoff
+- QA/테스트: test-orchestrator -> regression-plan -> test-report
+- 데이터/분석: metric-definition -> analytics-summary -> experiment-report
+- 보안/컴플라이언스: threat-model -> security-review -> access-audit
+- 마케팅/브랜드: brand-voice -> marketing-content -> seo-research -> campaign-plan
+- 세일즈/BD: sales-proposal -> partner-brief -> pricing-faq
+- 고객지원/CS: support-response -> faq-builder -> incident-brief
+- 경영/운영: cost-tracking -> policy-docs -> kpi-dashboard-brief
 
 ## 스킬 현황
 
