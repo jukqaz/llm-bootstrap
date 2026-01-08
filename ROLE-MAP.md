@@ -4,6 +4,11 @@
 
 ## 역할 축
 
+### 공통/메타
+- 산출물: 역할 선택, 의사결정 기록, 사후 분석, 상태 업데이트, KPI 요약
+- 이미 구현됨: role-dispatcher, decision-log, postmortem, stakeholder-update, kpi-dashboard-brief
+- 추가 예정: 없음
+
 ### 제품/전략
 - 산출물: PRD, TRD, 로드맵, 기능/모듈 맵
 - 이미 구현됨: project-planning-docs, agents-followup-docs, agents-md, product-strategy, roadmap-planner, feature-map-builder, requirements-review
@@ -11,7 +16,7 @@
 
 ### 프로젝트/운영
 - 산출물: 작업 계획, 일정, 리스크, 진행 상태 기록
-- 이미 구현됨: pre-work-plan, plan-archive, project-ops, status-report, risk-register
+- 이미 구현됨: pre-work-plan, plan-archive, project-ops, status-report, risk-register, outsourcing-handoff
 - 추가 예정: 없음
 
 ### 디자인/UX
@@ -26,7 +31,7 @@
 
 ### 인프라/플랫폼
 - 산출물: 배포 체크리스트, 환경 설정, 모니터링 기준
-- 이미 구현됨: release-docs, infra-platform, infra-release-runbook, ops-monitoring, deploy-checklist
+- 이미 구현됨: release-docs, infra-platform, infra-release-runbook, ops-monitoring, deploy-checklist, infra-handoff
 - 추가 예정: 없음
 
 ### QA/테스트
@@ -76,6 +81,7 @@
 - cost-tracking
 - customer-support
 - data-analytics
+- decision-log
 - dependency-upgrade
 - deploy-checklist
 - design-spec
@@ -90,8 +96,10 @@
 - feature-map-builder
 - github-pr-ci
 - incident-brief
+- infra-handoff
 - infra-platform
 - infra-release-runbook
+- kpi-dashboard-brief
 - local-skill-installer
 - management-ops
 - marketing-brand
@@ -99,10 +107,12 @@
 - metric-definition
 - ops-admin
 - ops-monitoring
+- outsourcing-handoff
 - parallel-work
 - partner-brief
 - plan-archive
 - policy-docs
+- postmortem
 - pre-work-plan
 - pricing-faq
 - product-strategy
@@ -116,6 +126,7 @@
 - review-checklist
 - risk-register
 - roadmap-planner
+- role-dispatcher
 - sales-bd
 - sales-proposal
 - security-compliance
@@ -126,6 +137,7 @@
 - skill-release
 - skill-template-sync
 - skill-validator
+- stakeholder-update
 - status-report
 - support-response
 - test-orchestrator
@@ -136,4 +148,6 @@
 - wireframe-brief
 
 ### 우선 확장 후보
+- 없음
+- 없음
 - 없음
