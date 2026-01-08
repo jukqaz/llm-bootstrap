@@ -26,13 +26,13 @@
 
 ### 인프라/플랫폼
 - 산출물: 배포 체크리스트, 환경 설정, 모니터링 기준
-- 이미 구현됨: release-docs, infra-platform
-- 추가 예정: infra-release-runbook, ops-monitoring, deploy-checklist
+- 이미 구현됨: release-docs, infra-platform, infra-release-runbook, ops-monitoring, deploy-checklist
+- 추가 예정: 없음
 
 ### QA/테스트
 - 산출물: 테스트 계획/결과, 리그레션 체크리스트
-- 이미 구현됨: qa-test
-- 추가 예정: test-orchestrator, regression-plan, test-report
+- 이미 구현됨: qa-test, test-orchestrator, regression-plan, test-report
+- 추가 예정: 없음
 
 ### 데이터/분석
 - 산출물: 지표 정의, 분석 요약, 리포트
@@ -46,8 +46,8 @@
 
 ### 마케팅/브랜드
 - 산출물: 블로그, 광고 카피, SEO 초안, 캠페인 요약
-- 이미 구현됨: marketing-brand
-- 추가 예정: marketing-content, seo-research, campaign-plan, brand-voice
+- 이미 구현됨: marketing-brand, marketing-content, seo-research, campaign-plan, brand-voice
+- 추가 예정: 없음
 
 ### 세일즈/BD
 - 산출물: 제안서, 파트너십 문서, 세일즈 메시지
@@ -87,31 +87,19 @@
 - github-pr-ci
 
 ### 우선 확장 후보
-- infra-release-runbook
-- test-orchestrator
-- marketing-content
-- seo-research
 - support-response
 - security-review
 - dev-cycle
 - dependency-upgrade
 - review-checklist
-- deploy-checklist
-- ops-monitoring
-- regression-plan
-- test-report
 - analytics-summary
 - metric-definition
 - experiment-report
 - access-audit
 - threat-model
-- campaign-plan
-- brand-voice
 - sales-proposal
 - partner-brief
 - pricing-faq
-- incident-brief
-- faq-builder
 - ops-admin
 - cost-tracking
 - policy-docs

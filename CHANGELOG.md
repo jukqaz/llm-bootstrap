@@ -6,3 +6,4 @@
 - Added: github-pr-ci 스킬 추가
 - Added: ROLE-MAP 역할별 스킬 매핑 확장
 - Added: 역할별 베이스 스킬 12종 추가
+- Added: 인프라/QA/마케팅 실행형 스킬 추가
