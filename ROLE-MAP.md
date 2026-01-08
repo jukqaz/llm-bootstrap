@@ -15,13 +15,18 @@
 - 추가 예정: 없음
 
 ### 재무/회계
-- 산출물: 재무 요약, 예산 템플릿
+- 산출물: 재무 요약, 정산/예산 템플릿
 - 이미 구현됨: finance-accounting
 - 추가 예정: 없음
 
-### HR/피플 Ops
+### HR/피플 운영
 - 산출물: 채용/온보딩 산출물
 - 이미 구현됨: hr-people-ops
+- 추가 예정: 없음
+
+### 문서/스킬 운영
+- 산출물: 문서 정합성 점검, 스킬 패키징/배포, 스킬 목록 관리
+- 이미 구현됨: doc-linker, docs-audit, readme-maintainer, skill-indexer, skill-packager, skill-release, skill-template-sync, skill-validator, local-skill-installer
 - 추가 예정: 없음
 
 ### 조달/벤더
@@ -30,7 +35,7 @@
 - 추가 예정: 없음
 
 ### IT/내부 시스템
-- 산출물: IT 운영 체크리스트, 자산 로그
+- 산출물: IT 운영 체크리스트, IT 자산 로그
 - 이미 구현됨: it-internal-systems
 - 추가 예정: 없음
 
@@ -45,12 +50,12 @@
 - 추가 예정: 없음
 
 ### 시설/총무
-- 산출물: 시설 운영 체크리스트, 자산 로그
+- 산출물: 시설 운영 체크리스트, 시설 자산 로그
 - 이미 구현됨: facilities-admin
 - 추가 예정: 없음
 
 ### 제품/전략
-- 산출물: PRD, TRD, 로드맵, 기능/모듈 맵
+- 산출물: PRD, TRD, 로드맵, 기능 맵
 - 이미 구현됨: project-planning-docs, agents-followup-docs, agents-md, product-strategy, roadmap-planner, feature-map-builder, requirements-review
 - 추가 예정: 없음
 
@@ -95,17 +100,17 @@
 - 추가 예정: 없음
 
 ### 세일즈/BD
-- 산출물: 제안서, 파트너십 문서, 세일즈 메시지
+- 산출물: 제안서, 파트너십 문서, 세일즈 메시지, 가격/세일즈 FAQ
 - 이미 구현됨: sales-bd, sales-proposal, partner-brief, pricing-faq
 - 추가 예정: 없음
 
 ### 고객지원/CS
-- 산출물: FAQ, 고객 응대 템플릿, 장애 공지
+- 산출물: 지원 FAQ, 고객 응대 템플릿, 장애 공지
 - 이미 구현됨: customer-support, support-response, incident-brief, faq-builder
 - 추가 예정: 없음
 
-### 경영/관리
-- 산출물: 비용/예산 기록, 운영 규정, 내부 가이드
+### 경영/운영
+- 산출물: 운영 비용/예산 기록, 운영 규정, 내부 가이드
 - 이미 구현됨: management-ops, ops-admin, cost-tracking, policy-docs
 - 추가 예정: 없음
 
@@ -196,7 +201,4 @@
 - wireframe-brief
 
 ### 우선 확장 후보
-- 없음
-- 없음
-- 없음
 - 없음
