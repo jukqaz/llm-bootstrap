@@ -1,4 +1,4 @@
-# codex-common
+# codex-skills
 
 개인용 Codex 스킬을 관리하는 저장소다.
 
