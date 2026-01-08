@@ -21,9 +21,19 @@ description: 블로그/광고/SEO/캠페인 등 마케팅 콘텐츠와 메시지
 - 산출물 우선순위를 정하고 범위를 명확히 하라.
 
 ### 3) 세부 스킬 연계
-- 필요 시 다음 스킬을 사용하라: marketing-content, seo-research, campaign-plan, brand-voice
+- 필요 시 다음 스킬을 사용하라:
+  - 콘텐츠 작성: marketing-content
+  - SEO: seo-research
+  - 캠페인: campaign-plan
+  - 브랜드 톤: brand-voice
 - 외부 도구나 MCP 설정이 필요하면 먼저 확인하라.
 
 ### 4) 정리 및 공유
 - 결과를 핵심 요약과 함께 공유하라.
 - 관련 문서/링크를 갱신하라.
+
+## Output checklist
+
+- 산출물이 역할 목표와 범위를 충족한다.
+- 우선순위와 완료 기준이 명확하다.
+- 관련 문서/링크가 최신이다.

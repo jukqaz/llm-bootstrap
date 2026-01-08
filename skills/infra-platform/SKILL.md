@@ -21,9 +21,19 @@ description: 배포, 환경 설정, 운영 안정성, 모니터링 기준을 정
 - 산출물 우선순위를 정하고 범위를 명확히 하라.
 
 ### 3) 세부 스킬 연계
-- 필요 시 다음 스킬을 사용하라: release-docs, infra-release-runbook, ops-monitoring, deploy-checklist
+- 필요 시 다음 스킬을 사용하라:
+  - 배포 런북: infra-release-runbook
+  - 배포 체크리스트: deploy-checklist
+  - 모니터링: ops-monitoring
+  - 릴리즈 문서: release-docs
 - 외부 도구나 MCP 설정이 필요하면 먼저 확인하라.
 
 ### 4) 정리 및 공유
 - 결과를 핵심 요약과 함께 공유하라.
 - 관련 문서/링크를 갱신하라.
+
+## Output checklist
+
+- 산출물이 역할 목표와 범위를 충족한다.
+- 우선순위와 완료 기준이 명확하다.
+- 관련 문서/링크가 최신이다.

@@ -21,9 +21,21 @@ description: 구현/리팩터링/기술부채 정리 등 코드 작업의 실행
 - 산출물 우선순위를 정하고 범위를 명확히 하라.
 
 ### 3) 세부 스킬 연계
-- 필요 시 다음 스킬을 사용하라: github-pr-ci, parallel-work, doc-style-enforcer
+- 필요 시 다음 스킬을 사용하라:
+  - 개발 사이클: dev-cycle
+  - 의존성 업그레이드: dependency-upgrade
+  - 리뷰 기준: review-checklist
+  - PR/CI: github-pr-ci
+  - 병렬 작업: parallel-work
+  - 문서 스타일: doc-style-enforcer
 - 외부 도구나 MCP 설정이 필요하면 먼저 확인하라.
 
 ### 4) 정리 및 공유
 - 결과를 핵심 요약과 함께 공유하라.
 - 관련 문서/링크를 갱신하라.
+
+## Output checklist
+
+- 산출물이 역할 목표와 범위를 충족한다.
+- 우선순위와 완료 기준이 명확하다.
+- 관련 문서/링크가 최신이다.

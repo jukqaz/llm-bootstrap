@@ -21,9 +21,18 @@ description: FAQ, 고객 응대 템플릿, 장애 공지를 정리하고 응대 
 - 산출물 우선순위를 정하고 범위를 명확히 하라.
 
 ### 3) 세부 스킬 연계
-- 필요 시 다음 스킬을 사용하라: support-response, incident-brief, faq-builder
+- 필요 시 다음 스킬을 사용하라:
+  - 응대 템플릿: support-response
+  - 장애 공지: incident-brief
+  - FAQ: faq-builder
 - 외부 도구나 MCP 설정이 필요하면 먼저 확인하라.
 
 ### 4) 정리 및 공유
 - 결과를 핵심 요약과 함께 공유하라.
 - 관련 문서/링크를 갱신하라.
+
+## Output checklist
+
+- 산출물이 역할 목표와 범위를 충족한다.
+- 우선순위와 완료 기준이 명확하다.
+- 관련 문서/링크가 최신이다.
