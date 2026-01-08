@@ -42,4 +42,5 @@
 - PRD.md
 - TRD.md
 - CHANGELOG.md
+- ROLE-MAP.md
 - README.md

@@ -15,3 +15,4 @@
 - PRD.md
 - TRD.md
 - CHANGELOG.md
+- ROLE-MAP.md
