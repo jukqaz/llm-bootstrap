@@ -6,23 +6,23 @@
 
 ### 제품/전략
 - 산출물: PRD, TRD, 로드맵, 기능/모듈 맵
-- 이미 구현됨: project-planning-docs, agents-followup-docs, agents-md, product-strategy
-- 추가 예정: roadmap-planner, feature-map-builder, requirements-review
+- 이미 구현됨: project-planning-docs, agents-followup-docs, agents-md, product-strategy, roadmap-planner, feature-map-builder, requirements-review
+- 추가 예정: 없음
 
 ### 프로젝트/운영
 - 산출물: 작업 계획, 일정, 리스크, 진행 상태 기록
-- 이미 구현됨: pre-work-plan, plan-archive, project-ops
-- 추가 예정: status-report, risk-register
+- 이미 구현됨: pre-work-plan, plan-archive, project-ops, status-report, risk-register
+- 추가 예정: 없음
 
 ### 디자인/UX
 - 산출물: IA, 와이어프레임, UX 카피, 디자인 가이드
-- 이미 구현됨: design-ux
-- 추가 예정: ux-research, ux-copy, design-spec, wireframe-brief
+- 이미 구현됨: design-ux, ux-research, ux-copy, design-spec, wireframe-brief
+- 추가 예정: 없음
 
 ### 엔지니어링
 - 산출물: 코드 변경, 리팩터링, 기술 부채 정리
-- 이미 구현됨: github-pr-ci, parallel-work, doc-style-enforcer, engineering
-- 추가 예정: dev-cycle, dependency-upgrade, review-checklist
+- 이미 구현됨: github-pr-ci, parallel-work, doc-style-enforcer, engineering, dev-cycle, dependency-upgrade, review-checklist
+- 추가 예정: 없음
 
 ### 인프라/플랫폼
 - 산출물: 배포 체크리스트, 환경 설정, 모니터링 기준
@@ -36,13 +36,13 @@
 
 ### 데이터/분석
 - 산출물: 지표 정의, 분석 요약, 리포트
-- 이미 구현됨: data-analytics
-- 추가 예정: analytics-summary, metric-definition, experiment-report
+- 이미 구현됨: data-analytics, analytics-summary, metric-definition, experiment-report
+- 추가 예정: 없음
 
 ### 보안/컴플라이언스
 - 산출물: 보안 체크리스트, 위협 모델, 권한 점검
-- 이미 구현됨: security-compliance
-- 추가 예정: security-review, access-audit, threat-model
+- 이미 구현됨: security-compliance, security-review, access-audit, threat-model
+- 추가 예정: 없음
 
 ### 마케팅/브랜드
 - 산출물: 블로그, 광고 카피, SEO 초안, 캠페인 요약
@@ -51,64 +51,89 @@
 
 ### 세일즈/BD
 - 산출물: 제안서, 파트너십 문서, 세일즈 메시지
-- 이미 구현됨: sales-bd
-- 추가 예정: sales-proposal, partner-brief, pricing-faq
+- 이미 구현됨: sales-bd, sales-proposal, partner-brief, pricing-faq
+- 추가 예정: 없음
 
 ### 고객지원/CS
 - 산출물: FAQ, 고객 응대 템플릿, 장애 공지
-- 이미 구현됨: customer-support
-- 추가 예정: support-response, incident-brief, faq-builder
+- 이미 구현됨: customer-support, support-response, incident-brief, faq-builder
+- 추가 예정: 없음
 
 ### 경영/관리
 - 산출물: 비용/예산 기록, 운영 규정, 내부 가이드
-- 이미 구현됨: management-ops
-- 추가 예정: ops-admin, cost-tracking, policy-docs
+- 이미 구현됨: management-ops, ops-admin, cost-tracking, policy-docs
+- 추가 예정: 없음
 
 ## 스킬 현황
 
 ### 이미 구현된 스킬
-- agents-md
+- access-audit
 - agents-followup-docs
-- project-planning-docs
-- pre-work-plan
-- plan-archive
-- release-docs
-- readme-maintainer
-- docs-audit
+- agents-md
+- analytics-summary
+- brand-voice
+- campaign-plan
+- cost-tracking
+- customer-support
+- data-analytics
+- dependency-upgrade
+- deploy-checklist
+- design-spec
+- design-ux
+- dev-cycle
 - doc-linker
 - doc-style-enforcer
-- skill-validator
-- skill-packager
-- skill-template-sync
-- skill-indexer
-- skill-release
-- local-skill-installer
-- parallel-work
+- docs-audit
+- engineering
+- experiment-report
+- faq-builder
+- feature-map-builder
 - github-pr-ci
+- incident-brief
+- infra-platform
+- infra-release-runbook
+- local-skill-installer
+- management-ops
+- marketing-brand
+- marketing-content
+- metric-definition
+- ops-admin
+- ops-monitoring
+- parallel-work
+- partner-brief
+- plan-archive
+- policy-docs
+- pre-work-plan
+- pricing-faq
+- product-strategy
+- project-ops
+- project-planning-docs
+- qa-test
+- readme-maintainer
+- regression-plan
+- release-docs
+- requirements-review
+- review-checklist
+- risk-register
+- roadmap-planner
+- sales-bd
+- sales-proposal
+- security-compliance
+- security-review
+- seo-research
+- skill-indexer
+- skill-packager
+- skill-release
+- skill-template-sync
+- skill-validator
+- status-report
+- support-response
+- test-orchestrator
+- test-report
+- threat-model
+- ux-copy
+- ux-research
+- wireframe-brief
 
 ### 우선 확장 후보
-- support-response
-- security-review
-- dev-cycle
-- dependency-upgrade
-- review-checklist
-- analytics-summary
-- metric-definition
-- experiment-report
-- access-audit
-- threat-model
-- sales-proposal
-- partner-brief
-- pricing-faq
-- ops-admin
-- cost-tracking
-- policy-docs
-- roadmap-planner
-- feature-map-builder
-- requirements-review
-- status-report
-- risk-register
-- ux-research
-- ux-copy
-- design-spec
-- wireframe-brief
+- 없음
