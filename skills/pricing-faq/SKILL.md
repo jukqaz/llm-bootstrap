@@ -33,4 +33,5 @@ description: 가격/플랜 관련 FAQ를 정리하고 설명 문구를 작성해
 ## Resources
 
 ### references/
-- `pricing-faq-template.md`, `pricing-faq-checklist.md`
+- `pricing-faq-checklist.md`: 가격 FAQ 체크리스트
+- `pricing-faq-template.md`: 가격 FAQ 템플릿

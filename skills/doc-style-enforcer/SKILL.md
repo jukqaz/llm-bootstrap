@@ -32,4 +32,4 @@ description: 문서 언어/대소문자/링크 규칙을 점검하고 위반 사
 ## Resources
 
 ### references/
-- `checklist.md`: 스타일 점검 체크리스트.
+- `doc-style-enforcer-checklist.md`: 스타일 점검 체크리스트

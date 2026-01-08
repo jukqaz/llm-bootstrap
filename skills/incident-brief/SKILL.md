@@ -9,6 +9,9 @@ description: 장애 공지 및 사후 요약을 작성해야 할 때 사용.
 
 장애 공지 관련 작업을 체계화하라. 모든 결과는 한국어로 정리하고 핵심만 요약하라.
 
+범위: 장애 공지/상태 업데이트
+비범위: 근본 원인 분석(postmortem)
+
 ## Workflow
 
 ### 1) 컨텍스트 수집
@@ -33,4 +36,4 @@ description: 장애 공지 및 사후 요약을 작성해야 할 때 사용.
 ## Resources
 
 ### references/
-- `incident-template.md`
+- `incident-template.md`: 장애 공지 템플릿

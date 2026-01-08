@@ -33,4 +33,5 @@ description: 테스트 전략과 실행 순서를 정의하고 테스트 범위�
 ## Resources
 
 ### references/
-- `test-plan-template.md`, `test-types.md`
+- `test-plan-template.md`: 테스트 계획 템플릿
+- `test-types.md`: 테스트 유형 요약

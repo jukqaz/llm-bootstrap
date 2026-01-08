@@ -33,4 +33,4 @@ description: 코드/문서 리뷰 기준을 정리해야 할 때 사용.
 ## Resources
 
 ### references/
-- `review-checklist.md`
+- `review-checklist.md`: 리뷰 체크리스트

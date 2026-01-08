@@ -9,6 +9,9 @@ description: 외주/구매/벤더 계약 관리를 위한 산출물을 정리해
 
 벤더 관리와 구매 절차를 문서화하라.
 
+범위: 구매/벤더 계약/승인
+비범위: 시설 운영(facilities-admin), IT 운영(it-internal-systems), 운영 정책(ops-admin)
+
 ## Workflow
 
 ### 1) 컨텍스트 수집
@@ -29,5 +32,5 @@ description: 외주/구매/벤더 계약 관리를 위한 산출물을 정리해
 ## Resources
 
 ### references/
-- `vendor-brief.md`
-- `procurement-checklist.md`
+- `procurement-checklist.md`: 조달 체크리스트
+- `vendor-brief.md`: 벤더 브리프 템플릿

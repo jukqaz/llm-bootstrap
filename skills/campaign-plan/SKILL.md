@@ -33,4 +33,4 @@ description: 마케팅 캠페인 목표, 채널, 일정, 지표를 정리해야 
 ## Resources
 
 ### references/
-- `campaign-template.md`
+- `campaign-template.md`: 캠페인 계획 템플릿

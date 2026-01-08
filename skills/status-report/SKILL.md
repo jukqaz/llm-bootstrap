@@ -33,4 +33,4 @@ description: 프로젝트 진행 상태를 요약해 공유해야 할 때 사용
 ## Resources
 
 ### references/
-- `status-report-template.md`
+- `status-report-template.md`: 상태 보고 템플릿

@@ -39,4 +39,4 @@ description: 저장소의 스킬 구조와 SKILL.md 프론트매터를 검사하
 ## Resources
 
 ### references/
-- `checklist.md`: 스킬 검증 체크리스트.
+- `skill-validator-checklist.md`: 스킬 검증 체크리스트

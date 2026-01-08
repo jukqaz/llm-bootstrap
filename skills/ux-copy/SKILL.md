@@ -33,4 +33,4 @@ UX 카피 관련 작업을 체계화하라. 모든 결과는 한국어로 정리
 ## Resources
 
 ### references/
-- `ux-copy-template.md`
+- `ux-copy-template.md`: UX 카피 템플릿

@@ -9,6 +9,9 @@ description: 운영 규정과 내부 절차를 정리해야 할 때 사용.
 
 운영 관리 관련 작업을 체계화하라. 모든 결과는 한국어로 정리하고 핵심만 요약하라.
 
+범위: 운영 규정/프로세스
+비범위: IT 운영(it-internal-systems), 시설/총무(facilities-admin), 조달/벤더(procurement-vendor)
+
 ## Workflow
 
 ### 1) 컨텍스트 수집
@@ -33,4 +36,5 @@ description: 운영 규정과 내부 절차를 정리해야 할 때 사용.
 ## Resources
 
 ### references/
-- `ops-policy-template.md`, `ops-checklist.md`
+- `ops-checklist.md`: 운영 체크리스트
+- `ops-policy-template.md`: 운영 규정 템플릿

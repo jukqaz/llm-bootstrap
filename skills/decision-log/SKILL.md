@@ -33,4 +33,4 @@ description: 핵심 의사결정과 근거를 기록해야 할 때 사용.
 ## Resources
 
 ### references/
-- `decision-log-template.md`
+- `decision-log-template.md`: 의사결정 로그 템플릿

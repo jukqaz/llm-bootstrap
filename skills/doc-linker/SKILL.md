@@ -32,4 +32,4 @@ description: AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새
 ## Resources
 
 ### references/
-- `link-order.md`: 링크 순서 규칙.
+- `link-order.md`: 링크 순서 규칙

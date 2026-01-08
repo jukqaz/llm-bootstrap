@@ -33,4 +33,4 @@ description: 변경에 따른 리그레션 위험을 정리하고 반복 검증 
 ## Resources
 
 ### references/
-- `regression-checklist.md`
+- `regression-checklist.md`: 리그레션 체크리스트

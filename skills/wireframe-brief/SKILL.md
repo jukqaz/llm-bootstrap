@@ -33,4 +33,4 @@ description: 와이어프레임 요구사항을 정리해야 할 때 사용.
 ## Resources
 
 ### references/
-- `wireframe-brief-template.md`
+- `wireframe-brief-template.md`: 와이어프레임 브리프 템플릿

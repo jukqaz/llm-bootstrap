@@ -33,4 +33,4 @@ description: 파트너십 논의에 필요한 핵심 정보를 정리해야 할 
 ## Resources
 
 ### references/
-- `partner-brief-template.md`
+- `partner-brief-template.md`: 파트너 브리프 템플릿

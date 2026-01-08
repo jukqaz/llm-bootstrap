@@ -33,4 +33,4 @@ description: 의존성 업데이트 범위와 리스크를 정리해야 할 때 
 ## Resources
 
 ### references/
-- `dependency-upgrade-template.md`
+- `dependency-upgrade-template.md`: 의존성 업그레이드 템플릿

@@ -33,4 +33,4 @@ description: 작업 성격에 맞는 역할을 빠르게 선택하고 해당 역
 ## Resources
 
 ### references/
-- `role-dispatch-questions.md`
+- `role-dispatch-questions.md`: 역할 선택 질문

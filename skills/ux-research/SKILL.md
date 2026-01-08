@@ -33,4 +33,4 @@ UX 리서치 관련 작업을 체계화하라. 모든 결과는 한국어로 정
 ## Resources
 
 ### references/
-- `ux-research-template.md`
+- `ux-research-template.md`: UX 리서치 템플릿

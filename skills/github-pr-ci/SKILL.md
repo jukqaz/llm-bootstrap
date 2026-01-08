@@ -53,5 +53,5 @@ GitHub PR 흐름과 CI/CD 상태를 체계적으로 점검하라. 기본은 GitH
 ## Resources
 
 ### references/
-- `pr-checklist.md`: PR 점검 체크리스트.
-- `ci-triage.md`: CI/CD 실패 분류 및 대응 가이드.
+- `ci-triage.md`: CI/CD 실패 분류 가이드
+- `pr-checklist.md`: PR 점검 체크리스트

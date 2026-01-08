@@ -33,4 +33,4 @@ description: 로컬 `skills/` 디렉터리에서 Codex 스킬을 `~/.codex/skill
 ## Resources
 
 ### references/
-- `checklist.md`: 로컬 설치 체크리스트.
+- `local-skill-installer-checklist.md`: 로컬 설치 체크리스트

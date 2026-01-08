@@ -33,4 +33,4 @@ description: 프로젝트 리스크와 대응 계획을 정리해야 할 때 사
 ## Resources
 
 ### references/
-- `risk-register-template.md`
+- `risk-register-template.md`: 리스크 등록부 템플릿

@@ -18,7 +18,7 @@ AGENTS.md를 처음 만들거나 갱신할 때, 사용자에게 필요한 정보
 - AGENTS.md에 포함할 내용과 분리할 내용을 구분하라. 상세 기획·설계·API는 `PRD.md`/`TRD.md`로 보내고 AGENTS.md에는 요약과 링크만 남겨라.
 
 ### 2) 질문 플로우 실행
-- `references/question-bank.md`를 열고 필수 질문부터 순서대로 물어보라.
+- `references/agents-md-question-bank.md`를 열고 필수 질문부터 순서대로 물어보라.
 - 사용자가 이미 제공한 정보는 다시 묻지 말고, 누락된 섹션만 채우도록 질문을 이어가라.
 - 모노레포 여부, 모듈 목록, 교차 워크플로우, 중첩 AGENTS.md 범위를 반드시 확인하라.
 - “질문 후 병합/갱신” 원칙을 고수하라. 기존 문장을 임의로 삭제하거나 대체하지 말고, 사용자 확인 후 반영하라.
@@ -46,9 +46,8 @@ AGENTS.md를 처음 만들거나 갱신할 때, 사용자에게 필요한 정보
 ## Resources
 
 ### references/
-- `question-bank.md`: AGENTS.md 작성을 위한 질문 시퀀스와 기본 응답 가이드.
-- `module-map-format.md`: 모노레포용 모듈 맵 템플릿.
-- `feature-map-format.md`: 모듈별 기능 맵 템플릿.
-
+- `agents-md-question-bank.md`: AGENTS.md 질문 시퀀스
+- `feature-map-format.md`: Feature map format
+- `module-map-format.md`: Module map format (monorepo)
 ### assets/
 - `agents-template.md`: 루트/모듈 AGENTS.md 기본 템플릿(요약형).

@@ -33,4 +33,4 @@ description: 디자인 스펙과 컴포넌트 가이드를 정리해야 할 때 
 ## Resources
 
 ### references/
-- `design-spec-template.md`
+- `design-spec-template.md`: 디자인 스펙 템플릿

@@ -33,4 +33,4 @@ description: 지표/분석 결과를 요약해 공유해야 할 때 사용.
 ## Resources
 
 ### references/
-- `analytics-summary-template.md`
+- `analytics-summary-template.md`: 분석 요약 템플릿

@@ -33,4 +33,5 @@ description: 접근 권한과 역할 구성을 점검하고 변경 이력을 정
 ## Resources
 
 ### references/
-- `access-checklist.md`, `access-log-template.md`
+- `access-checklist.md`: 권한 점검 체크리스트
+- `access-log-template.md`: 권한 변경 로그 템플릿

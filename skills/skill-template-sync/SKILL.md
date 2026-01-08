@@ -34,4 +34,4 @@ description: 스킬 템플릿을 동기화하고 중복을 줄여라. PRD/TRD/PL
 ## Resources
 
 ### references/
-- `template-map.md`: 템플릿 매핑 표.
+- `template-map.md`: 템플릿 매핑

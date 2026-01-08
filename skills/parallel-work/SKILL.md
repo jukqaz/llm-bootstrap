@@ -58,5 +58,5 @@ description: 동시에 여러 작업을 병렬로 진행해야 할 때 작업을
 ## Resources
 
 ### references/
-- `git-worktree.md`: Git worktree 기본 명령과 주의사항.
-- `jj-workspace.md`: Jujutsu workspace 기본 명령과 주의사항.
+- `git-worktree.md`: Git worktree 치트시트
+- `jj-workspace.md`: Jujutsu workspace 치트시트

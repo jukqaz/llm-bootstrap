@@ -33,4 +33,5 @@ description: 내부 정책 문서를 작성하거나 갱신해야 할 때 사용
 ## Resources
 
 ### references/
-- `policy-doc-template.md`, `policy-checklist.md`
+- `policy-checklist.md`: 정책 문서 체크리스트
+- `policy-doc-template.md`: 정책 문서 템플릿

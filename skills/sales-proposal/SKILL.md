@@ -33,4 +33,5 @@ description: 세일즈 제안서 구조와 핵심 메시지를 정리해야 할 
 ## Resources
 
 ### references/
-- `proposal-template.md`, `proposal-checklist.md`
+- `proposal-checklist.md`: 제안서 체크리스트
+- `proposal-template.md`: 세일즈 제안서 템플릿

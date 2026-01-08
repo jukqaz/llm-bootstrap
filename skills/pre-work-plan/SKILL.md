@@ -16,12 +16,12 @@ description: 작업 직전에 계획을 세우고 간단한 작업은 파일로,
 - 작업 목표, 범위, 테스트 요구사항을 파악하라.
 
 ### 2) 질문 게이트
-- `references/question-bank.md`의 필수 질문에 답이 없으면 먼저 질문하라.
+- `references/pre-work-plan-question-bank.md`의 필수 질문에 답이 없으면 먼저 질문하라.
 - 답변 없이 계획을 작성하지 말아라.
 - 계획 초안 작성 후 사용자 승인을 받기 전에는 작업을 시작하지 말아라.
 
 ### 3) 복잡도 분기
-- `references/decision-criteria.md`로 단순/복잡을 판단하라.
+- `references/pre-work-plan-decision-criteria.md`로 단순/복잡을 판단하라.
 - 판단이 모호하면 사용자에게 확인하라.
  - 복잡 작업인데 PRD/TRD가 없으면 `project-planning-docs` 사용을 제안하라.
 
@@ -58,9 +58,8 @@ description: 작업 직전에 계획을 세우고 간단한 작업은 파일로,
 ## Resources
 
 ### references/
-- `decision-criteria.md`: 단순/복잡 분기 기준.
-- `question-bank.md`: 계획 수립 질문 목록.
-
+- `pre-work-plan-decision-criteria.md`: 복잡도 분기 기준
+- `pre-work-plan-question-bank.md`: 계획 수립 질문 목록
 ### assets/
 - `PLAN-template.md`: 계획 템플릿.
 - `PLAN-index-template.md`: 인덱스 템플릿.

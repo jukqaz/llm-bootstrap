@@ -33,4 +33,5 @@ description: 블로그/광고/뉴스레터 등 마케팅 콘텐츠 초안을 작
 ## Resources
 
 ### references/
-- `content-brief.md`, `content-checklist.md`
+- `content-brief.md`: 콘텐츠 브리프
+- `content-checklist.md`: 콘텐츠 체크리스트

@@ -33,4 +33,4 @@ description: 기능 목록과 모듈 관계를 정리해야 할 때 사용.
 ## Resources
 
 ### references/
-- `feature-map-template.md`
+- `feature-map-template.md`: 기능 맵 템플릿
