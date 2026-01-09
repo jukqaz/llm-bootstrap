@@ -21,6 +21,7 @@ description: 작업 성격에 맞는 역할을 빠르게 선택하고 해당 역
 
 ### 2) 산출물 정의
 - 필요한 산출물을 역할 선택 결과, 추천 스킬 목록 기준으로 정리하라.
+- 키워드 기반 추천이 필요하면 `references/keyword-map.json` 또는 `scripts/recommend_skills.py`를 사용하라.
 - 우선순위와 완료 기준을 명확히 하라.
 
 ### 3) 실행 및 정리
@@ -37,3 +38,6 @@ description: 작업 성격에 맞는 역할을 빠르게 선택하고 해당 역
 
 ### references/
 - `role-dispatch-questions.md`: 역할 선택 질문
+- `keyword-map.json`: 키워드-스킬 매핑
+### scripts/
+- `recommend_skills.py`: 키워드 기반 스킬 추천 스크립트

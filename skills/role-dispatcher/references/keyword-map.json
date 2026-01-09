@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "default": ["role-dispatcher"],
+  "rules": [
+    {
+      "label": "제품 기획",
+      "keywords": ["prd", "trd", "요구사항", "요건", "기획", "로드맵", "feature map", "기능 맵"],
+      "skills": ["agents-md", "project-planning-docs", "requirements-review", "feature-map-builder", "roadmap-planner"]
+    },
+    {
+      "label": "디자인/UX",
+      "keywords": ["ux", "리서치", "와이어프레임", "wireframe", "ia", "카피", "마이크로카피"],
+      "skills": ["ux-research", "wireframe-brief", "design-spec", "ux-copy"]
+    },
+    {
+      "label": "개발 실행",
+      "keywords": ["리뷰", "review", "ci", "pr", "리팩터링", "리팩토링", "dependency", "의존성"],
+      "skills": ["dev-cycle", "review-checklist", "github-pr-ci", "dependency-upgrade"]
+    },
+    {
+      "label": "QA/테스트",
+      "keywords": ["qa", "테스트", "regression", "리그레션"],
+      "skills": ["test-orchestrator", "regression-plan", "test-report", "status-report"]
+    },
+    {
+      "label": "인프라/배포",
+      "keywords": ["배포", "런북", "롤백", "모니터링", "deploy", "release"],
+      "skills": ["infra-platform", "deploy-checklist", "infra-release-runbook", "ops-monitoring", "infra-handoff"]
+    },
+    {
+      "label": "마케팅",
+      "keywords": ["마케팅", "브랜드", "campaign", "캠페인", "seo", "뉴스레터", "광고"],
+      "skills": ["brand-voice", "marketing-brand", "campaign-plan", "marketing-content", "seo-research"]
+    },
+    {
+      "label": "세일즈/파트너",
+      "keywords": ["세일즈", "판매", "파트너", "제안서", "pricing", "가격"],
+      "skills": ["sales-bd", "partner-brief", "sales-proposal", "pricing-faq"]
+    },
+    {
+      "label": "고객지원",
+      "keywords": ["고객지원", "support", "faq", "장애", "incident", "postmortem"],
+      "skills": ["customer-support", "support-response", "faq-builder", "incident-brief", "postmortem"]
+    },
+    {
+      "label": "문서 운영",
+      "keywords": ["문서", "README", "링크", "문서 감사", "changelog"],
+      "skills": ["docs-audit", "doc-linker", "readme-maintainer", "release-docs"]
+    }
+  ]
+}
