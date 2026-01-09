@@ -58,3 +58,5 @@ GitHub PR 흐름과 CI/CD 상태를 체계적으로 점검하라. 기본은 GitH
 ### references/
 - `ci-triage.md`: CI/CD 실패 분류 가이드
 - `pr-checklist.md`: PR 점검 체크리스트
+### scripts/
+- `task-check-report/Cargo.toml`: task check 실패 요약 리포트 생성(Rust)

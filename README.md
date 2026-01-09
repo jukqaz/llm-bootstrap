@@ -18,6 +18,18 @@
 - 키워드 추천: `task skill-suggest -- TEXT="PRD 작성하고 로드맵도 필요해"`
 - 문서 기반 추천: `task skill-suggest-file -- FILE=PRD.md`
 
+예시 출력:
+```text
+추천 스킬:
+- agents-md
+- project-planning-docs
+- requirements-review
+
+매칭 키워드:
+- 제품 기획 (점수 8): prd, 로드맵
+  흐름: role-dispatcher -> agents-md -> project-planning-docs -> requirements-review
+```
+
 ## 문서
 - AGENTS.md
 - PRD.md

@@ -33,7 +33,22 @@ description: 작업 성격에 맞는 역할을 빠르게 선택하고 해당 역
 - `task skill-suggest-file -- FILE=PRD.md`
 - 키워드 매핑은 `references/keyword-map.json`의 가중치/우선순위/플레이북 흐름을 기준으로 확장한다.
 
-### 4) 실행 및 정리
+### 4) 출력 예시
+
+```text
+추천 스킬:
+- agents-md
+- project-planning-docs
+- requirements-review
+- feature-map-builder
+- roadmap-planner
+
+매칭 키워드:
+- 제품 기획 (점수 10): prd, 로드맵
+  흐름: role-dispatcher -> agents-md -> project-planning-docs -> requirements-review -> feature-map-builder -> roadmap-planner
+```
+
+### 5) 실행 및 정리
 - 필요한 경우 `references/`의 템플릿을 사용하라.
 - 결과를 간결하게 요약하고 링크를 갱신하라.
 

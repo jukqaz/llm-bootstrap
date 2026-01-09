@@ -18,11 +18,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -58,57 +53,12 @@ jobs:
         if: steps.check.outputs.exit_code != '0'
         env:
           EXIT_CODE: ${{ steps.check.outputs.exit_code }}
+          LOG_PATH: task-check.log
+          REPORT_PATH: task-check-report.md
+          MAX_LINES: "120"
+          SUMMARY_LINES: "6"
         run: |
-          python3 - <<'PY'
-          import os
-          import re
-          import textwrap
-          from pathlib import Path
-
-          exit_code = os.environ.get("EXIT_CODE", "1")
-          log_path = Path("task-check.log")
-          content = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-          ansi_re = re.compile(r"\x1b\[[0-9;]*m")
-          lines = [ansi_re.sub("", line) for line in content.splitlines()]
-          max_lines = 120
-          snippet = "\n".join(lines[-max_lines:]) if lines else "(no output)"
-          status = "PASS" if exit_code == "0" else "FAIL"
-          summary_patterns = (
-              "Doc lists are out of date",
-              "Missing docs:",
-              "ERROR:",
-              "WARN:",
-              "task: Failed",
-              "::error",
-          )
-          summary = []
-          for line in lines:
-              if any(pattern in line for pattern in summary_patterns):
-                  summary.append(line)
-          summary = summary[-6:]
-          summary_block = "\n".join(f"- {line}" for line in summary) if summary else "- (no summary)"
-          comment_body = textwrap.dedent(f"""\
-          <!-- task-check-report -->
-          ### task check: {status}
-          **Summary**
-          {summary_block}
-
-          **Log (last {max_lines} lines)**
-          ```
-          {snippet}
-          ```
-          """)
-          Path("task-check-report.md").write_text(comment_body, encoding="utf-8")
-          summary_body = textwrap.dedent(f"""\
-          ### task check: {status}
-          **Summary**
-          {summary_block}
-          """)
-          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-          if summary_path:
-              with open(summary_path, "a", encoding="utf-8") as handle:
-                  handle.write(summary_body + "\\n")
-          PY
+          cargo run --manifest-path skills/github-pr-ci/scripts/task-check-report/Cargo.toml --
 
       - name: Comment on PR
         if: github.event_name == 'pull_request' && steps.check.outputs.exit_code != '0'
