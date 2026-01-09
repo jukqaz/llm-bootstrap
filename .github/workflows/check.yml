@@ -23,6 +23,9 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install Task
         run: |
           curl -sL https://taskfile.dev/install.sh | sh -s -- -b ./bin

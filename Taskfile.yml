@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  PYTHON: python3
+  CARGO: cargo
 
 includes: {}
 
@@ -10,27 +10,27 @@ tasks:
   skills-index:
     desc: Generate SKILLS.md
     cmds:
-      - '{{.PYTHON}} skills/skill-indexer/scripts/build_skills_index.py'
+      - '{{.CARGO}} run --manifest-path skills/skill-indexer/scripts/skill-indexer/Cargo.toml --'
 
   skills-index-check:
     desc: Check SKILLS.md is up to date
     cmds:
-      - '{{.PYTHON}} skills/skill-indexer/scripts/build_skills_index.py --check'
+      - '{{.CARGO}} run --manifest-path skills/skill-indexer/scripts/skill-indexer/Cargo.toml -- --check'
 
   doc-links:
     desc: Update AGENTS/README document lists
     cmds:
-      - '{{.PYTHON}} skills/doc-linker/scripts/update_doc_links.py --write'
+      - '{{.CARGO}} run --manifest-path skills/doc-linker/scripts/doc-linker/Cargo.toml -- --write'
 
   doc-links-check:
     desc: Check AGENTS/README document lists
     cmds:
-      - '{{.PYTHON}} skills/doc-linker/scripts/update_doc_links.py --check --fail-on-missing'
+      - '{{.CARGO}} run --manifest-path skills/doc-linker/scripts/doc-linker/Cargo.toml -- --check --fail-on-missing'
 
   validate-skills:
     desc: Validate skills structure and references
     cmds:
-      - '{{.PYTHON}} skills/skill-validator/scripts/validate_skills.py'
+      - '{{.CARGO}} run --manifest-path skills/skill-validator/scripts/skill-validator/Cargo.toml --'
 
   check:
     desc: Run all checks

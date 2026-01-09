@@ -37,7 +37,7 @@ description: 저장소의 스킬 구조와 SKILL.md 프론트매터를 검사하
 - 수정은 승인 후에만 진행하라.
 
 ### 6) 자동화(선택)
-- `scripts/validate_skills.py`로 구조/참조 검증을 수행하라.
+- `scripts/skill-validator/Cargo.toml`로 구조/참조 검증을 수행하라.
 
 ## Output checklist
 
@@ -50,4 +50,4 @@ description: 저장소의 스킬 구조와 SKILL.md 프론트매터를 검사하
 ### references/
 - `skill-validator-checklist.md`: 스킬 검증 체크리스트
 ### scripts/
-- `validate_skills.py`: 스킬 구조 검증 스크립트
+- `skill-validator/Cargo.toml`: 스킬 구조 검증 스크립트(Rust)

@@ -27,7 +27,7 @@ description: AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새
 - 링크 변경은 승인 후에만 적용하라.
 
 ### 4) 자동화(선택)
-- `scripts/update_doc_links.py`로 링크 목록을 점검하라.
+- `scripts/doc-linker/Cargo.toml`로 링크 목록을 점검하라.
 - 수정이 필요하면 `--write` 옵션 사용 전에 승인 여부를 확인하라.
 - `--fail-on-missing` 사용 시 누락 문서를 오류로 보고한다.
 
@@ -43,4 +43,4 @@ description: AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새
 - `link-order.md`: 링크 순서 규칙
 - `doc-linker-checklist.md`: 문서 링크 정리 체크리스트
 ### scripts/
-- `update_doc_links.py`: 문서 링크 목록 자동 정리 스크립트
+- `doc-linker/Cargo.toml`: 문서 링크 목록 자동 정리 스크립트(Rust)
