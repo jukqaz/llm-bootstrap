@@ -9,6 +9,7 @@
 ## 구성
 - `skills/`: 스킬 디렉터리 모음
 - 각 스킬은 `SKILL.md`와 필요한 `references/`, `assets/`, `scripts/`를 가진다.
+- 스크립트는 Rust로 작성하고 기존 Python 스크립트는 순차 전환한다.
 
 ## 사용 가이드
 - 작업 시작 시 `ROLE-MAP.md`의 기본 플레이북(자주 쓰는 흐름)을 따라 스킬을 연계한다.
