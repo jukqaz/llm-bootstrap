@@ -14,3 +14,4 @@
 - SKILL.md 내 참조 파일 존재
 - 리소스 폴더 경로 일치
 - Markdown 링크 유효성 확인
+- assets/ 내 Markdown 링크 확인

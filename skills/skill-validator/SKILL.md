@@ -30,6 +30,7 @@ description: 저장소의 스킬 구조와 SKILL.md 프론트매터를 검사하
 ### 4) 참조 검증
 - SKILL.md 본문에서 참조한 파일이 실제로 존재하는지 확인하라.
 - SKILL.md와 references/ 내 Markdown 링크가 유효한지 확인하라.
+- assets/ 내 Markdown 링크도 확인하라.
 
 ### 5) 리포트
 - 오류/경고를 구분해 제시하라.

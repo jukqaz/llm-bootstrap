@@ -97,6 +97,11 @@ def validate_skill(skill_dir):
         for md_file in references_dir.rglob("*.md"):
             errors.extend(validate_markdown_links(md_file, root_dir))
 
+    assets_dir = skill_dir / "assets"
+    if assets_dir.exists():
+        for md_file in assets_dir.rglob("*.md"):
+            errors.extend(validate_markdown_links(md_file, root_dir))
+
     return errors, warnings
 
 
@@ -107,6 +112,8 @@ def normalize_link_target(target):
     if target.startswith(("http://", "https://", "mailto:", "tel:")):
         return None
     if "{{" in target or "}}" in target:
+        return None
+    if "<" in target or ">" in target:
         return None
     if "://" in target:
         return None
