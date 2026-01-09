@@ -40,7 +40,7 @@
 - 추가 예정: 없음
 
 ### DevRel/커뮤니티
-- 산출물: 커뮤니티 브리프, 이벤트 체크리스트
+- 산출물: 커뮤니티 브리프, 이벤트 체크리스트, 개발자 콘텐츠 요약
 - 이미 구현됨: devrel-community
 - 추가 예정: 없음
 
@@ -95,7 +95,7 @@
 - 추가 예정: 없음
 
 ### 마케팅/브랜드
-- 산출물: 블로그, 광고 카피, SEO 초안, 캠페인 요약
+- 산출물: 마케팅 블로그, 광고 카피, SEO 초안, 캠페인 요약
 - 이미 구현됨: marketing-brand, marketing-content, seo-research, campaign-plan, brand-voice
 - 추가 예정: 없음
 
