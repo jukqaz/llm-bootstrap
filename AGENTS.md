@@ -42,5 +42,6 @@
 - PRD.md
 - TRD.md
 - CHANGELOG.md
+- SKILLS.md
 - ROLE-MAP.md
 - README.md
