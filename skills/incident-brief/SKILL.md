@@ -10,7 +10,7 @@ description: 장애 공지 및 사후 요약을 작성해야 할 때 사용.
 장애 공지 관련 작업을 체계화하라. 모든 결과는 한국어로 정리하고 핵심만 요약하라.
 
 범위: 장애 공지/상태 업데이트
-비범위: 근본 원인 분석(postmortem)
+비범위: 근본 원인 분석(postmortem), 고객 응대 템플릿(support-response), FAQ 작성(faq-builder)
 
 ## Workflow
 
