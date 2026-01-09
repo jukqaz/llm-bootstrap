@@ -1,0 +1,37 @@
+version: '3'
+
+vars:
+  PYTHON: python3
+
+includes: {}
+
+
+tasks:
+  skills-index:
+    desc: Generate SKILLS.md
+    cmds:
+      - '{{.PYTHON}} skills/skill-indexer/scripts/build_skills_index.py'
+
+  skills-index-check:
+    desc: Check SKILLS.md is up to date
+    cmds:
+      - '{{.PYTHON}} skills/skill-indexer/scripts/build_skills_index.py --check'
+
+  doc-links:
+    desc: Update AGENTS/README document lists
+    cmds:
+      - '{{.PYTHON}} skills/doc-linker/scripts/update_doc_links.py --write'
+
+  doc-links-check:
+    desc: Check AGENTS/README document lists
+    cmds:
+      - '{{.PYTHON}} skills/doc-linker/scripts/update_doc_links.py --check'
+
+  validate-skills:
+    desc: Validate skills structure and references
+    cmds:
+      - '{{.PYTHON}} skills/skill-validator/scripts/validate_skills.py'
+
+  check:
+    desc: Run all checks
+    deps: [skills-index-check, doc-links-check, validate-skills]

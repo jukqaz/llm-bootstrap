@@ -19,7 +19,7 @@
 - ROLE-MAP.md
 
 ## 자동화
-- `make skills-index`: SKILLS.md 갱신
-- `make doc-links`: AGENTS/README 문서 목록 갱신
-- `make validate-skills`: 스킬 구조 검증
-- `make check`: 전체 점검
+- `task skills-index`: SKILLS.md 갱신
+- `task doc-links`: AGENTS/README 문서 목록 갱신
+- `task validate-skills`: 스킬 구조 검증
+- `task check`: 전체 점검
