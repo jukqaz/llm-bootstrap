@@ -35,3 +35,8 @@ tasks:
   check:
     desc: Run all checks
     deps: [skills-index-check, doc-links-check, validate-skills]
+
+  skill-suggest:
+    desc: Recommend skills by keyword text
+    cmds:
+      - '{{.CARGO}} run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --text "{{.TEXT}}"'

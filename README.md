@@ -15,6 +15,7 @@
 - 작업 시작 시 `ROLE-MAP.md`의 기본 플레이북(자주 쓰는 흐름)을 따라 스킬을 연계한다.
 - 작업 성격이 애매하면 `role-dispatcher`로 역할을 먼저 정리한다.
 - 기본 플레이북 바로가기: [ROLE-MAP.md](ROLE-MAP.md#기본-플레이북-자주-쓰는-흐름)
+- 키워드 추천: `task skill-suggest -- TEXT="PRD 작성하고 로드맵도 필요해"`
 
 ## 문서
 - AGENTS.md

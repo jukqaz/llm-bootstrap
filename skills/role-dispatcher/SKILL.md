@@ -26,7 +26,12 @@ description: 작업 성격에 맞는 역할을 빠르게 선택하고 해당 역
 - 키워드 기반 추천이 필요하면 `references/keyword-map.json`과 `scripts/recommend-skills/Cargo.toml`을 사용하라.
 - 우선순위와 완료 기준을 명확히 하라.
 
-### 3) 실행 및 정리
+### 3) 추천 사용법
+- `cargo run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --text "PRD 작성하고 로드맵도 필요해"`
+- `task skill-suggest -- TEXT="PRD 작성하고 로드맵도 필요해"`
+- 키워드 매핑은 `references/keyword-map.json`을 기준으로 확장한다.
+
+### 4) 실행 및 정리
 - 필요한 경우 `references/`의 템플릿을 사용하라.
 - 결과를 간결하게 요약하고 링크를 갱신하라.
 
