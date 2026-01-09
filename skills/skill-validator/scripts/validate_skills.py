@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 VALID_NAME_RE = re.compile(r"^[a-z0-9-]+$")
+LINK_RE = re.compile(r"!?\[[^\]]+\]\(([^)]+)\)")
 SECTION_HEADERS = {
     "references/": "references",
     "assets/": "assets",
@@ -45,6 +46,7 @@ def extract_resource_refs(lines):
 def validate_skill(skill_dir):
     errors = []
     warnings = []
+    root_dir = skill_dir.parent
 
     if not VALID_NAME_RE.match(skill_dir.name):
         errors.append(f"Invalid skill folder name: {skill_dir}")
@@ -89,7 +91,46 @@ def validate_skill(skill_dir):
             if not target.exists():
                 errors.append(f"Missing {section} file: {target}")
 
+    errors.extend(validate_markdown_links(skill_md, root_dir))
+    references_dir = skill_dir / "references"
+    if references_dir.exists():
+        for md_file in references_dir.rglob("*.md"):
+            errors.extend(validate_markdown_links(md_file, root_dir))
+
     return errors, warnings
+
+
+def normalize_link_target(target):
+    target = target.strip()
+    if not target or target.startswith("#"):
+        return None
+    if target.startswith(("http://", "https://", "mailto:", "tel:")):
+        return None
+    if "{{" in target or "}}" in target:
+        return None
+    if "://" in target:
+        return None
+    return target
+
+
+def resolve_link_path(target, file_path, root_dir):
+    if target.startswith("/"):
+        return (root_dir / target.lstrip("/")).resolve()
+    return (file_path.parent / target).resolve()
+
+
+def validate_markdown_links(file_path, root_dir):
+    errors = []
+    text = file_path.read_text(encoding="utf-8")
+    for match in LINK_RE.finditer(text):
+        raw_target = match.group(1).split("#", 1)[0].split("?", 1)[0]
+        target = normalize_link_target(raw_target)
+        if not target:
+            continue
+        resolved = resolve_link_path(target, file_path, root_dir)
+        if not resolved.exists():
+            errors.append(f"Missing link target in {file_path}: {raw_target}")
+    return errors
 
 
 def main():

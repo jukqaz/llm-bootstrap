@@ -87,7 +87,7 @@ def main():
         if changed:
             changes.append("README.md")
 
-    if missing:
+    if missing and (args.check or args.fail_on_missing):
         print("Missing docs: " + ", ".join(missing), file=sys.stderr)
 
     if changes and not args.write:
@@ -99,10 +99,16 @@ def main():
         print("Create missing docs or update link-order.md", file=sys.stderr)
         return 1
 
-    if changes:
-        print("Updated: " + ", ".join(changes))
+    if args.write:
+        if changes:
+            print("Updated: " + ", ".join(changes))
+        else:
+            print("No changes.")
     else:
-        print("Doc lists are up to date.")
+        if changes:
+            print("Updated: " + ", ".join(changes))
+        else:
+            print("Doc lists are up to date.")
     return 0
 
 
