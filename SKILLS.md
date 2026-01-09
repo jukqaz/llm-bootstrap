@@ -84,5 +84,3 @@
 | ux-copy | UX 카피/마이크로카피 초안을 작성해야 할 때 사용. | `skills/ux-copy` |
 | ux-research | UX 리서치 계획과 인사이트를 정리해야 할 때 사용. | `skills/ux-research` |
 | wireframe-brief | 와이어프레임 요구사항을 정리해야 할 때 사용. | `skills/wireframe-brief` |
-
-<!-- temp-fail -->
