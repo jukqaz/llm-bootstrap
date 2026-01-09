@@ -40,3 +40,8 @@ tasks:
     desc: Recommend skills by keyword text
     cmds:
       - '{{.CARGO}} run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --text "{{.TEXT}}"'
+
+  skill-suggest-file:
+    desc: Recommend skills from a file
+    cmds:
+      - '{{.CARGO}} run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --file "{{.FILE}}"'

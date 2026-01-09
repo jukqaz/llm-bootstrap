@@ -1,51 +1,214 @@
 {
-  "version": 1,
+  "version": 2,
   "default": ["role-dispatcher"],
   "rules": [
     {
       "label": "제품 기획",
-      "keywords": ["prd", "trd", "요구사항", "요건", "기획", "로드맵", "feature map", "기능 맵"],
-      "skills": ["agents-md", "project-planning-docs", "requirements-review", "feature-map-builder", "roadmap-planner"]
+      "priority": 2,
+      "keywords": [
+        { "term": "prd", "weight": 3 },
+        { "term": "trd", "weight": 3 },
+        { "term": "요구사항", "weight": 3 },
+        { "term": "요건", "weight": 2 },
+        { "term": "기획", "weight": 2 },
+        { "term": "제품 기획", "weight": 3 },
+        { "term": "로드맵", "weight": 3 },
+        { "term": "roadmap", "weight": 3 },
+        { "term": "feature map", "weight": 2 },
+        { "term": "기능 맵", "weight": 2 },
+        { "term": "요구 정의", "weight": 2 },
+        { "term": "우선순위", "weight": 2 },
+        { "term": "mvp", "weight": 2 },
+        { "term": "kpi", "weight": 1 }
+      ],
+      "skills": [
+        "agents-md",
+        "project-planning-docs",
+        "requirements-review",
+        "feature-map-builder",
+        "roadmap-planner"
+      ],
+      "flow": [
+        "role-dispatcher",
+        "agents-md",
+        "project-planning-docs",
+        "requirements-review",
+        "feature-map-builder",
+        "roadmap-planner"
+      ]
     },
     {
       "label": "디자인/UX",
-      "keywords": ["ux", "리서치", "와이어프레임", "wireframe", "ia", "카피", "마이크로카피"],
-      "skills": ["ux-research", "wireframe-brief", "design-spec", "ux-copy"]
+      "priority": 1,
+      "keywords": [
+        { "term": "ux", "weight": 3 },
+        { "term": "ux research", "weight": 3 },
+        { "term": "ui", "weight": 2 },
+        { "term": "와이어프레임", "weight": 3 },
+        { "term": "wireframe", "weight": 3 },
+        { "term": "prototype", "weight": 2 },
+        { "term": "프로토타입", "weight": 2 },
+        { "term": "ia", "weight": 2 },
+        { "term": "정보구조", "weight": 2 },
+        { "term": "user flow", "weight": 2 },
+        { "term": "journey map", "weight": 2 },
+        { "term": "디자인 스펙", "weight": 2 },
+        { "term": "design spec", "weight": 2 },
+        { "term": "카피", "weight": 1 },
+        { "term": "마이크로카피", "weight": 2 },
+        { "term": "ux writing", "weight": 2 }
+      ],
+      "skills": ["ux-research", "wireframe-brief", "design-spec", "ux-copy"],
+      "flow": ["ux-research", "wireframe-brief", "design-spec", "ux-copy"]
     },
     {
       "label": "개발 실행",
-      "keywords": ["리뷰", "review", "ci", "pr", "리팩터링", "리팩토링", "dependency", "의존성"],
-      "skills": ["dev-cycle", "review-checklist", "github-pr-ci", "dependency-upgrade"]
+      "priority": 1,
+      "keywords": [
+        { "term": "리뷰", "weight": 2 },
+        { "term": "review", "weight": 2 },
+        { "term": "pr", "weight": 2 },
+        { "term": "pull request", "weight": 2 },
+        { "term": "merge", "weight": 1 },
+        { "term": "ci", "weight": 3 },
+        { "term": "pipeline", "weight": 2 },
+        { "term": "build", "weight": 1 },
+        { "term": "리팩터링", "weight": 2 },
+        { "term": "리팩토링", "weight": 2 },
+        { "term": "refactor", "weight": 2 },
+        { "term": "테크부채", "weight": 2 },
+        { "term": "dependency", "weight": 2 },
+        { "term": "의존성", "weight": 2 },
+        { "term": "upgrade", "weight": 2 }
+      ],
+      "skills": ["dev-cycle", "review-checklist", "github-pr-ci", "dependency-upgrade"],
+      "flow": ["dev-cycle", "review-checklist", "github-pr-ci", "dependency-upgrade"]
     },
     {
       "label": "QA/테스트",
-      "keywords": ["qa", "테스트", "regression", "리그레션"],
-      "skills": ["test-orchestrator", "regression-plan", "test-report", "status-report"]
+      "priority": 1,
+      "keywords": [
+        { "term": "qa", "weight": 3 },
+        { "term": "테스트", "weight": 3 },
+        { "term": "test plan", "weight": 2 },
+        { "term": "테스트 계획", "weight": 2 },
+        { "term": "regression", "weight": 3 },
+        { "term": "리그레션", "weight": 3 },
+        { "term": "test case", "weight": 2 },
+        { "term": "bug", "weight": 1 },
+        { "term": "버그", "weight": 1 },
+        { "term": "테스트 리포트", "weight": 2 }
+      ],
+      "skills": ["test-orchestrator", "regression-plan", "test-report", "status-report"],
+      "flow": ["test-orchestrator", "regression-plan", "test-report", "status-report"]
     },
     {
       "label": "인프라/배포",
-      "keywords": ["배포", "런북", "롤백", "모니터링", "deploy", "release"],
-      "skills": ["infra-platform", "deploy-checklist", "infra-release-runbook", "ops-monitoring", "infra-handoff"]
+      "priority": 2,
+      "keywords": [
+        { "term": "배포", "weight": 3 },
+        { "term": "deploy", "weight": 3 },
+        { "term": "release", "weight": 2 },
+        { "term": "런북", "weight": 2 },
+        { "term": "runbook", "weight": 2 },
+        { "term": "롤백", "weight": 3 },
+        { "term": "rollback", "weight": 3 },
+        { "term": "모니터링", "weight": 2 },
+        { "term": "monitoring", "weight": 2 },
+        { "term": "infra", "weight": 2 },
+        { "term": "k8s", "weight": 2 },
+        { "term": "terraform", "weight": 2 },
+        { "term": "oncall", "weight": 1 }
+      ],
+      "skills": [
+        "infra-platform",
+        "deploy-checklist",
+        "infra-release-runbook",
+        "ops-monitoring",
+        "infra-handoff"
+      ],
+      "flow": [
+        "infra-platform",
+        "deploy-checklist",
+        "infra-release-runbook",
+        "ops-monitoring",
+        "infra-handoff"
+      ]
     },
     {
       "label": "마케팅",
-      "keywords": ["마케팅", "브랜드", "campaign", "캠페인", "seo", "뉴스레터", "광고"],
-      "skills": ["brand-voice", "marketing-brand", "campaign-plan", "marketing-content", "seo-research"]
+      "priority": 1,
+      "keywords": [
+        { "term": "마케팅", "weight": 3 },
+        { "term": "브랜드", "weight": 2 },
+        { "term": "brand", "weight": 2 },
+        { "term": "campaign", "weight": 3 },
+        { "term": "캠페인", "weight": 3 },
+        { "term": "seo", "weight": 2 },
+        { "term": "뉴스레터", "weight": 2 },
+        { "term": "광고", "weight": 2 },
+        { "term": "콘텐츠", "weight": 2 },
+        { "term": "blog", "weight": 1 },
+        { "term": "블로그", "weight": 1 },
+        { "term": "sns", "weight": 1 }
+      ],
+      "skills": ["brand-voice", "marketing-brand", "campaign-plan", "marketing-content", "seo-research"],
+      "flow": ["brand-voice", "marketing-brand", "campaign-plan", "marketing-content", "seo-research"]
     },
     {
       "label": "세일즈/파트너",
-      "keywords": ["세일즈", "판매", "파트너", "제안서", "pricing", "가격"],
-      "skills": ["sales-bd", "partner-brief", "sales-proposal", "pricing-faq"]
+      "priority": 1,
+      "keywords": [
+        { "term": "세일즈", "weight": 3 },
+        { "term": "판매", "weight": 2 },
+        { "term": "파트너", "weight": 2 },
+        { "term": "제안서", "weight": 2 },
+        { "term": "proposal", "weight": 2 },
+        { "term": "pricing", "weight": 2 },
+        { "term": "가격", "weight": 2 },
+        { "term": "계약", "weight": 1 },
+        { "term": "deal", "weight": 1 },
+        { "term": "영업", "weight": 2 },
+        { "term": "견적", "weight": 2 }
+      ],
+      "skills": ["sales-bd", "partner-brief", "sales-proposal", "pricing-faq"],
+      "flow": ["sales-bd", "partner-brief", "sales-proposal", "pricing-faq"]
     },
     {
       "label": "고객지원",
-      "keywords": ["고객지원", "support", "faq", "장애", "incident", "postmortem"],
-      "skills": ["customer-support", "support-response", "faq-builder", "incident-brief", "postmortem"]
+      "priority": 1,
+      "keywords": [
+        { "term": "고객지원", "weight": 3 },
+        { "term": "support", "weight": 2 },
+        { "term": "faq", "weight": 2 },
+        { "term": "장애", "weight": 3 },
+        { "term": "incident", "weight": 3 },
+        { "term": "postmortem", "weight": 2 },
+        { "term": "cs", "weight": 1 },
+        { "term": "helpdesk", "weight": 1 },
+        { "term": "sla", "weight": 1 },
+        { "term": "온콜", "weight": 2 },
+        { "term": "ticket", "weight": 1 }
+      ],
+      "skills": ["customer-support", "support-response", "faq-builder", "incident-brief", "postmortem"],
+      "flow": ["customer-support", "support-response", "faq-builder", "incident-brief", "postmortem"]
     },
     {
       "label": "문서 운영",
-      "keywords": ["문서", "README", "링크", "문서 감사", "changelog"],
-      "skills": ["docs-audit", "doc-linker", "readme-maintainer", "release-docs"]
+      "priority": 1,
+      "keywords": [
+        { "term": "문서", "weight": 2 },
+        { "term": "README", "weight": 2 },
+        { "term": "링크", "weight": 2 },
+        { "term": "문서 감사", "weight": 3 },
+        { "term": "changelog", "weight": 2 },
+        { "term": "release notes", "weight": 2 },
+        { "term": "문서화", "weight": 2 },
+        { "term": "docs", "weight": 2 },
+        { "term": "onboarding", "weight": 1 }
+      ],
+      "skills": ["docs-audit", "doc-linker", "readme-maintainer", "release-docs"],
+      "flow": ["docs-audit", "doc-linker", "readme-maintainer", "release-docs"]
     }
   ]
 }

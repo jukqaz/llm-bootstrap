@@ -28,8 +28,10 @@ description: 작업 성격에 맞는 역할을 빠르게 선택하고 해당 역
 
 ### 3) 추천 사용법
 - `cargo run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --text "PRD 작성하고 로드맵도 필요해"`
+- `cargo run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --file PRD.md`
 - `task skill-suggest -- TEXT="PRD 작성하고 로드맵도 필요해"`
-- 키워드 매핑은 `references/keyword-map.json`을 기준으로 확장한다.
+- `task skill-suggest-file -- FILE=PRD.md`
+- 키워드 매핑은 `references/keyword-map.json`의 가중치/우선순위/플레이북 흐름을 기준으로 확장한다.
 
 ### 4) 실행 및 정리
 - 필요한 경우 `references/`의 템플릿을 사용하라.
@@ -40,6 +42,7 @@ description: 작업 성격에 맞는 역할을 빠르게 선택하고 해당 역
 - 산출물이 목표와 범위를 충족한다.
 - 완료 기준이 명확하다.
 - 추천 역할/스킬과 선택 이유가 명확하다.
+- 추천 흐름이 플레이북과 일치한다.
 - 공유 가능한 요약이 포함된다.
 ## Resources
 
