@@ -9,6 +9,9 @@ description: 내부 정책 문서를 작성하거나 갱신해야 할 때 사용
 
 정책 문서 관련 작업을 체계화하라. 모든 결과는 한국어로 정리하고 핵심만 요약하라.
 
+범위: 내부 정책 문서 작성/갱신
+비범위: 법무 계약 문서(legal-contracts), 운영 비용 기록(cost-tracking), 운영 체계 요약(management-ops)
+
 ## Workflow
 
 ### 1) 컨텍스트 수집

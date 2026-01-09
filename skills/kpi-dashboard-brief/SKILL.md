@@ -9,6 +9,9 @@ description: 핵심 KPI를 요약해 공유해야 할 때 사용.
 
 KPI 대시보드 요약 관련 작업을 체계화하라. 모든 결과는 한국어로 정리하고 핵심만 요약하라.
 
+범위: KPI 대시보드 요약/공유, 지표 현황 브리프
+비범위: 지표 정의(metric-definition), 분석 요약(analytics-summary), 실험 리포트(experiment-report)
+
 ## Workflow
 
 ### 1) 컨텍스트 수집

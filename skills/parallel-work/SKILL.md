@@ -9,6 +9,9 @@ description: 동시에 여러 작업을 병렬로 진행해야 할 때 작업을
 
 동시에 여러 작업을 진행할 때 작업 스트림을 분리하고 문맥 혼선을 줄여라. 기본 전략은 브랜치 + 작업 디렉터리 분리이며, Git 사용 시 `git worktree`, Jujutsu 사용 시 `jj workspace`를 우선 고려하라.
 
+범위: 병렬 작업 분리 워크플로(worktree/workspace), 충돌/맥락 관리
+비범위: 단일 작업 계획(pre-work-plan), PR/CI 운영(github-pr-ci)
+
 ## Workflow
 
 ### 1) 작업 스트림 정의

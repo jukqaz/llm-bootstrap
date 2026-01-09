@@ -9,6 +9,9 @@ description: 가격/플랜 관련 FAQ를 정리하고 설명 문구를 작성해
 
 가격 FAQ 관련 작업을 체계화하라. 모든 결과는 한국어로 정리하고 핵심만 요약하라.
 
+범위: 가격/플랜 FAQ 구조화 및 설명 문구
+비범위: 일반 고객 FAQ(faq-builder), 세일즈 제안서(sales-proposal)
+
 ## Workflow
 
 ### 1) 컨텍스트 수집

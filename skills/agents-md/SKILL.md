@@ -9,6 +9,9 @@ description: Create or update root and nested AGENTS.md by asking targeted quest
 
 AGENTS.md를 처음 만들거나 갱신할 때, 사용자에게 필요한 정보를 단계적으로 질문하고 기존 내용과 병합하도록 안내하라. 루트와 중첩 AGENTS.md를 구분해 적용 범위를 명확히 하고, 문서를 비대하게 만들지 않도록 요약+링크 전략을 기본값으로 유지하라.
 
+범위: AGENTS.md 생성/갱신, 중첩 AGENTS 규칙 정리
+비범위: PRD/TRD 작성(agents-followup-docs, project-planning-docs), 문서 링크 정리(doc-linker)
+
 ## Workflow
 
 ### 1) 컨텍스트 수집
