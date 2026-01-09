@@ -31,6 +31,10 @@ jobs:
       - name: Run checks
         id: check
         continue-on-error: true
+        env:
+          TASK_COLOR: "0"
+          NO_COLOR: "1"
+          TERM: dumb
         run: |
           set +e
           task check > task-check.log 2>&1
@@ -43,19 +47,39 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
+          import re
           import textwrap
           from pathlib import Path
 
           exit_code = os.environ.get("EXIT_CODE", "1")
           log_path = Path("task-check.log")
           content = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
-          lines = content.splitlines()
+          ansi_re = re.compile(r"\x1b\[[0-9;]*m")
+          lines = [ansi_re.sub("", line) for line in content.splitlines()]
           max_lines = 120
           snippet = "\n".join(lines[-max_lines:]) if lines else "(no output)"
           status = "PASS" if exit_code == "0" else "FAIL"
+          summary_patterns = (
+              "Doc lists are out of date",
+              "Missing docs:",
+              "ERROR:",
+              "WARN:",
+              "task: Failed",
+              "::error",
+          )
+          summary = []
+          for line in lines:
+              if any(pattern in line for pattern in summary_patterns):
+                  summary.append(line)
+          summary = summary[-6:]
+          summary_block = "\n".join(f"- {line}" for line in summary) if summary else "- (no summary)"
           body = textwrap.dedent(f"""\
           <!-- task-check-report -->
           ### task check: {status}
+          **Summary**
+          {summary_block}
+
+          **Log (last {max_lines} lines)**
           ```
           {snippet}
           ```
