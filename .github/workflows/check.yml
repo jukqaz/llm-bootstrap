@@ -41,7 +41,7 @@ jobs:
           echo "exit_code=$?" >> $GITHUB_OUTPUT
 
       - name: Prepare report
-        if: always()
+        if: steps.check.outputs.exit_code != '0'
         env:
           EXIT_CODE: ${{ steps.check.outputs.exit_code }}
         run: |
@@ -73,7 +73,7 @@ jobs:
                   summary.append(line)
           summary = summary[-6:]
           summary_block = "\n".join(f"- {line}" for line in summary) if summary else "- (no summary)"
-          body = textwrap.dedent(f"""\
+          comment_body = textwrap.dedent(f"""\
           <!-- task-check-report -->
           ### task check: {status}
           **Summary**
@@ -84,11 +84,16 @@ jobs:
           {snippet}
           ```
           """)
-          Path("task-check-report.md").write_text(body, encoding="utf-8")
+          Path("task-check-report.md").write_text(comment_body, encoding="utf-8")
+          summary_body = textwrap.dedent(f"""\
+          ### task check: {status}
+          **Summary**
+          {summary_block}
+          """)
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
           if summary_path:
               with open(summary_path, "a", encoding="utf-8") as handle:
-                  handle.write(body + "\\n")
+                  handle.write(summary_body + "\\n")
           PY
 
       - name: Comment on PR
