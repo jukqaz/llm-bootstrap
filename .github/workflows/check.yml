@@ -53,13 +53,13 @@ jobs:
           max_lines = 120
           snippet = "\n".join(lines[-max_lines:]) if lines else "(no output)"
           status = "PASS" if exit_code == "0" else "FAIL"
-          body = textwrap.dedent(f\"\"\"\
+          body = textwrap.dedent(f"""\
           <!-- task-check-report -->
           ### task check: {status}
           ```
           {snippet}
           ```
-          \"\"\")
+          """)
           Path("task-check-report.md").write_text(body, encoding="utf-8")
           PY
 
