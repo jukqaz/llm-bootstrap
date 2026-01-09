@@ -120,6 +120,18 @@
 - FAQ: 세일즈는 `skills/pricing-faq/references/pricing-faq-template.md` (체크리스트: `skills/pricing-faq/references/pricing-faq-checklist.md`), 고객지원은 `skills/faq-builder/references/faq-template.md` (체크리스트: `skills/faq-builder/references/faq-checklist.md`)
 - 예산/비용: 재무는 `skills/finance-accounting/references/budget-template.md` (체크리스트: `skills/finance-accounting/references/finance-accounting-checklist.md`), 운영은 `skills/cost-tracking/references/cost-tracking-template.md` (체크리스트: `skills/cost-tracking/references/cost-tracking-checklist.md`)
 
+## 기본 플레이북 (자주 쓰는 흐름)
+
+- 제품 기획: role-dispatcher -> agents-md -> project-planning-docs -> requirements-review -> feature-map-builder -> roadmap-planner
+- 디자인/UX: ux-research -> wireframe-brief -> design-spec -> ux-copy
+- 개발 실행: dev-cycle -> review-checklist -> github-pr-ci -> dependency-upgrade
+- QA: test-orchestrator -> regression-plan -> test-report -> status-report
+- 인프라/배포: infra-platform -> deploy-checklist -> infra-release-runbook -> ops-monitoring -> infra-handoff
+- 마케팅: brand-voice -> marketing-brand -> campaign-plan -> marketing-content -> seo-research
+- 세일즈/파트너: sales-bd -> partner-brief -> sales-proposal -> pricing-faq
+- 고객지원: customer-support -> support-response -> faq-builder -> incident-brief -> postmortem
+- 문서 운영: docs-audit -> doc-linker -> readme-maintainer -> release-docs
+
 ## 역할별 플레이북 (단문 예시)
 
 - 공통/메타: role-dispatcher -> decision-log -> stakeholder-update
@@ -132,17 +144,17 @@
 - DevRel/커뮤니티: devrel-community -> marketing-content
 - 로컬라이징/국제화: localization-i18n -> readme-maintainer
 - 시설/총무: facilities-admin -> procurement-vendor
-- 제품/전략: agents-md -> project-planning-docs -> requirements-review -> roadmap-planner
+- 제품/전략: role-dispatcher -> agents-md -> project-planning-docs -> requirements-review -> feature-map-builder -> roadmap-planner
 - 프로젝트/운영: pre-work-plan -> project-ops -> status-report -> risk-register
 - 디자인/UX: ux-research -> wireframe-brief -> design-spec -> ux-copy
 - 엔지니어링: dev-cycle -> review-checklist -> github-pr-ci -> dependency-upgrade
-- 인프라/플랫폼: deploy-checklist -> infra-release-runbook -> ops-monitoring -> infra-handoff
-- QA/테스트: test-orchestrator -> regression-plan -> test-report
+- 인프라/플랫폼: infra-platform -> deploy-checklist -> infra-release-runbook -> ops-monitoring -> infra-handoff
+- QA/테스트: test-orchestrator -> regression-plan -> test-report -> status-report
 - 데이터/분석: metric-definition -> analytics-summary -> experiment-report
 - 보안/컴플라이언스: threat-model -> security-review -> access-audit
-- 마케팅/브랜드: brand-voice -> marketing-content -> seo-research -> campaign-plan
-- 세일즈/BD: sales-proposal -> partner-brief -> pricing-faq
-- 고객지원/CS: support-response -> faq-builder -> incident-brief
+- 마케팅/브랜드: brand-voice -> marketing-brand -> campaign-plan -> marketing-content -> seo-research
+- 세일즈/BD: sales-bd -> partner-brief -> sales-proposal -> pricing-faq
+- 고객지원/CS: customer-support -> support-response -> faq-builder -> incident-brief -> postmortem
 - 경영/운영: cost-tracking -> policy-docs -> kpi-dashboard-brief
 
 ## 스킬 현황
