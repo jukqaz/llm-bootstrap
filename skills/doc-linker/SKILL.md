@@ -29,6 +29,7 @@ description: AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새
 ### 4) 자동화(선택)
 - `scripts/update_doc_links.py`로 링크 목록을 점검하라.
 - 수정이 필요하면 `--write` 옵션 사용 전에 승인 여부를 확인하라.
+- `--fail-on-missing` 사용 시 누락 문서를 오류로 보고한다.
 
 ## Output checklist
 

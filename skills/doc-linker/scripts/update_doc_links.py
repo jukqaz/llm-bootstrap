@@ -59,6 +59,7 @@ def main():
     parser = argparse.ArgumentParser(description="Update document link lists")
     parser.add_argument("--write", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--fail-on-missing", action="store_true")
     args = parser.parse_args()
 
     if args.write and args.check:
@@ -73,6 +74,7 @@ def main():
     readme_path = root / "README.md"
 
     changes = []
+    missing = [name for name in order if not (root / name).exists()]
     agents_docs = ordered_docs(order, root, exclude={"AGENTS.md"})
     if agents_path.exists():
         changed = process_file(agents_path, "## 참고 문서", agents_docs, args.write)
@@ -85,8 +87,16 @@ def main():
         if changed:
             changes.append("README.md")
 
+    if missing:
+        print("Missing docs: " + ", ".join(missing), file=sys.stderr)
+
     if changes and not args.write:
         print("Doc lists are out of date: " + ", ".join(changes), file=sys.stderr)
+        print("Run: task doc-links", file=sys.stderr)
+        return 1
+
+    if missing and args.fail_on_missing:
+        print("Create missing docs or update link-order.md", file=sys.stderr)
         return 1
 
     if changes:

@@ -80,6 +80,7 @@ def main():
         current = output_path.read_text(encoding="utf-8")
         if current != content:
             print(f"{output_path} is out of date.", file=sys.stderr)
+            print("Run: task skills-index", file=sys.stderr)
             return 1
         print(f"{output_path} is up to date.")
         return 0

@@ -25,7 +25,7 @@ tasks:
   doc-links-check:
     desc: Check AGENTS/README document lists
     cmds:
-      - '{{.PYTHON}} skills/doc-linker/scripts/update_doc_links.py --check'
+      - '{{.PYTHON}} skills/doc-linker/scripts/update_doc_links.py --check --fail-on-missing'
 
   validate-skills:
     desc: Validate skills structure and references

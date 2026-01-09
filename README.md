@@ -23,3 +23,4 @@
 - `task doc-links`: AGENTS/README 문서 목록 갱신
 - `task validate-skills`: 스킬 구조 검증
 - `task check`: 전체 점검
+- GitHub Actions에서 `task check`를 자동 실행한다.
