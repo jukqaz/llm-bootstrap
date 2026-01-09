@@ -9,7 +9,7 @@
 | brand-voice | 브랜드 톤/보이스 가이드와 메시지 규칙을 정리해야 할 때 사용. | `skills/brand-voice` |
 | campaign-plan | 마케팅 캠페인 목표, 채널, 일정, 지표를 정리해야 할 때 사용. | `skills/campaign-plan` |
 | cost-tracking | 비용/예산 데이터를 정리하고 변화 추이를 기록해야 할 때 사용. | `skills/cost-tracking` |
-| customer-support | FAQ, 고객 응대 템플릿, 장애 공지를 정리하고 응대 기준을 마련해야 할 때 사용. | `skills/customer-support` |
+| customer-support | 고객지원 운영 기준과 응대 체계를 정리하고 산출물을 통합 관리해야 할 때 사용. | `skills/customer-support` |
 | data-analytics | 지표 정의, 분석 요약, 실험 결과를 정리하고 공유해야 할 때 사용. | `skills/data-analytics` |
 | decision-log | 핵심 의사결정과 근거를 기록해야 할 때 사용. | `skills/decision-log` |
 | dependency-upgrade | 의존성 업데이트 범위와 리스크를 정리해야 할 때 사용. | `skills/dependency-upgrade` |
@@ -17,9 +17,9 @@
 | design-spec | 디자인 스펙과 컴포넌트 가이드를 정리해야 할 때 사용. | `skills/design-spec` |
 | design-ux | UX 리서치, IA, 와이어프레임, UX 카피 등 디자인 산출물을 정리해야 할 때 사용. | `skills/design-ux` |
 | dev-cycle | 작업 시작부터 테스트/리뷰/완료까지 개발 사이클을 정리해야 할 때 사용. | `skills/dev-cycle` |
-| devrel-community | DevRel/커뮤니티 활동 산출물(블로그, 이벤트, 공지)을 정리해야 할 때 사용. | `skills/devrel-community` |
+| devrel-community | DevRel/커뮤니티 활동 산출물(개발자 이벤트/공지/기술 콘텐츠)을 정리해야 할 때 사용. | `skills/devrel-community` |
 | doc-linker | AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새 문서 생성 후 링크 정리가 필요할 때 사용. | `skills/doc-linker` |
-| doc-style-enforcer | 문서 언어/대소문자/링크 규칙을 점검하고 위반 사항을 리포트하라. 문서 스타일을 일관되게 유지해야 할 때 사용. | `skills/doc-style-enforcer` |
+| doc-style-enforcer | 문서 언어/표기/대소문자 규칙을 점검하고 스타일 위반을 리포트하라. 문서 스타일을 일관되게 유지해야 할 때 사용. | `skills/doc-style-enforcer` |
 | docs-audit | AGENTS.md/PRD.md/TRD.md/README.md/CHANGELOG.md 문서를 점검하고 링크/대소문자/규칙 충돌을 리포트하라. 문서 정합성 감사가 필요할 때 사용. | `skills/docs-audit` |
 | engineering | 구현/리팩터링/기술부채 정리 등 코드 작업의 실행과 품질 관리를 체계화해야 할 때 사용. | `skills/engineering` |
 | experiment-report | A/B 테스트나 실험 결과를 정리해 보고해야 할 때 사용. | `skills/experiment-report` |
@@ -31,7 +31,7 @@
 | hr-people-ops | 채용, 온보딩, 평가 등 HR/피플 운영 산출물을 정리해야 할 때 사용. | `skills/hr-people-ops` |
 | incident-brief | 장애 공지 및 사후 요약을 작성해야 할 때 사용. | `skills/incident-brief` |
 | infra-handoff | 인프라 운영/배포/모니터링 인수인계 산출물을 정리하고 실행 절차를 전달해야 할 때 사용. | `skills/infra-handoff` |
-| infra-platform | 배포, 환경 설정, 운영 안정성, 모니터링 기준을 정리하고 체크리스트를 관리해야 할 때 사용. | `skills/infra-platform` |
+| infra-platform | 인프라 운영 기준과 환경 설정 베이스라인, 체크리스트 체계를 정리해야 할 때 사용. | `skills/infra-platform` |
 | infra-release-runbook | 배포 절차, 검증, 롤백을 포함한 런북을 만들고 배포 실행 체크리스트를 관리해야 할 때 사용. | `skills/infra-release-runbook` |
 | it-internal-systems | 사내 계정/기기/권한 등 IT 운영 절차를 정리해야 할 때 사용. | `skills/it-internal-systems` |
 | kpi-dashboard-brief | 핵심 KPI를 요약해 공유해야 할 때 사용. | `skills/kpi-dashboard-brief` |
@@ -39,8 +39,8 @@
 | local-skill-installer | 로컬 `skills/` 디렉터리에서 Codex 스킬을 `~/.codex/skills`로 설치하라. 네트워크 없이 설치가 필요할 때 사용. | `skills/local-skill-installer` |
 | localization-i18n | 번역/현지화 가이드와 지역별 정책 차이를 정리해야 할 때 사용. | `skills/localization-i18n` |
 | management-ops | 비용/예산 기록, 운영 규정, 내부 가이드를 정리해야 할 때 사용. | `skills/management-ops` |
-| marketing-brand | 블로그/광고/SEO/캠페인 등 마케팅 콘텐츠와 메시지를 체계화해야 할 때 사용. | `skills/marketing-brand` |
-| marketing-content | 블로그/광고/뉴스레터 등 마케팅 콘텐츠 초안을 작성해야 할 때 사용. | `skills/marketing-content` |
+| marketing-brand | 브랜드/제품 마케팅 전략과 메시지(캠페인 브리프, 포지셔닝, SEO 방향)를 정리해야 할 때 사용. | `skills/marketing-brand` |
+| marketing-content | 블로그/뉴스레터/소셜/광고 카피 등 채널별 마케팅 콘텐츠 초안을 작성해야 할 때 사용. | `skills/marketing-content` |
 | metric-definition | 핵심 지표 정의와 계산 방식, 소스 데이터를 정리해야 할 때 사용. | `skills/metric-definition` |
 | ops-admin | 운영 규정과 내부 절차를 정리해야 할 때 사용. | `skills/ops-admin` |
 | ops-monitoring | 서비스 모니터링 기준, 알림 정책, 운영 점검 항목을 정리해야 할 때 사용. | `skills/ops-monitoring` |
@@ -56,7 +56,7 @@
 | product-strategy | 제품 비전, 요구사항, 로드맵, 기능 범위를 정리하고 PRD/TRD 등 핵심 산출물을 구조화해야 할 때 사용. | `skills/product-strategy` |
 | project-ops | 작업 계획, 일정, 리스크, 진행 상태를 관리하고 실행 순서를 정리해야 할 때 사용. | `skills/project-ops` |
 | project-planning-docs | 프로젝트 셋업 단계에서 질문-답변으로 기획을 구체화하고 PRD.md와 TRD.md로 문서화하라. 기획 대화를 구조화해 문서로 남겨야 할 때 사용. | `skills/project-planning-docs` |
-| qa-test | 테스트 계획/실행/리그레션을 설계하고 결과를 문서화해야 할 때 사용. | `skills/qa-test` |
+| qa-test | QA 운영/품질 기준을 정리하고 테스트 산출물을 통합 관리해야 할 때 사용. | `skills/qa-test` |
 | readme-maintainer | README.md를 작업 종료 시점에 생성하거나 갱신하라. 문서 링크 정리, 변경 요약 반영, 대소문자 일관성을 유지해야 할 때 사용. | `skills/readme-maintainer` |
 | regression-plan | 변경에 따른 리그레션 위험을 정리하고 반복 검증 항목을 설계해야 할 때 사용. | `skills/regression-plan` |
 | release-docs | 배포/릴리즈 시 README.md와 CHANGELOG.md를 함께 갱신하라. 릴리즈 노트 작성, 변경 로그 정리, 배포 전 문서 정리가 필요할 때 사용. | `skills/release-docs` |
