@@ -32,9 +32,14 @@ tasks:
     cmds:
       - '{{.CARGO}} run --manifest-path skills/skill-validator/scripts/skill-validator/Cargo.toml --'
 
+  validate-agents:
+    desc: Validate AGENTS.md question summary
+    cmds:
+      - '{{.CARGO}} run --manifest-path skills/agents-md/scripts/agents-md-validator/Cargo.toml --'
+
   check:
     desc: Run all checks
-    deps: [skills-index-check, doc-links-check, validate-skills]
+    deps: [skills-index-check, doc-links-check, validate-skills, validate-agents]
 
   skill-suggest:
     desc: Recommend skills by keyword text

@@ -7,6 +7,19 @@
 ```markdown
 # Agent instructions (scope: <path/> and subdirectories)
 
+## 질문 답변 요약
+- 응답 언어/톤: <예: 한국어 고정, 간결한 톤>
+- 프로젝트 타입/기술 스택: <예: 문서/스킬 저장소, Rust 스크립트>
+- 모노레포 여부/모듈 경계: <예: 모노레포 아님>
+- 중첩 AGENTS.md 범위: <예: 루트만 사용>
+- 필수 섹션: <언어, 커뮤니케이션, 작업 범위, 빌드/테스트 등>
+- 빌드/실행/테스트/코드생성 명령: <예: task check>
+- 교차 워크플로우: <예: ROLE-MAP 기본 플레이북>
+- Git/브랜치/커밋/PR 규칙: <예: 간결한 명령형 커밋>
+- 보안/민감정보/파괴적 명령 규칙: <예: 파괴적 명령은 사전 확인>
+- MCP/외부 도구 사용 규칙: <예: 승인 후 사용, 민감정보 금지>
+- 참조 문서: <README/PRD/TRD 등>
+
 ## Scope and layout
 - **This AGENTS.md applies to:** `<path/>` and below.
 - **Key directories:**

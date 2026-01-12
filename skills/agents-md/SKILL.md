@@ -38,6 +38,7 @@ AGENTS.md를 처음 만들거나 갱신할 때, 사용자에게 필요한 정보
 ### 4) 출력 검증
 - 변경된 섹션을 간단히 요약하고 사용자 확인을 받으라.
 - 필요하면 `assets/agents-template.md`를 기반으로 전체 구조를 재정렬하라.
+- `scripts/agents-md-validator`로 질문 답변 요약을 점검하라.
 
 ## Output Checklist
 
@@ -45,6 +46,7 @@ AGENTS.md를 처음 만들거나 갱신할 때, 사용자에게 필요한 정보
 - 문서 링크가 최신이며 중복이 없는지 확인하라.
 - 보안/민감정보 규칙이 누락되지 않았는지 확인하라.
 - 루트/모듈 AGENTS.md 간 규칙 충돌이 없는지 확인하라.
+- 질문 답변 요약 섹션이 필수 항목을 포함한다.
 
 ## Resources
 
@@ -54,3 +56,5 @@ AGENTS.md를 처음 만들거나 갱신할 때, 사용자에게 필요한 정보
 - `module-map-format.md`: Module map format (monorepo)
 ### assets/
 - `agents-template.md`: 루트/모듈 AGENTS.md 기본 템플릿(요약형).
+### scripts/
+- `agents-md-validator/Cargo.toml`: AGENTS.md 질문 답변 요약 검증(Rust)
