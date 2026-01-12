@@ -21,7 +21,7 @@
 - 모노레포 여부/모듈 경계: 모노레포 아님
 - 중첩 AGENTS.md 범위: 루트만 사용
 - 필수 섹션: 목적, 언어, 커뮤니케이션, 작업 범위 & 원칙, 빌드 · 테스트 · 실행, 안전 & 품질, Git & 협업, 문서 & 기록, 참고 문서
-- 빌드/실행/테스트/코드생성 명령: task check, task validate-skills, task skills-index, task doc-links
+- 빌드/실행/테스트/코드생성 명령: task check, task validate-skills, task validate-docs, task validate-agents, task skills-index, task doc-links
 - 교차 워크플로우: ROLE-MAP 기본 플레이북 기준
 - Git/브랜치/커밋/PR 규칙: 커밋 메시지 명령형, 큰 변경 분리 커밋
 - 보안/민감정보/파괴적 명령 규칙: 민감정보 금지, 파괴적 명령은 사전 확인

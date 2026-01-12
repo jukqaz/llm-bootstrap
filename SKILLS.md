@@ -60,6 +60,7 @@
 | readme-maintainer | README.md를 작업 종료 시점에 생성하거나 갱신하라. 문서 링크 정리, 변경 요약 반영, 대소문자 일관성을 유지해야 할 때 사용. | `skills/readme-maintainer` |
 | regression-plan | 변경에 따른 리그레션 위험을 정리하고 반복 검증 항목을 설계해야 할 때 사용. | `skills/regression-plan` |
 | release-docs | 배포/릴리즈 시 README.md와 CHANGELOG.md를 함께 갱신하라. 릴리즈 노트 작성, 변경 로그 정리, 배포 전 문서 정리가 필요할 때 사용. | `skills/release-docs` |
+| repo-doc-bootstrap | 기존 프로젝트에 Codex 문서 세트(AGENTS.md/PRD.md/TRD.md/README.md/ROLE-MAP.md/CHANGELOG.md)를 자동 생성해 초기 세팅을 빠르게 끝낼 때 사용. 기존 코드/파일을 스캔해 기술 스택과 기본 실행 명령을 채우고, 누락 문서만 생성하거나 필요 시 덮어쓴다. | `skills/repo-doc-bootstrap` |
 | requirements-review | 요구사항을 점검하고 누락/모호성을 정리해야 할 때 사용. | `skills/requirements-review` |
 | review-checklist | 코드/문서 리뷰 기준을 정리해야 할 때 사용. | `skills/review-checklist` |
 | risk-register | 프로젝트 리스크와 대응 계획을 정리해야 할 때 사용. | `skills/risk-register` |

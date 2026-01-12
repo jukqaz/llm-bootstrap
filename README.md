@@ -17,6 +17,7 @@
 - 기본 플레이북 바로가기: [ROLE-MAP.md](ROLE-MAP.md#기본-플레이북-자주-쓰는-흐름)
 - 키워드 추천: `task skill-suggest -- TEXT="PRD 작성하고 로드맵도 필요해"`
 - 문서 기반 추천: `task skill-suggest-file -- FILE=PRD.md`
+- 기존 프로젝트 문서 부트스트랩: `task bootstrap-docs -- ROOT=.`
 
 예시 출력:
 ```text
@@ -42,5 +43,7 @@
 - `task skills-index`: SKILLS.md 갱신
 - `task doc-links`: AGENTS/README 문서 목록 갱신
 - `task validate-skills`: 스킬 구조 검증
+- `task validate-docs`: 핵심 문서 섹션 검증
+- `task bootstrap-docs`: 문서 부트스트랩 생성
 - `task check`: 전체 점검
 - GitHub Actions에서 `task check`를 자동 실행한다.
