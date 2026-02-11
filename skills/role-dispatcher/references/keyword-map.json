@@ -99,8 +99,8 @@
         { "term": "버그", "weight": 1 },
         { "term": "테스트 리포트", "weight": 2 }
       ],
-      "skills": ["test-orchestrator", "regression-plan", "test-report", "status-report"],
-      "flow": ["test-orchestrator", "regression-plan", "test-report", "status-report"]
+      "skills": ["test-orchestrator", "regression-plan", "test-report", "project-ops"],
+      "flow": ["test-orchestrator", "regression-plan", "test-report", "project-ops"]
     },
     {
       "label": "인프라/배포",
@@ -124,14 +124,12 @@
         "infra-platform",
         "deploy-checklist",
         "infra-release-runbook",
-        "ops-monitoring",
         "infra-handoff"
       ],
       "flow": [
         "infra-platform",
         "deploy-checklist",
         "infra-release-runbook",
-        "ops-monitoring",
         "infra-handoff"
       ]
     },
@@ -152,8 +150,8 @@
         { "term": "블로그", "weight": 1 },
         { "term": "sns", "weight": 1 }
       ],
-      "skills": ["brand-voice", "marketing-brand", "campaign-plan", "marketing-content", "seo-research"],
-      "flow": ["brand-voice", "marketing-brand", "campaign-plan", "marketing-content", "seo-research"]
+      "skills": ["marketing-brand", "campaign-plan", "marketing-content", "seo-research"],
+      "flow": ["marketing-brand", "campaign-plan", "marketing-content", "seo-research"]
     },
     {
       "label": "세일즈/파트너",
@@ -171,8 +169,8 @@
         { "term": "영업", "weight": 2 },
         { "term": "견적", "weight": 2 }
       ],
-      "skills": ["sales-bd", "partner-brief", "sales-proposal", "pricing-faq"],
-      "flow": ["sales-bd", "partner-brief", "sales-proposal", "pricing-faq"]
+      "skills": ["sales-bd", "partner-brief", "pricing-faq"],
+      "flow": ["sales-bd", "partner-brief", "pricing-faq"]
     },
     {
       "label": "고객지원",
@@ -190,8 +188,8 @@
         { "term": "온콜", "weight": 2 },
         { "term": "ticket", "weight": 1 }
       ],
-      "skills": ["customer-support", "support-response", "faq-builder", "incident-brief", "postmortem"],
-      "flow": ["customer-support", "support-response", "faq-builder", "incident-brief", "postmortem"]
+      "skills": ["customer-support", "faq-builder", "incident-brief", "postmortem"],
+      "flow": ["customer-support", "faq-builder", "incident-brief", "postmortem"]
     },
     {
       "label": "문서 운영",
@@ -231,11 +229,10 @@
         "pre-work-plan",
         "plan-archive",
         "project-ops",
-        "status-report",
         "risk-register",
         "outsourcing-handoff"
       ],
-      "flow": ["pre-work-plan", "project-ops", "status-report", "risk-register"]
+      "flow": ["pre-work-plan", "project-ops", "risk-register"]
     },
     {
       "label": "데이터/분석",
@@ -251,8 +248,8 @@
         { "term": "분석", "weight": 2 },
         { "term": "리포트", "weight": 2 }
       ],
-      "skills": ["data-analytics", "metric-definition", "analytics-summary", "experiment-report"],
-      "flow": ["metric-definition", "analytics-summary", "experiment-report"]
+      "skills": ["data-analytics", "metric-definition", "experiment-report"],
+      "flow": ["metric-definition", "data-analytics", "experiment-report"]
     },
     {
       "label": "보안/컴플라이언스",

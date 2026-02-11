@@ -61,7 +61,7 @@
 
 ### 프로젝트/운영
 - 산출물: 작업 계획, 일정, 리스크, 진행 상태 기록
-- 이미 구현됨: pre-work-plan, plan-archive, project-ops, status-report, risk-register, outsourcing-handoff
+- 이미 구현됨: pre-work-plan, plan-archive, project-ops, risk-register, outsourcing-handoff
 - 추가 예정: 없음
 
 ### 디자인/UX
@@ -76,7 +76,7 @@
 
 ### 인프라/플랫폼
 - 산출물: 배포 체크리스트, 환경 설정, 모니터링 기준
-- 이미 구현됨: release-docs, infra-platform, infra-release-runbook, ops-monitoring, deploy-checklist, infra-handoff
+- 이미 구현됨: release-docs, infra-platform, infra-release-runbook, deploy-checklist, infra-handoff
 - 추가 예정: 없음
 
 ### QA/테스트
@@ -86,7 +86,7 @@
 
 ### 데이터/분석
 - 산출물: 지표 정의, 분석 요약, 리포트
-- 이미 구현됨: data-analytics, analytics-summary, metric-definition, experiment-report
+- 이미 구현됨: data-analytics, metric-definition, experiment-report
 - 추가 예정: 없음
 
 ### 보안/컴플라이언스
@@ -96,17 +96,17 @@
 
 ### 마케팅/브랜드
 - 산출물: 브랜드 메시지/캠페인 브리프, 마케팅 콘텐츠(블로그/뉴스레터/카피), SEO 방향
-- 이미 구현됨: marketing-brand, marketing-content, seo-research, campaign-plan, brand-voice
+- 이미 구현됨: marketing-brand, marketing-content, seo-research, campaign-plan
 - 추가 예정: 없음
 
 ### 세일즈/BD
 - 산출물: 제안서, 파트너십 문서, 세일즈 메시지, 가격/세일즈 FAQ
-- 이미 구현됨: sales-bd, sales-proposal, partner-brief, pricing-faq
+- 이미 구현됨: sales-bd, partner-brief, pricing-faq
 - 추가 예정: 없음
 
 ### 고객지원/CS
 - 산출물: 지원 FAQ, 고객 응대 템플릿, 장애 공지
-- 이미 구현됨: customer-support, support-response, incident-brief, faq-builder
+- 이미 구현됨: customer-support, incident-brief, faq-builder
 - 추가 예정: 없음
 
 ### 경영/운영
@@ -125,11 +125,11 @@
 - 제품 기획: role-dispatcher -> agents-md -> project-planning-docs -> requirements-review -> feature-map-builder -> roadmap-planner
 - 디자인/UX: ux-research -> wireframe-brief -> design-spec -> ux-copy
 - 개발 실행: dev-cycle -> review-checklist -> github-pr-ci -> dependency-upgrade
-- QA: test-orchestrator -> regression-plan -> test-report -> status-report
-- 인프라/배포: infra-platform -> deploy-checklist -> infra-release-runbook -> ops-monitoring -> infra-handoff
-- 마케팅: brand-voice -> marketing-brand -> campaign-plan -> marketing-content -> seo-research
-- 세일즈/파트너: sales-bd -> partner-brief -> sales-proposal -> pricing-faq
-- 고객지원: customer-support -> support-response -> faq-builder -> incident-brief -> postmortem
+- QA: test-orchestrator -> regression-plan -> test-report -> project-ops
+- 인프라/배포: infra-platform -> deploy-checklist -> infra-release-runbook -> infra-handoff
+- 마케팅: marketing-brand -> campaign-plan -> marketing-content -> seo-research
+- 세일즈/파트너: sales-bd -> partner-brief -> pricing-faq
+- 고객지원: customer-support -> faq-builder -> incident-brief -> postmortem
 - 문서 운영: docs-audit -> doc-linker -> readme-maintainer -> release-docs
 
 ## 역할별 플레이북 (단문 예시)
@@ -145,16 +145,16 @@
 - 로컬라이징/국제화: localization-i18n -> readme-maintainer
 - 시설/총무: facilities-admin -> procurement-vendor
 - 제품/전략: role-dispatcher -> agents-md -> project-planning-docs -> requirements-review -> feature-map-builder -> roadmap-planner
-- 프로젝트/운영: pre-work-plan -> project-ops -> status-report -> risk-register
+- 프로젝트/운영: pre-work-plan -> project-ops -> risk-register
 - 디자인/UX: ux-research -> wireframe-brief -> design-spec -> ux-copy
 - 엔지니어링: dev-cycle -> review-checklist -> github-pr-ci -> dependency-upgrade
-- 인프라/플랫폼: infra-platform -> deploy-checklist -> infra-release-runbook -> ops-monitoring -> infra-handoff
-- QA/테스트: test-orchestrator -> regression-plan -> test-report -> status-report
-- 데이터/분석: metric-definition -> analytics-summary -> experiment-report
+- 인프라/플랫폼: infra-platform -> deploy-checklist -> infra-release-runbook -> infra-handoff
+- QA/테스트: test-orchestrator -> regression-plan -> test-report -> project-ops
+- 데이터/분석: metric-definition -> data-analytics -> experiment-report
 - 보안/컴플라이언스: threat-model -> security-review -> access-audit
-- 마케팅/브랜드: brand-voice -> marketing-brand -> campaign-plan -> marketing-content -> seo-research
-- 세일즈/BD: sales-bd -> partner-brief -> sales-proposal -> pricing-faq
-- 고객지원/CS: customer-support -> support-response -> faq-builder -> incident-brief -> postmortem
+- 마케팅/브랜드: marketing-brand -> campaign-plan -> marketing-content -> seo-research
+- 세일즈/BD: sales-bd -> partner-brief -> pricing-faq
+- 고객지원/CS: customer-support -> faq-builder -> incident-brief -> postmortem
 - 경영/운영: cost-tracking -> policy-docs -> kpi-dashboard-brief
 
 ## 스킬 현황
@@ -163,8 +163,6 @@
 - access-audit
 - agents-followup-docs
 - agents-md
-- analytics-summary
-- brand-voice
 - campaign-plan
 - cost-tracking
 - customer-support
@@ -201,7 +199,6 @@
 - marketing-content
 - metric-definition
 - ops-admin
-- ops-monitoring
 - outsourcing-handoff
 - parallel-work
 - partner-brief
@@ -224,7 +221,6 @@
 - roadmap-planner
 - role-dispatcher
 - sales-bd
-- sales-proposal
 - security-compliance
 - security-review
 - seo-research
@@ -234,8 +230,6 @@
 - skill-template-sync
 - skill-validator
 - stakeholder-update
-- status-report
-- support-response
 - test-orchestrator
 - test-report
 - threat-model
@@ -245,3 +239,18 @@
 
 ### 우선 확장 후보
 - 없음
+
+## 스킬 슬림화 결과 (2차 완료)
+
+- 완료 항목:
+  - `marketing-brand` + `brand-voice` 통합
+  - `sales-bd` + `sales-proposal` 통합
+  - `customer-support` + `support-response` 통합
+  - `project-ops` + `status-report` 통합
+  - `data-analytics` + `analytics-summary` 통합
+  - `infra-platform` + `ops-monitoring` 통합
+  - 테스트 스킬 `a-scope-check` 삭제
+
+- 운영 기준:
+  - 기본 탐색은 그룹화된 `SKILLS.md`의 `Group Summary` 기준으로 진행한다.
+  - 세부 산출물 템플릿은 통합된 대표 스킬의 `references/`에서 관리한다.

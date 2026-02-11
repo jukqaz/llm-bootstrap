@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,6 +7,13 @@ struct Args {
     skills_dir: PathBuf,
     output: PathBuf,
     check: bool,
+}
+
+struct SkillRow {
+    group: &'static str,
+    name: String,
+    desc: String,
+    path: String,
 }
 
 fn usage() -> ! {
@@ -67,7 +74,74 @@ fn parse_frontmatter(text: &str) -> HashMap<String, String> {
     data
 }
 
-fn collect_skills(skills_dir: &Path) -> Result<Vec<(String, String, String)>, Vec<String>> {
+fn skill_group(name: &str) -> &'static str {
+    match name {
+        // Integrations
+        "cloudflare-deploy" | "figma" | "figma-implement-design" | "linear" | "openai-docs"
+        | "pdf" | "screenshot" => "00-Integrations",
+
+        // Common / meta
+        "role-dispatcher" | "decision-log" | "postmortem" | "stakeholder-update"
+        | "kpi-dashboard-brief" => "01-Common-Meta",
+
+        // Legal / finance / people
+        "legal-contracts" => "02-Legal",
+        "finance-accounting" => "03-Finance",
+        "hr-people-ops" => "04-HR-People",
+
+        // Docs / skills operations
+        "doc-linker" | "docs-audit" | "readme-maintainer" | "skill-indexer"
+        | "skill-packager" | "skill-release" | "skill-template-sync" | "skill-validator"
+        | "local-skill-installer" | "doc-style-enforcer" | "agents-md"
+        | "agents-followup-docs" | "repo-doc-bootstrap" | "release-docs" => "05-Docs-SkillOps",
+
+        // Procurement / IT / facilities / i18n / community
+        "procurement-vendor" => "06-Procurement-Vendor",
+        "it-internal-systems" => "07-IT-Internal",
+        "facilities-admin" => "08-Facilities",
+        "localization-i18n" => "09-Localization",
+        "devrel-community" => "10-DevRel-Community",
+
+        // Product / project / design
+        "project-planning-docs" | "product-strategy" | "roadmap-planner"
+        | "feature-map-builder" | "requirements-review" => "11-Product-Strategy",
+        "pre-work-plan" | "plan-archive" | "project-ops" | "risk-register"
+        | "outsourcing-handoff" => "12-Project-Ops",
+        "design-ux" | "ux-research" | "ux-copy" | "design-spec" | "wireframe-brief" => {
+            "13-Design-UX"
+        }
+
+        // Engineering / infra / QA
+        "engineering" | "github-pr-ci" | "parallel-work" | "dev-cycle"
+        | "dependency-upgrade" | "review-checklist" => "14-Engineering",
+        "infra-platform" | "infra-release-runbook" | "deploy-checklist" | "infra-handoff" => {
+            "15-Infra-Platform"
+        }
+        "qa-test" | "test-orchestrator" | "regression-plan" | "test-report" => "16-QA-Test",
+
+        // Data / security / marketing / sales / customer / management
+        "data-analytics" | "metric-definition" | "experiment-report" => {
+            "17-Data-Analytics"
+        }
+        "security-compliance" | "security-review" | "access-audit" | "threat-model" => {
+            "18-Security"
+        }
+        "marketing-brand" | "marketing-content" | "seo-research" | "campaign-plan" => {
+            "19-Marketing-Brand"
+        }
+        "sales-bd" | "partner-brief" | "pricing-faq" => "20-Sales-BD",
+        "customer-support" | "incident-brief" | "faq-builder" => {
+            "21-Customer-Support"
+        }
+        "management-ops" | "ops-admin" | "cost-tracking" | "policy-docs" => {
+            "22-Management-Ops"
+        }
+
+        _ => "98-Unclassified",
+    }
+}
+
+fn collect_skills(skills_dir: &Path) -> Result<Vec<SkillRow>, Vec<String>> {
     let mut rows = Vec::new();
     let mut errors = Vec::new();
     let entries = match fs::read_dir(skills_dir) {
@@ -104,7 +178,12 @@ fn collect_skills(skills_dir: &Path) -> Result<Vec<(String, String, String)>, Ve
         };
         let escaped_desc = desc.replace('|', "\\|");
         let rel_path = format!("`skills/{}`", path.file_name().unwrap().to_string_lossy());
-        rows.push((name.to_string(), escaped_desc, rel_path));
+        rows.push(SkillRow {
+            group: skill_group(name),
+            name: name.to_string(),
+            desc: escaped_desc,
+            path: rel_path,
+        });
     }
     if errors.is_empty() {
         Ok(rows)
@@ -113,16 +192,43 @@ fn collect_skills(skills_dir: &Path) -> Result<Vec<(String, String, String)>, Ve
     }
 }
 
-fn build_table(mut rows: Vec<(String, String, String)>) -> String {
-    rows.sort_by(|a, b| a.0.cmp(&b.0));
+fn build_table(mut rows: Vec<SkillRow>) -> String {
+    rows.sort_by(|a, b| a.group.cmp(b.group).then_with(|| a.name.cmp(&b.name)));
+
+    let mut group_counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for row in &rows {
+        *group_counts.entry(row.group).or_insert(0) += 1;
+    }
+
     let mut lines = vec![
         "# SKILLS".to_string(),
         "".to_string(),
-        "| Name | Description | Path |".to_string(),
-        "|------|-------------|------|".to_string(),
+        format!("- Total: {}", rows.len()),
+        format!("- Groups: {}", group_counts.len()),
+        "".to_string(),
+        "## Group Summary".to_string(),
+        "".to_string(),
+        "| Group | Count |".to_string(),
+        "|------|------:|".to_string(),
     ];
-    for (name, desc, path) in rows {
-        lines.push(format!("| {name} | {desc} | {path} |"));
+
+    for (group, count) in &group_counts {
+        lines.push(format!("| {group} | {count} |"));
+    }
+
+    lines.extend([
+        "".to_string(),
+        "## Skills".to_string(),
+        "".to_string(),
+        "| Group | Name | Description | Path |".to_string(),
+        "|------|------|-------------|------|".to_string(),
+    ]);
+
+    for row in rows {
+        lines.push(format!(
+            "| {} | {} | {} | {} |",
+            row.group, row.name, row.desc, row.path
+        ));
     }
     lines.join("\n") + "\n"
 }
