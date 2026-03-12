@@ -1,61 +1,55 @@
 # Codex Agent 지침
 
-이 문서는 에이전트의 작업 규칙만 다룹니다. 상세 기획/설계는 PRD/TRD로 분리하고 여기에는 요약+링크만 둡니다.
+이 저장소는 Codex 스킬의 curated source를 보관하는 용도다. runtime 기준선은 `~/.codex/skills`이며, 이 저장소는 검증을 마친 스킬만 선별적으로 반영한다.
 
 ## 목적
-- 개인용 Codex 스킬 저장소의 규칙을 정의한다.
-- 스킬 구조와 문서 네이밍을 일관되게 유지한다.
+
+- 재사용 가능한 스킬을 정리하고 보관한다
+- 로컬에서 검증한 스킬을 curated 형태로 유지한다
+- 저장소 안에서 문서/인덱스/구조 검증이 가능하도록 유지한다
 
 ## 언어
-- 응답 및 문서는 한국어를 기본으로 한다.
-- 문서 파일명은 `AGENTS.md`, `PRD.md`, `TRD.md`, `CHANGELOG.md`, `SKILLS.md`, `ROLE-MAP.md`를 사용한다.
 
-## 커뮤니케이션
-- 요구사항이 모호하면 질문한다.
-- 가정이 있으면 명시한다.
-- 변경 결과는 수정 파일과 핵심 요약으로 공유한다.
+- 응답과 문서는 한국어를 기본으로 한다
+- 스킬 이름과 파일명은 영어를 사용한다
 
 ## 질문 답변 요약
-- 응답 언어/톤: 한국어, 간결한 톤
-- 프로젝트 타입/기술 스택: 문서/스킬 저장소, Rust 스크립트
-- 모노레포 여부/모듈 경계: 모노레포 아님
-- 중첩 AGENTS.md 범위: 루트만 사용
-- 필수 섹션: 목적, 언어, 커뮤니케이션, 작업 범위 & 원칙, 빌드 · 테스트 · 실행, 안전 & 품질, Git & 협업, 문서 & 기록, 참고 문서
-- 빌드/실행/테스트/코드생성 명령: task check, task validate-skills, task validate-docs, task validate-agents, task skills-index, task doc-links
-- 교차 워크플로우: ROLE-MAP 기본 플레이북 기준
-- Git/브랜치/커밋/PR 규칙: 커밋 메시지 명령형, 큰 변경 분리 커밋
-- 보안/민감정보/파괴적 명령 규칙: 민감정보 금지, 파괴적 명령은 사전 확인
-- MCP/외부 도구 사용 규칙: 필요 시 승인 후 사용, 토큰/자격 증명 기록 금지
-- 참조 문서: README.md, PRD.md, TRD.md, CHANGELOG.md, SKILLS.md, ROLE-MAP.md
 
-## 작업 범위 & 원칙
-- 스킬은 `skills/<skill-name>/` 아래에 둔다.
-- 스킬 이름은 소문자와 하이픈만 사용한다.
-- 각 스킬에는 `SKILL.md`와 필요한 `references/`, `assets/`, `scripts/`만 둔다.
-- 스킬 폴더 안에 불필요한 문서(README 등)는 추가하지 않는다.
-- 런타임 스킬 로딩 기준은 글로벌 `~/.codex/skills`이며, 이 저장소 `skills/`는 스킬 소스/관리 목적으로 유지한다.
-- 문서는 요약 중심으로 유지하고 상세는 링크로 분리한다.
-- 기본 작업 흐름은 `ROLE-MAP.md`의 기본 플레이북을 따른다.
-- 작업 성격이 모호하면 `role-dispatcher`로 시작한다.
-- 모든 스크립트는 Rust로 작성하며, 기존 Python 스크립트는 전환 대상으로 관리한다.
+- runtime source of truth: `~/.codex/skills`
+- 이 저장소 역할: curated source / archive / authoring
+- 유지 대상: current reusable skills + 최소 메타 스킬
+- 검증 명령: `task skills-index`, `task doc-links`, `task validate-skills`, `task validate-docs`, `task check`
+
+## 작업 원칙
+
+- 스킬은 `skills/<skill-name>/` 아래에 둔다
+- 각 스킬에는 `SKILL.md`와 필요한 `references/`, `assets/`, `scripts/`만 둔다
+- runtime에서 이미 정리한 범용/중복 스킬은 다시 추가하지 않는다
+- 새 스킬은 로컬 `~/.codex/skills`에서 먼저 검증한 뒤, 재사용 가치가 확인되면 이 저장소로 올린다
+- 이 저장소는 live runtime source of truth가 아니므로, 로컬 스킬 전체를 기계적으로 미러링하지 않는다
 
 ## 빌드 · 테스트 · 실행
-- 현재 문서화된 빌드/테스트 명령은 없다.
-- 스크립트를 추가하거나 변경하면 필요한 범위에서 실행 결과를 공유한다.
+
+- `task skills-index`
+- `task doc-links`
+- `task validate-skills`
+- `task validate-docs`
+- `task bootstrap-docs -- ROOT=.`
+- `task check`
 
 ## 안전 & 품질
-- 파괴적 명령은 사전 확인을 받는다.
-- 민감정보는 문서나 코드에 포함하지 않는다.
+
+- 민감정보와 토큰은 저장하지 않는다
+- 삭제/정리 작업은 현재 runtime 기준선과 충돌하지 않는지 먼저 확인한다
+- 문서와 인덱스가 현재 skill set과 어긋나지 않게 함께 갱신한다
 
 ## Git & 협업
-- 커밋 메시지는 간결한 명령형 문장으로 작성한다.
-- 범위가 큰 변경은 분리 커밋을 우선한다.
 
-## 문서 & 기록
-- `PRD.md`, `TRD.md`, `CHANGELOG.md`를 최신 상태로 유지한다.
-- 문서 위치가 바뀌면 링크를 갱신한다.
+- 커밋 메시지는 Conventional Commits를 권장한다
+- 큰 정리는 제거/추가/문서 갱신을 가능한 범위에서 한 세트로 묶는다
 
 ## 참고 문서
+
 - PRD.md
 - TRD.md
 - CHANGELOG.md

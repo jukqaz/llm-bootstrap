@@ -28,7 +28,7 @@ description: 동시에 여러 작업을 병렬로 진행해야 할 때 작업을
 ### 3) 스트림별 계획 정리
 - 각 스트림을 `pre-work-plan` 흐름으로 계획하라.
 - 복잡 작업이면 Linear 이슈 생성 여부를 확인하라.
-- PRD/TRD가 없으면 `project-planning-docs` 사용을 제안하라.
+- 필요한 기본 문서가 없으면 `repo-doc-bootstrap` 사용을 제안하라.
 
 ### 4) 분리 실행
 - `references/git-worktree.md` 또는 `references/jj-workspace.md`를 필요할 때 읽어라.

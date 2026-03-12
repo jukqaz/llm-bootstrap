@@ -76,65 +76,17 @@ fn parse_frontmatter(text: &str) -> HashMap<String, String> {
 
 fn skill_group(name: &str) -> &'static str {
     match name {
-        // Integrations
-        "cloudflare-deploy" | "figma" | "figma-implement-design" | "linear" | "openai-docs"
-        | "pdf" | "screenshot" => "00-Integrations",
-
-        // Common / meta
-        "role-dispatcher" | "decision-log" | "postmortem" | "stakeholder-update"
-        | "kpi-dashboard-brief" => "01-Common-Meta",
-
-        // Legal / finance / people
-        "legal-contracts" => "02-Legal",
-        "finance-accounting" => "03-Finance",
-        "hr-people-ops" => "04-HR-People",
-
-        // Docs / skills operations
-        "doc-linker" | "docs-audit" | "readme-maintainer" | "skill-indexer"
-        | "skill-packager" | "skill-release" | "skill-template-sync" | "skill-validator"
-        | "local-skill-installer" | "doc-style-enforcer" | "agents-md"
-        | "agents-followup-docs" | "repo-doc-bootstrap" | "release-docs" => "05-Docs-SkillOps",
-
-        // Procurement / IT / facilities / i18n / community
-        "procurement-vendor" => "06-Procurement-Vendor",
-        "it-internal-systems" => "07-IT-Internal",
-        "facilities-admin" => "08-Facilities",
-        "localization-i18n" => "09-Localization",
-        "devrel-community" => "10-DevRel-Community",
-
-        // Product / project / design
-        "project-planning-docs" | "product-strategy" | "roadmap-planner"
-        | "feature-map-builder" | "requirements-review" => "11-Product-Strategy",
-        "pre-work-plan" | "plan-archive" | "project-ops" | "risk-register"
-        | "outsourcing-handoff" => "12-Project-Ops",
-        "design-ux" | "ux-research" | "ux-copy" | "design-spec" | "wireframe-brief" => {
-            "13-Design-UX"
+        "doc-linker" | "docs-audit" | "readme-maintainer" | "release-docs"
+        | "repo-doc-bootstrap" | "skill-indexer" | "skill-validator" => "01-Docs-SkillOps",
+        "change-completeness" | "code-polish-simplify" | "github-pr-ci"
+        | "library-guideline-audit" | "parallel-work" | "regression-plan" => {
+            "02-Engineering-Quality"
         }
-
-        // Engineering / infra / QA
-        "engineering" | "github-pr-ci" | "parallel-work" | "dev-cycle"
-        | "dependency-upgrade" | "review-checklist" => "14-Engineering",
-        "infra-platform" | "infra-release-runbook" | "deploy-checklist" | "infra-handoff" => {
-            "15-Infra-Platform"
-        }
-        "qa-test" | "test-orchestrator" | "regression-plan" | "test-report" => "16-QA-Test",
-
-        // Data / security / marketing / sales / customer / management
-        "data-analytics" | "metric-definition" | "experiment-report" => {
-            "17-Data-Analytics"
-        }
-        "security-compliance" | "security-review" | "access-audit" | "threat-model" => {
-            "18-Security"
-        }
-        "marketing-brand" | "marketing-content" | "seo-research" | "campaign-plan" => {
-            "19-Marketing-Brand"
-        }
-        "sales-bd" | "partner-brief" | "pricing-faq" => "20-Sales-BD",
-        "customer-support" | "incident-brief" | "faq-builder" => {
-            "21-Customer-Support"
-        }
-        "management-ops" | "ops-admin" | "cost-tracking" | "policy-docs" => {
-            "22-Management-Ops"
+        "idea-harvest" | "idea-triage" | "market-scan" | "mvp-scope-cut"
+        | "experiment-review" => "03-Ideation-MVP",
+        "access-audit" | "deploy-checklist" | "infra-platform"
+        | "infra-release-runbook" | "security-review" | "threat-model" => {
+            "04-Infra-Security"
         }
 
         _ => "98-Unclassified",

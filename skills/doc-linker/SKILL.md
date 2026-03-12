@@ -10,7 +10,7 @@ description: AGENTS.md와 README.md에 문서 링크를 추가/정리하라. 새
 문서 생성/갱신 후 AGENTS.md와 README.md의 링크를 정리하라. 링크 추가는 승인 후에만 수행하라.
 
 범위: 핵심 문서 링크 정리, 링크 순서/대소문자 점검
-비범위: 문서 본문 수정, 문서 신규 작성, 문서 스타일 점검(doc-style-enforcer), 문서 정합성 감사(docs-audit)
+비범위: 문서 본문 수정, 문서 신규 작성, README 내용 갱신(readme-maintainer), 문서 정합성 감사(docs-audit)
 
 ## Workflow
 

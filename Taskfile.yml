@@ -32,29 +32,14 @@ tasks:
     cmds:
       - '{{.CARGO}} run --manifest-path skills/skill-validator/scripts/skill-validator/Cargo.toml --'
 
-  validate-agents:
-    desc: Validate AGENTS.md question summary
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/agents-md/scripts/agents-md-validator/Cargo.toml --'
-
   validate-docs:
     desc: Validate core docs sections
     cmds:
       - '{{.CARGO}} run --manifest-path skills/docs-audit/scripts/docs-audit-validator/Cargo.toml --'
 
   check:
-    desc: Run all checks
-    deps: [skills-index-check, doc-links-check, validate-skills, validate-agents, validate-docs]
-
-  skill-suggest:
-    desc: Recommend skills by keyword text
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --text "{{.TEXT}}"'
-
-  skill-suggest-file:
-    desc: Recommend skills from a file
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/role-dispatcher/scripts/recommend-skills/Cargo.toml -- --file "{{.FILE}}"'
+    desc: Run current repo checks
+    deps: [skills-index-check, doc-links-check, validate-skills, validate-docs]
 
   bootstrap-docs:
     desc: Bootstrap Codex docs for a repo
