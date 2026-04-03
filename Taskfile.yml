@@ -1,47 +1,12 @@
-version: '3'
-
-vars:
-  CARGO: cargo
-
-includes: {}
-
+version: "3"
 
 tasks:
-  skills-index:
-    desc: Generate SKILLS.md
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/skill-indexer/scripts/skill-indexer/Cargo.toml --'
-
-  skills-index-check:
-    desc: Check SKILLS.md is up to date
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/skill-indexer/scripts/skill-indexer/Cargo.toml -- --check'
-
-  doc-links:
-    desc: Update AGENTS/README document lists
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/doc-linker/scripts/doc-linker/Cargo.toml -- --write'
-
-  doc-links-check:
-    desc: Check AGENTS/README document lists
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/doc-linker/scripts/doc-linker/Cargo.toml -- --check --fail-on-missing'
-
-  validate-skills:
-    desc: Validate skills structure and references
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/skill-validator/scripts/skill-validator/Cargo.toml --'
-
-  validate-docs:
-    desc: Validate core docs sections
-    cmds:
-      - '{{.CARGO}} run --manifest-path skills/docs-audit/scripts/docs-audit-validator/Cargo.toml --'
-
   check:
-    desc: Run current repo checks
-    deps: [skills-index-check, doc-links-check, validate-skills, validate-docs]
-
-  bootstrap-docs:
-    desc: Bootstrap Codex docs for a repo
+    desc: Validate bootstrap script syntax
     cmds:
-      - '{{.CARGO}} run --manifest-path skills/repo-doc-bootstrap/scripts/bootstrap-docs/Cargo.toml -- --root "{{default "." .ROOT}}"'
+      - bash -n install.sh
+
+  run:
+    desc: Run bootstrap install
+    cmds:
+      - ./install.sh
