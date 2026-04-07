@@ -121,6 +121,16 @@ cd llm-bootstrap
 
 기본값은 `codex,gemini` 전체 적용이다. `Claude Code`는 opt-in provider다.
 
+우선순위는 항상 provider 선택이다.
+
+```bash
+cargo run -- apply --providers codex
+cargo run -- apply --providers gemini
+cargo run -- apply --providers claude
+cargo run -- apply --providers codex,gemini
+cargo run -- apply --providers codex,gemini,claude
+```
+
 RTK:
 
 - 기본값은 enabled
@@ -143,36 +153,35 @@ apply mode:
 특정 provider만 적용하려면:
 
 ```bash
-cargo run -- apply --providers codex,gemini
 cargo run -- apply --providers codex
 cargo run -- apply --providers gemini
 cargo run -- apply --providers claude
+cargo run -- apply --providers codex,gemini
 cargo run -- apply --providers codex,gemini,claude
 ```
 
-명시적으로 mode를 고르려면:
+그 다음에 mode나 RTK 옵션을 붙인다:
 
 ```bash
-cargo run -- apply --mode merge
-cargo run -- apply --mode replace
 cargo run -- apply --providers codex --mode replace
-cargo run -- apply --without-rtk
+cargo run -- apply --providers gemini --mode merge --without-rtk
+cargo run -- apply --providers claude --without-rtk
 ```
 
 상태 점검:
 
 ```bash
-cargo run -- doctor
-cargo run -- doctor --without-rtk
-cargo run -- doctor --json
+cargo run -- doctor --providers codex
+cargo run -- doctor --providers gemini --without-rtk
+cargo run -- doctor --providers claude --json
 ```
 
 제거:
 
 ```bash
-cargo run -- uninstall
 cargo run -- uninstall --providers codex
-cargo run -- uninstall --without-rtk
+cargo run -- uninstall --providers gemini --without-rtk
+cargo run -- uninstall --providers claude
 ./uninstall.sh
 ```
 

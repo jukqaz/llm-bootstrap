@@ -38,9 +38,10 @@
 - `bash -n install.sh`
 - `cargo check`
 - `cargo test`
-- `cargo run -- doctor`
+- `cargo run -- doctor --providers codex,gemini`
 - `cargo run -- doctor --json`
 - `cargo run -- uninstall --providers codex,gemini --without-rtk`
+- `cargo run -- install --providers codex,gemini`
 - `cargo run -- --help`
 
 ## 완료 기준
