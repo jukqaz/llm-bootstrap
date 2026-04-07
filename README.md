@@ -8,6 +8,7 @@ macOS 개발 머신에서 `Codex`와 `Gemini` 홈 설정을 한 번에 정리하
 - 개발용 baseline 문서, MCP, plugin, extension만 반영한다
 - 공통 의도는 repo root `bootstrap.toml`에서 선언하고, provider renderer가 각자 최종 파일로 변환한다
 - 모든 apply는 쓰기 전에 기존 상태를 provider 홈 내부 `backups/llm-bootstrap-<timestamp>/` 아래로 먼저 백업한다
+- 모든 uninstall도 제거 전에 기존 상태를 provider 홈 내부 `backups/llm-bootstrap-<timestamp>/` 아래로 먼저 백업한다
 - apply mode는 `merge`와 `replace`를 지원하고, 기본값은 `merge`다
 - shell script는 Rust CLI를 실행하는 얇은 래퍼만 유지한다
 - `rtk-ai`는 기본 포함이지만 opt-out 할 수 있다
@@ -123,6 +124,7 @@ RTK:
 - 기본값은 enabled
 - `bootstrap.toml`의 `external.rtk.enabled = true`가 기준이다
 - 임시로 빼고 싶으면 `cargo run -- apply --without-rtk`
+- uninstall에서도 RTK를 건드리지 않으려면 `cargo run -- uninstall --without-rtk`
 - RTK 자산은 직접 템플릿으로 복제하지 않고 공식 `rtk init`가 생성하는 경로를 우선 사용한다
 
 apply mode:
@@ -160,6 +162,15 @@ cargo run -- doctor
 cargo run -- doctor --without-rtk
 ```
 
+제거:
+
+```bash
+cargo run -- uninstall
+cargo run -- uninstall --providers codex
+cargo run -- uninstall --without-rtk
+./uninstall.sh
+```
+
 CLI 도움말:
 
 ```bash
@@ -175,6 +186,7 @@ cargo run -- --help
 - `plugins/llm-dev-kit/`: Codex local plugin bundle
 - `.agents/plugins/marketplace.json`: Codex local marketplace manifest
 - `install.sh`: Rust CLI 실행 래퍼
+- `uninstall.sh`: bootstrap 제거 래퍼
 
 ## apply가 하는 일
 
@@ -190,6 +202,19 @@ cargo run -- --help
 10. Gemini `settings.json`은 `merge`면 기존 상태에 dev baseline만 합치고, `replace`면 bootstrap baseline 기준으로 다시 쓰되 auth/session 상태 키는 보존한다.
 
 apply를 실행하면 provider별 backup 경로를 항상 출력한다.
+
+## uninstall이 하는 일
+
+1. provider별 bootstrap 관리 범위를 backup 디렉터리로 먼저 복사한다.
+2. RTK가 enabled면 공식 uninstall을 먼저 실행한다.
+   - Codex: `rtk init -g --codex --uninstall`
+   - Gemini: `rtk init -g --gemini --uninstall --auto-patch`
+3. Codex에서는 bootstrap이 관리하는 `config.toml`, `AGENTS.md`, agents, scripts, plugin, workflow 자산을 제거한다.
+4. Gemini에서는 `GEMINI.md`, scripts, extension, QA agent를 제거한다.
+5. Gemini `settings.json`은 파일 전체를 지우지 않고 bootstrap baseline MCP만 제거한다. RTK uninstall이 켜져 있으면 RTK hook도 제거한다.
+6. Gemini `extension-enablement.json`에서는 `llm-bootstrap-dev` 항목만 제거하고 다른 extension 설정은 남긴다.
+
+정확히 이전 상태로 복원해야 하면 uninstall 뒤 provider backup에서 필요한 파일만 되돌리는 방식이 기준이다.
 
 ## doctor가 확인하는 것
 
@@ -222,6 +247,7 @@ Optional follow-up:
 
 ```bash
 bash -n install.sh
+bash -n uninstall.sh
 cargo check
 cargo test
 cargo run -- doctor

@@ -16,7 +16,9 @@
 - 응답과 문서는 한국어를 기본으로 한다
 - 설치기는 idempotent 하게 유지한다
 - 기존 홈 상태는 provider별 backup 디렉터리로 항상 먼저 보존한다
+- uninstall도 같은 backup 규칙을 따른다
 - `apply`는 `merge`와 `replace` 두 mode를 지원한다
+- `install`은 명시적 진입점이고 기존 `apply`는 호환 경로로 유지한다
 - shell wrapper는 최소화하고, 실질 로직은 Rust CLI에 둔다
 - 외부 도구가 공식 init 경로를 제공하면 템플릿 복제보다 그 init 결과를 우선 사용한다
 - Codex plugin은 홈 local marketplace와 installed cache까지 함께 맞춘다
@@ -36,6 +38,7 @@
 - `cargo check`
 - `cargo test`
 - `cargo run -- doctor`
+- `cargo run -- uninstall --providers codex,gemini --without-rtk`
 - `cargo run -- --help`
 
 ## 완료 기준

@@ -83,6 +83,7 @@
 - Rust installer
 - `bootstrap.toml` manifest
 - idempotent apply / doctor
+- install / uninstall both available from the CLI
 - provider별 backup
 - apply mode 분리: `merge` 기본, `replace` opt-in, provider auth/session 상태는 최대한 보존
 - 외부 도구는 공식 init 경로가 있으면 그 결과를 우선 사용

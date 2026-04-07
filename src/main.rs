@@ -14,16 +14,25 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let manifest = load_manifest()?;
 
-    match cli.command.unwrap_or(Command::Apply {
+    match cli.command.unwrap_or(Command::Install {
         providers: None,
         mode: None,
         without_rtk: false,
     }) {
+        Command::Install {
+            providers,
+            mode,
+            without_rtk,
+        } => install(providers, mode, without_rtk, &manifest),
         Command::Apply {
             providers,
             mode,
             without_rtk,
-        } => apply(providers, mode, without_rtk, &manifest),
+        } => install(providers, mode, without_rtk, &manifest),
+        Command::Uninstall {
+            providers,
+            without_rtk,
+        } => uninstall(providers, without_rtk, &manifest),
         Command::Doctor {
             providers,
             without_rtk,
@@ -83,6 +92,25 @@ impl Provider {
 
 #[derive(Subcommand)]
 enum Command {
+    Install {
+        #[arg(
+            long,
+            value_delimiter = ',',
+            help = "Defaults to providers in bootstrap.toml"
+        )]
+        providers: Option<Vec<Provider>>,
+        #[arg(
+            long,
+            value_enum,
+            help = "Defaults to bootstrap.default_mode in bootstrap.toml"
+        )]
+        mode: Option<ApplyMode>,
+        #[arg(
+            long,
+            help = "Skip RTK official init even if enabled in bootstrap.toml"
+        )]
+        without_rtk: bool,
+    },
     Apply {
         #[arg(
             long,
@@ -100,6 +128,16 @@ enum Command {
             long,
             help = "Skip RTK official init even if enabled in bootstrap.toml"
         )]
+        without_rtk: bool,
+    },
+    Uninstall {
+        #[arg(
+            long,
+            value_delimiter = ',',
+            help = "Defaults to providers in bootstrap.toml"
+        )]
+        providers: Option<Vec<Provider>>,
+        #[arg(long, help = "Skip RTK uninstall even if enabled in bootstrap.toml")]
         without_rtk: bool,
     },
     Doctor {
@@ -158,7 +196,7 @@ fn load_manifest() -> Result<BootstrapManifest> {
     toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
 }
 
-fn apply(
+fn install(
     providers_override: Option<Vec<Provider>>,
     mode_override: Option<ApplyMode>,
     without_rtk: bool,
@@ -172,15 +210,39 @@ fn apply(
 
     for provider in &providers {
         match *provider {
-            Provider::Codex => apply_codex(&home, mode, manifest, rtk_enabled)?,
-            Provider::Gemini => apply_gemini(&home, mode, manifest, rtk_enabled)?,
+            Provider::Codex => install_codex(&home, mode, manifest, rtk_enabled)?,
+            Provider::Gemini => install_gemini(&home, mode, manifest, rtk_enabled)?,
         }
     }
 
     println!(
-        "applied providers: {} (mode: {}, rtk: {})",
+        "installed providers: {} (mode: {}, rtk: {})",
         provider_names(&providers),
         mode.name(),
+        if rtk_enabled { "enabled" } else { "disabled" }
+    );
+    Ok(())
+}
+
+fn uninstall(
+    providers_override: Option<Vec<Provider>>,
+    without_rtk: bool,
+    manifest: &BootstrapManifest,
+) -> Result<()> {
+    let home = home_dir()?;
+    let providers = providers_override.unwrap_or_else(|| manifest.bootstrap.providers.clone());
+    let rtk_enabled = manifest.external.rtk.enabled && !without_rtk;
+
+    for provider in &providers {
+        match *provider {
+            Provider::Codex => uninstall_codex(&home, rtk_enabled)?,
+            Provider::Gemini => uninstall_gemini(&home, manifest, rtk_enabled)?,
+        }
+    }
+
+    println!(
+        "uninstalled providers: {} (rtk: {})",
+        provider_names(&providers),
         if rtk_enabled { "enabled" } else { "disabled" }
     );
     Ok(())
@@ -369,7 +431,39 @@ fn gemini_managed_paths() -> Vec<&'static str> {
     ]
 }
 
-fn apply_codex(
+fn codex_uninstall_paths(rtk_enabled: bool) -> Vec<&'static str> {
+    let mut paths = vec![
+        "config.toml",
+        "AGENTS.md",
+        "agents",
+        "scripts",
+        ".agents/plugins/marketplace.json",
+        "plugins/llm-dev-kit",
+        "plugins/cache/llm-bootstrap/llm-dev-kit",
+        "SHIP_CHECKLIST.md",
+        "WORKFLOW.md",
+    ];
+    if rtk_enabled {
+        paths.push("RTK.md");
+    }
+    paths
+}
+
+fn gemini_uninstall_paths(rtk_enabled: bool) -> Vec<&'static str> {
+    let mut paths = vec![
+        "GEMINI.md",
+        "settings.json",
+        "scripts",
+        "extensions/llm-bootstrap-dev",
+        "extensions/extension-enablement.json",
+    ];
+    if rtk_enabled {
+        paths.push("hooks/rtk-hook-gemini.sh");
+    }
+    paths
+}
+
+fn install_codex(
     home: &Path,
     mode: ApplyMode,
     manifest: &BootstrapManifest,
@@ -441,11 +535,11 @@ fn apply_codex(
     copy_render_dir(&bundle_plugin_root, &root.join("plugins/llm-dev-kit"), home)?;
     copy_render_dir(&bundle_plugin_root, &installed_plugin_root, home)?;
 
-    println!("[codex] applied {} ({})", root.display(), mode.name());
+    println!("[codex] installed {} ({})", root.display(), mode.name());
     Ok(())
 }
 
-fn apply_gemini(
+fn install_gemini(
     home: &Path,
     mode: ApplyMode,
     manifest: &BootstrapManifest,
@@ -530,7 +624,65 @@ fn apply_gemini(
     });
     write_json_pretty(&enablement_path, &enablement)?;
 
-    println!("[gemini] applied {} ({})", root.display(), mode.name());
+    println!("[gemini] installed {} ({})", root.display(), mode.name());
+    Ok(())
+}
+
+fn uninstall_codex(home: &Path, rtk_enabled: bool) -> Result<()> {
+    let root = Provider::Codex.home_dir(home);
+    if !root.exists() {
+        println!("[codex] skipped uninstall: {} not found", root.display());
+        return Ok(());
+    }
+
+    let backup_root = create_backup_root(&root)?;
+    println!("[codex] backup {}", backup_root.display());
+
+    for relative in codex_uninstall_paths(rtk_enabled) {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+
+    if rtk_enabled {
+        run_rtk_codex_uninstall(home)?;
+    }
+
+    for relative in codex_uninstall_paths(rtk_enabled) {
+        remove_if_exists(&root.join(relative))?;
+    }
+
+    println!("[codex] uninstalled {}", root.display());
+    Ok(())
+}
+
+fn uninstall_gemini(home: &Path, manifest: &BootstrapManifest, rtk_enabled: bool) -> Result<()> {
+    let root = Provider::Gemini.home_dir(home);
+    if !root.exists() {
+        println!("[gemini] skipped uninstall: {} not found", root.display());
+        return Ok(());
+    }
+
+    let backup_root = create_backup_root(&root)?;
+    println!("[gemini] backup {}", backup_root.display());
+
+    for relative in gemini_uninstall_paths(rtk_enabled) {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+
+    if rtk_enabled {
+        run_rtk_gemini_uninstall(home)?;
+    }
+
+    remove_if_exists(&root.join("GEMINI.md"))?;
+    remove_if_exists(&root.join("scripts"))?;
+    remove_if_exists(&root.join("extensions/llm-bootstrap-dev"))?;
+    if rtk_enabled {
+        remove_if_exists(&root.join("hooks/rtk-hook-gemini.sh"))?;
+    }
+
+    cleanup_gemini_settings(&root.join("settings.json"), manifest, rtk_enabled)?;
+    cleanup_extension_enablement(&root.join("extensions/extension-enablement.json"))?;
+
+    println!("[gemini] uninstalled {}", root.display());
     Ok(())
 }
 
@@ -690,6 +842,34 @@ fn run_rtk_gemini_init(home: &Path) -> Result<()> {
     )
 }
 
+fn run_rtk_codex_uninstall(home: &Path) -> Result<()> {
+    if !command_exists("rtk") {
+        println!("[warn] command rtk missing; skipping official Codex RTK uninstall");
+        return Ok(());
+    }
+
+    run_command_in_home(
+        home,
+        "rtk",
+        ["init", "-g", "--codex", "--uninstall"],
+        "uninstalling RTK for Codex",
+    )
+}
+
+fn run_rtk_gemini_uninstall(home: &Path) -> Result<()> {
+    if !command_exists("rtk") {
+        println!("[warn] command rtk missing; skipping official Gemini RTK uninstall");
+        return Ok(());
+    }
+
+    run_command_in_home(
+        home,
+        "rtk",
+        ["init", "-g", "--gemini", "--uninstall", "--auto-patch"],
+        "uninstalling RTK for Gemini",
+    )
+}
+
 fn gemini_mcp_servers(home: &Path, manifest: &BootstrapManifest) -> Value {
     let gemini_home = home.join(".gemini");
     let mut servers = Map::new();
@@ -799,6 +979,77 @@ fn is_rtk_run_shell_command_hook(entry: &Value) -> bool {
                 .map(|command| command.ends_with("/.gemini/hooks/rtk-hook-gemini.sh"))
                 .unwrap_or(false)
     })
+}
+
+fn cleanup_gemini_settings(
+    settings_path: &Path,
+    manifest: &BootstrapManifest,
+    rtk_enabled: bool,
+) -> Result<()> {
+    if !settings_path.exists() {
+        return Ok(());
+    }
+
+    let mut settings = read_json_or_empty(settings_path)?;
+    remove_baseline_mcp_servers(&mut settings, manifest);
+    if rtk_enabled {
+        prune_rtk_gemini_hooks(&mut settings);
+    }
+    write_or_remove_json(settings_path, &settings)
+}
+
+fn remove_baseline_mcp_servers(settings: &mut Value, manifest: &BootstrapManifest) {
+    let Some(root) = settings.as_object_mut() else {
+        return;
+    };
+    let Some(mcp_servers) = root.get_mut("mcpServers").and_then(Value::as_object_mut) else {
+        return;
+    };
+
+    for mcp in BaselineMcp::all() {
+        if manifest.mcp.always_on.contains(mcp)
+            || manifest
+                .mcp
+                .env_gated
+                .iter()
+                .any(|gated| gated.name == *mcp)
+        {
+            mcp_servers.remove(mcp.name());
+        }
+    }
+
+    if mcp_servers.is_empty() {
+        root.remove("mcpServers");
+    }
+}
+
+fn cleanup_extension_enablement(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let mut enablement = read_json_or_empty(path)?;
+    let Some(root) = enablement.as_object_mut() else {
+        return Ok(());
+    };
+    root.remove("llm-bootstrap-dev");
+    write_or_remove_json(path, &enablement)
+}
+
+fn write_or_remove_json(path: &Path, value: &Value) -> Result<()> {
+    if json_effectively_empty(value) {
+        remove_if_exists(path)
+    } else {
+        write_json_pretty(path, value)
+    }
+}
+
+fn json_effectively_empty(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::Object(map) => map.is_empty(),
+        _ => false,
+    }
 }
 
 fn preserved_gemini_runtime_state(existing: &Value) -> Value {
@@ -1106,11 +1357,12 @@ fn provider_names(providers: &[Provider]) -> String {
 mod tests {
     use super::{
         ApplyMode, BaselineMcp, BootstrapManifest, BootstrapSection, EnvGatedMcp, ExternalSection,
-        McpSection, RtkSection, codex_mcp_blocks, codex_plugin_blocks, merge_json,
-        preserved_gemini_runtime_state, render_tokens,
+        McpSection, RtkSection, cleanup_extension_enablement, codex_mcp_blocks,
+        codex_plugin_blocks, merge_json, preserved_gemini_runtime_state,
+        remove_baseline_mcp_servers, render_tokens,
     };
     use serde_json::json;
-    use std::path::Path;
+    use std::{fs, path::Path};
 
     fn test_manifest() -> BootstrapManifest {
         BootstrapManifest {
@@ -1272,6 +1524,52 @@ mod tests {
             settings["hooks"]["BeforeTool"][1]["hooks"][0]["command"],
             json!("/tmp/custom-run-shell.sh")
         );
+    }
+
+    #[test]
+    fn remove_baseline_mcp_servers_keeps_unmanaged_entries() {
+        let manifest = test_manifest();
+        let mut settings = json!({
+            "mcpServers": {
+                "chrome-devtools": {"command": "a"},
+                "context7": {"command": "b"},
+                "exa": {"command": "c"},
+                "bootpay": {"command": "keep"}
+            }
+        });
+
+        remove_baseline_mcp_servers(&mut settings, &manifest);
+
+        assert!(settings["mcpServers"].get("chrome-devtools").is_none());
+        assert!(settings["mcpServers"].get("context7").is_none());
+        assert!(settings["mcpServers"].get("exa").is_none());
+        assert_eq!(settings["mcpServers"]["bootpay"]["command"], json!("keep"));
+    }
+
+    #[test]
+    fn cleanup_extension_enablement_removes_only_llm_bootstrap_entry() {
+        let temp = std::env::temp_dir().join(format!(
+            "llm-bootstrap-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&temp).unwrap();
+        let path = temp.join("extension-enablement.json");
+        fs::write(
+            &path,
+            "{\n  \"llm-bootstrap-dev\": {\"overrides\": [\"/tmp/*\"]},\n  \"other\": {\"overrides\": [\"/keep/*\"]}\n}\n",
+        )
+        .unwrap();
+
+        cleanup_extension_enablement(&path).unwrap();
+
+        let after = fs::read_to_string(&path).unwrap();
+        assert!(!after.contains("llm-bootstrap-dev"));
+        assert!(after.contains("\"other\""));
+
+        fs::remove_dir_all(temp).unwrap();
     }
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]

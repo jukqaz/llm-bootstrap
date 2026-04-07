@@ -16,4 +16,4 @@ if ! command -v cargo >/dev/null 2>&1; then
   brew install rust
 fi
 
-exec cargo run --quiet -- install "$@"
+exec cargo run --quiet -- uninstall "$@"
