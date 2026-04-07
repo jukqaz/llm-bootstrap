@@ -23,10 +23,20 @@ pub(crate) fn doctor_checks(
     let root = home.join(".gemini");
     let mut checks = vec![
         root.join("GEMINI.md"),
+        root.join("WORKFLOW.md"),
+        root.join("SHIP_CHECKLIST.md"),
         root.join("settings.json"),
         root.join("extensions/llm-bootstrap-dev/gemini-extension.json"),
+        root.join("extensions/llm-bootstrap-dev/OFFICE_HOURS.md"),
+        root.join("extensions/llm-bootstrap-dev/AUTOPILOT.md"),
+        root.join("extensions/llm-bootstrap-dev/RETRO.md"),
+        root.join("extensions/llm-bootstrap-dev/commands/intent.md"),
+        root.join("extensions/llm-bootstrap-dev/commands/doctor.md"),
+        root.join("extensions/llm-bootstrap-dev/agents/triage.md"),
+        root.join("extensions/llm-bootstrap-dev/agents/docs-researcher.md"),
         root.join("extensions/extension-enablement.json"),
         root.join("extensions/llm-bootstrap-dev/agents/qa.md"),
+        root.join("extensions/llm-bootstrap-dev/agents/verifier.md"),
     ];
     if rtk_enabled {
         checks.push(root.join("hooks/rtk-hook-gemini.sh"));
@@ -110,7 +120,7 @@ pub(crate) fn install(
     if !rtk_enabled {
         prune_rtk_gemini_hooks(&mut current_settings);
     }
-    current_settings["mcpServers"] = mcp_servers(home, enabled_mcp);
+    current_settings["mcpServers"] = mcp_servers(home, &existing_settings, enabled_mcp, mode);
     write_json_pretty(&settings_path, &current_settings)?;
 
     let mut enablement = match mode {
@@ -237,9 +247,31 @@ fn settings_patch(home: &Path, rtk_enabled: bool) -> Value {
     })
 }
 
-fn mcp_servers(home: &Path, enabled_mcp: &[BaselineMcp]) -> Value {
+fn mcp_servers(
+    home: &Path,
+    existing_settings: &Value,
+    enabled_mcp: &[BaselineMcp],
+    mode: ApplyMode,
+) -> Value {
     let gemini_home = home.join(".gemini");
-    let mut servers = Map::new();
+    let mut servers = match mode {
+        ApplyMode::Merge => existing_settings
+            .get("mcpServers")
+            .and_then(Value::as_object)
+            .map(|existing| {
+                existing
+                    .iter()
+                    .filter(|(name, _)| {
+                        !BaselineMcp::all()
+                            .iter()
+                            .any(|mcp| mcp.name() == name.as_str())
+                    })
+                    .map(|(name, value)| (name.clone(), value.clone()))
+                    .collect::<Map<String, Value>>()
+            })
+            .unwrap_or_default(),
+        ApplyMode::Replace => Map::new(),
+    };
 
     for mcp in enabled_mcp {
         servers.insert(

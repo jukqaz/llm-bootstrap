@@ -1,7 +1,7 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
-    backup_relative, copy_render_file_with_extras, copy_selected_scripts, create_backup_root,
-    remove_if_exists,
+    backup_relative, copy_render_dir, copy_render_file_with_extras, copy_selected_scripts,
+    create_backup_root, remove_if_exists,
 };
 use crate::json_ops::{cleanup_claude_settings, read_json_or_empty, write_json_pretty};
 use crate::manifest::{BaselineMcp, BootstrapManifest};
@@ -13,7 +13,17 @@ use std::path::{Path, PathBuf};
 
 const CLAUDE_MANAGED_PATHS: &[&str] = &[
     "CLAUDE.md",
+    "agents",
     "scripts",
+    "WORKFLOW.md",
+    "SHIP_CHECKLIST.md",
+    "OFFICE_HOURS.md",
+    "INVESTIGATE.md",
+    "AUTOPILOT.md",
+    "RETRO.md",
+    "REVIEW.md",
+    "QA.md",
+    "SHIP.md",
     "settings.json",
     "RTK.md",
     "hooks/rtk-rewrite.sh",
@@ -26,7 +36,23 @@ pub(crate) fn doctor_checks(
     rtk_enabled: bool,
 ) -> Vec<PathBuf> {
     let root = home.join(".claude");
-    let mut checks = vec![root.join("CLAUDE.md")];
+    let mut checks = vec![
+        root.join("CLAUDE.md"),
+        root.join("agents/planner.md"),
+        root.join("agents/reviewer.md"),
+        root.join("agents/executor.md"),
+        root.join("agents/triage.md"),
+        root.join("agents/verifier.md"),
+        root.join("WORKFLOW.md"),
+        root.join("SHIP_CHECKLIST.md"),
+        root.join("OFFICE_HOURS.md"),
+        root.join("INVESTIGATE.md"),
+        root.join("AUTOPILOT.md"),
+        root.join("RETRO.md"),
+        root.join("REVIEW.md"),
+        root.join("QA.md"),
+        root.join("SHIP.md"),
+    ];
 
     if rtk_enabled {
         checks.push(root.join("settings.json"));
@@ -69,7 +95,7 @@ pub(crate) fn install(
         for relative in CLAUDE_MANAGED_PATHS {
             remove_if_exists(&root.join(relative))?;
         }
-        remove_managed_mcp(home, &managed_mcp(&root)?)?;
+        remove_all_registered_mcp(home)?;
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("hooks"))?;
     }
@@ -89,11 +115,75 @@ pub(crate) fn install(
         home,
         &rtk_tokens(rtk_enabled),
     )?;
+    copy_render_dir(&template_root.join("agents"), &root.join("agents"), home)?;
     copy_selected_scripts(
         &template_root.join("scripts"),
         &root.join("scripts"),
         home,
         enabled_mcp,
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("WORKFLOW.md"),
+        &root.join("WORKFLOW.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("SHIP_CHECKLIST.md"),
+        &root.join("SHIP_CHECKLIST.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("OFFICE_HOURS.md"),
+        &root.join("OFFICE_HOURS.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("INVESTIGATE.md"),
+        &root.join("INVESTIGATE.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("AUTOPILOT.md"),
+        &root.join("AUTOPILOT.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("RETRO.md"),
+        &root.join("RETRO.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("REVIEW.md"),
+        &root.join("REVIEW.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("QA.md"),
+        &root.join("QA.md"),
+        false,
+        home,
+        &[],
+    )?;
+    copy_render_file_with_extras(
+        &template_root.join("SHIP.md"),
+        &root.join("SHIP.md"),
+        false,
+        home,
+        &[],
     )?;
 
     sync_baseline_mcp(home, &root, enabled_mcp)?;
@@ -235,6 +325,25 @@ fn write_managed_mcp(root: &Path, enabled_mcp: &[BaselineMcp]) -> Result<()> {
         "managed_mcp": enabled_mcp.iter().map(|mcp| mcp.name()).collect::<Vec<_>>(),
     });
     write_json_pretty(&path, &state)
+}
+
+fn remove_all_registered_mcp(home: &Path) -> Result<()> {
+    let claude_json = home.join(".claude.json");
+    if !claude_json.exists() {
+        return Ok(());
+    }
+
+    let value = read_json_or_empty(&claude_json)?;
+    let names = value
+        .get("mcpServers")
+        .and_then(Value::as_object)
+        .map(|servers| servers.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    for name in names {
+        remove_mcp(home, &name)?;
+    }
+    Ok(())
 }
 
 fn remove_mcp(home: &Path, name: &str) -> Result<()> {

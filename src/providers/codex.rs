@@ -6,9 +6,10 @@ use crate::fs_ops::{
 use crate::layout::{codex_managed_paths, codex_uninstall_paths};
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
+use toml::{Value, map::Map as TomlMap};
 
 pub(crate) fn doctor_checks(
     home: &Path,
@@ -26,7 +27,14 @@ pub(crate) fn doctor_checks(
         root.join("plugins/cache/llm-bootstrap/llm-dev-kit/local/.codex-plugin/plugin.json"),
         root.join("SHIP_CHECKLIST.md"),
         root.join("WORKFLOW.md"),
+        root.join("OFFICE_HOURS.md"),
+        root.join("INVESTIGATE.md"),
+        root.join("AUTOPILOT.md"),
+        root.join("RETRO.md"),
         root.join("plugins/llm-dev-kit/skills/qa-browser/SKILL.md"),
+        root.join("plugins/llm-dev-kit/skills/delivery-loop/SKILL.md"),
+        root.join("plugins/llm-dev-kit/skills/investigate/SKILL.md"),
+        root.join("plugins/llm-dev-kit/skills/autopilot/SKILL.md"),
     ];
     if rtk_enabled {
         checks.push(root.join("RTK.md"));
@@ -75,7 +83,7 @@ pub(crate) fn install(
         remove_if_exists(&root.join("RTK.md"))?;
     }
 
-    let codex_mcp_blocks = mcp_blocks(home, enabled_mcp);
+    let codex_mcp_blocks = mcp_blocks(home, &root, enabled_mcp, mode)?;
     let codex_plugin_blocks = plugin_blocks();
     copy_render_file_with_extras(
         &template_root.join("config.toml"),
@@ -112,6 +120,7 @@ pub(crate) fn install(
     copy_render_dir(&bundle_root, &root, home)?;
     copy_render_dir(&bundle_plugin_root, &root.join("plugins/llm-dev-kit"), home)?;
     copy_render_dir(&bundle_plugin_root, &installed_plugin_root, home)?;
+    write_managed_mcp(&root, enabled_mcp)?;
 
     println!("[codex] installed {} ({})", root.display(), mode.name());
     Ok(())
@@ -143,9 +152,20 @@ pub(crate) fn uninstall(home: &Path, rtk_enabled: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn mcp_blocks(home: &Path, enabled_mcp: &[BaselineMcp]) -> String {
+pub(crate) fn mcp_blocks(
+    home: &Path,
+    root: &Path,
+    enabled_mcp: &[BaselineMcp],
+    mode: ApplyMode,
+) -> Result<String> {
     let codex_home = home.join(".codex");
-    enabled_mcp
+
+    let unmanaged = match mode {
+        ApplyMode::Merge => unmanaged_mcp_blocks(root)?,
+        ApplyMode::Replace => Vec::new(),
+    };
+
+    let managed = enabled_mcp
         .iter()
         .map(|mcp| {
             format!(
@@ -154,8 +174,13 @@ pub(crate) fn mcp_blocks(home: &Path, enabled_mcp: &[BaselineMcp]) -> String {
                 command = codex_home.join("scripts").join(mcp.script_name()).display()
             )
         })
+        .collect::<Vec<_>>();
+
+    Ok(unmanaged
+        .into_iter()
+        .chain(managed)
         .collect::<Vec<_>>()
-        .join("\n\n")
+        .join("\n\n"))
 }
 
 pub(crate) fn plugin_blocks() -> String {
@@ -205,4 +230,49 @@ fn rtk_tokens(rtk_enabled: bool) -> Vec<(&'static str, &'static str)> {
             ("__RTK_CODEX_IMPORT__", ""),
         ]
     }
+}
+
+fn unmanaged_mcp_blocks(root: &Path) -> Result<Vec<String>> {
+    let config_path = root.join("config.toml");
+    if !config_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let raw = fs::read_to_string(&config_path)
+        .with_context(|| format!("failed to read {}", config_path.display()))?;
+    let value: Value = raw
+        .parse::<Value>()
+        .with_context(|| format!("failed to parse {}", config_path.display()))?;
+    let Some(mcp_servers) = value.get("mcp_servers").and_then(Value::as_table) else {
+        return Ok(Vec::new());
+    };
+
+    let mut blocks = Vec::new();
+    for (name, table) in mcp_servers {
+        if BaselineMcp::all().iter().any(|mcp| mcp.name() == name) {
+            continue;
+        }
+
+        let mut mcp_servers_table = TomlMap::new();
+        mcp_servers_table.insert(name.clone(), table.clone());
+
+        let mut root_table = TomlMap::new();
+        root_table.insert("mcp_servers".to_string(), Value::Table(mcp_servers_table));
+        blocks.push(
+            toml::to_string(&Value::Table(root_table))?
+                .trim()
+                .to_string(),
+        );
+    }
+    Ok(blocks)
+}
+
+fn write_managed_mcp(root: &Path, enabled_mcp: &[BaselineMcp]) -> Result<()> {
+    let path = root.join("llm-bootstrap-state.json");
+    let json = serde_json::json!({
+        "managed_mcp": enabled_mcp.iter().map(|mcp| mcp.name()).collect::<Vec<_>>(),
+    });
+    fs::write(&path, format!("{}\n", serde_json::to_string_pretty(&json)?))
+        .with_context(|| format!("failed to write {}", path.display()))?;
+    Ok(())
 }

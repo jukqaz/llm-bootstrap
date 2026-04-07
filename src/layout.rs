@@ -1,5 +1,6 @@
 pub(crate) const CODEX_BASE_PATHS: &[&str] = &[
     "config.toml",
+    "llm-bootstrap-state.json",
     "AGENTS.md",
     "agents",
     "scripts",
@@ -8,10 +9,16 @@ pub(crate) const CODEX_BASE_PATHS: &[&str] = &[
     "plugins/cache/llm-bootstrap/llm-dev-kit",
     "SHIP_CHECKLIST.md",
     "WORKFLOW.md",
+    "OFFICE_HOURS.md",
+    "INVESTIGATE.md",
+    "AUTOPILOT.md",
+    "RETRO.md",
 ];
 
 pub(crate) const GEMINI_BASE_PATHS: &[&str] = &[
     "GEMINI.md",
+    "WORKFLOW.md",
+    "SHIP_CHECKLIST.md",
     "settings.json",
     "scripts",
     "extensions/llm-bootstrap-dev",

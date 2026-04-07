@@ -24,6 +24,7 @@
 - custom agent role map
 - `AGENTS.md` 기반 운영 규율
 - 과한 profile 분기보다 하나의 강한 기준선
+- `autopilot` 같은 end-to-end 진입점을 workflow layer로 두는 방식
 
 ### `oh-my-gemini-cli` / `oh-my-gemini`
 
@@ -61,6 +62,7 @@
 - plan -> review -> qa -> ship 순서의 강한 delivery loop
 - 설치형 skill pack 철학
 - prompt보다 workflow contract를 중시하는 방식
+- `office-hours`, `investigate`, `retro`처럼 작업 중간의 판단 지점을 별도 artifact로 다루는 방식
 
 ### `harness/harness`
 
@@ -99,15 +101,21 @@
 - strongest agent roster
 - richest plugin/skill pack
 - review/qa/ship artifacts
+- `office-hours` / `investigate` workflow artifact
+- `autopilot` / `retro` artifact
 - app/plugin lane for Figma/Linear
 - long-context lane와 fanout 운영 기준
+- 공식 agent TOML 옵션으로 role-specific model / effort / long-context pin 사용
 
 ### Gemini lane
 
 - extension 기반 문서/agent pack
 - RTK hook
 - settings merge
+- command-style docs와 review/qa agent pack
+- `autopilot` / `retro` workflow docs
 - Codex baseline의 얇은 대응물만 유지
+- 공식 설정 표면이 global `model.name` 중심이므로 per-agent model pin은 두지 않음
 
 ### Claude Code lane
 
@@ -115,6 +123,9 @@
 - 목표는 feature parity가 아니라 compatibility 우선
 - user-scope `CLAUDE.md`와 official `claude mcp add --scope user` 흐름을 사용
 - Codex 기준 workflow를 Claude Code 문맥으로 번역하는 수준에서 유지
+- 최소 review/qa/ship/investigate 문서와 lightweight agent pack 포함
+- `autopilot` / `retro`는 문서 artifact 수준으로만 유지
+- 공식 subagent frontmatter `model`/`tools`만 사용하고 별도 context pin은 두지 않음
 
 ## 모듈 구조 제안
 

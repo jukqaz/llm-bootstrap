@@ -34,8 +34,9 @@ Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Co
 - `exa` if `EXA_API_KEY` is set
 - Codex `llm-dev-kit` plugin
 - Gemini `llm-bootstrap-dev` extension
-- Codex workflow/checklist + browser QA skill
-- Gemini QA agent
+- Codex workflow/checklist + `office-hours` / `investigate` / `autopilot` / `retro` + browser QA skill
+- Gemini workflow docs + extension command/agent pack + `autopilot` / `retro`
+- Claude compatibility workflow docs + lightweight agent pack + `autopilot` / `retro`
 
 현재 `bootstrap.toml`이 관리하는 공통 선언은 다음이다.
 
@@ -51,9 +52,28 @@ Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Co
 
 - `Codex`: 개발용 `config.toml`, `AGENTS.md`, `RTK.md` when enabled, custom agents, MCP wrapper scripts
 - `Codex`: local marketplace + `llm-dev-kit` skill plugin baseline
+- `Codex`: `WORKFLOW`, `SHIP_CHECKLIST`, `OFFICE_HOURS`, `INVESTIGATE`, `AUTOPILOT`, `RETRO`
 - `Gemini`: 개발용 `GEMINI.md`, `RTK` hook when enabled, MCP scripts, `settings.json` merge
-- `Gemini`: `llm-bootstrap-dev` extension baseline
+- `Gemini`: `llm-bootstrap-dev` extension baseline with workflow docs, command docs, review/qa agents, `AUTOPILOT`, `RETRO`
 - `Claude Code`: user-scope `CLAUDE.md`, MCP wrapper scripts, optional RTK compatibility lane
+- `Claude Code`: `WORKFLOW`, `SHIP_CHECKLIST`, `OFFICE_HOURS`, `INVESTIGATE`, `AUTOPILOT`, `RETRO`, `REVIEW`, `QA`, `SHIP`
+
+## 서브에이전트 설정 원칙
+
+- `Codex`
+  - 공식 `config.toml` / agent TOML 옵션만 사용한다
+  - 역할별 모델은 `gpt-5.4`, `gpt-5.4-mini`, `gpt-5-codex`로 제한한다
+  - reasoning effort는 역할별로 `medium`, `high`, `xhigh`만 사용한다
+  - 전역 context window는 기본값을 유지한다
+  - long-context lane만 explicit `model_context_window = 1000000`과 `model_auto_compact_token_limit = 900000`을 pin 한다
+  - 현재 `planner-1m`, `architect-1m`, `reviewer-1m`만 1M lane이다
+- `Gemini`
+  - 공식 설정 표면이 global `model.name` 중심이므로 extension agent에는 per-agent model pin을 넣지 않는다
+  - 역할 차이는 문서와 workflow contract로만 분리한다
+- `Claude Code`
+  - 공식 subagent frontmatter `model`과 `tools`만 사용한다
+  - `triage`는 `haiku`, `reviewer`와 `verifier`는 `sonnet`, `planner`와 `executor`는 `inherit`로 둔다
+  - subagent별 context window pin은 별도 설정하지 않는다
 
 ## MCP 원칙
 
@@ -144,9 +164,11 @@ apply mode:
 - `merge`:
   - 기본값
   - 기존 홈의 추가 파일은 남겨두고 bootstrap 관리 범위만 갱신한다
+  - 세 provider 모두 기존 non-baseline MCP는 유지하고, bootstrap baseline MCP만 추가/갱신한다
   - Gemini `settings.json`과 extension enablement는 기존 상태에 dev baseline만 merge한다
 - `replace`:
   - bootstrap이 관리하는 경로를 먼저 비우고 다시 생성한다
+  - 세 provider 모두 기존 MCP를 baseline 기준으로 다시 맞추고 non-baseline MCP는 제거한다
   - 하드리셋에 가깝지만, provider 토큰/세션 파일까지 직접 지우지는 않는다
   - Gemini `settings.json`과 extension enablement는 bootstrap baseline 기준으로 다시 쓰되, 알려진 auth/session 키는 보존한다
 
@@ -217,11 +239,11 @@ cargo run -- --help
 4. RTK가 enabled면 공식 `rtk init`로 Codex/Gemini RTK 자산을 먼저 반영하고, disabled면 bootstrap 관리 범위의 RTK 산출물을 제거한다.
 5. 활성 조건을 만족한 MCP wrapper scripts와 `config.toml`을 `~/.codex`로 반영한다.
 6. Codex local marketplace와 `llm-dev-kit` skill plugin을 배치한다.
-7. Codex workflow/checklist와 browser QA skill을 추가한다.
+7. Codex workflow/checklist와 `office-hours`, `investigate`, `autopilot`, `retro`, browser QA skill을 추가한다.
 8. Gemini용 `GEMINI.md`, MCP wrapper scripts를 반영한다.
-9. Gemini extension과 QA agent를 반영한다.
+9. Gemini extension과 command docs, review/qa agent pack, `AUTOPILOT`, `RETRO`를 반영한다.
 10. Gemini `settings.json`은 `merge`면 기존 상태에 dev baseline만 합치고, `replace`면 bootstrap baseline 기준으로 다시 쓰되 auth/session 상태 키는 보존한다.
-11. Claude provider가 선택되면 `CLAUDE.md`와 MCP wrapper scripts를 반영하고, 공식 `claude mcp add --scope user`로 baseline MCP를 등록한다.
+11. Claude provider가 선택되면 `CLAUDE.md`, workflow docs, lightweight agent pack, `AUTOPILOT`, `RETRO`, MCP wrapper scripts를 반영하고, 공식 `claude mcp add --scope user`로 baseline MCP를 등록한다.
 
 apply를 실행하면 provider별 backup 경로를 항상 출력한다.
 
@@ -250,12 +272,27 @@ apply를 실행하면 provider별 backup 경로를 항상 출력한다.
 - `~/.codex/scripts/*.sh`
 - `~/.codex/.agents/plugins/marketplace.json`
 - `~/.codex/plugins/llm-dev-kit/.codex-plugin/plugin.json`
+- `~/.codex/OFFICE_HOURS.md`
+- `~/.codex/INVESTIGATE.md`
+- `~/.codex/AUTOPILOT.md`
+- `~/.codex/RETRO.md`
 - `~/.gemini/GEMINI.md`
+- `~/.gemini/WORKFLOW.md`
+- `~/.gemini/SHIP_CHECKLIST.md`
 - `~/.gemini/settings.json`
 - `~/.gemini/hooks/rtk-hook-gemini.sh` when RTK is enabled
 - `~/.gemini/scripts/*.sh`
 - `~/.gemini/extensions/llm-bootstrap-dev/gemini-extension.json`
+- `~/.gemini/extensions/llm-bootstrap-dev/AUTOPILOT.md`
+- `~/.gemini/extensions/llm-bootstrap-dev/RETRO.md`
+- `~/.gemini/extensions/llm-bootstrap-dev/commands/*.md`
 - `~/.claude/CLAUDE.md` when the claude provider is selected
+- `~/.claude/WORKFLOW.md`
+- `~/.claude/AUTOPILOT.md`
+- `~/.claude/RETRO.md`
+- `~/.claude/REVIEW.md`
+- `~/.claude/QA.md`
+- `~/.claude/SHIP.md`
 - `~/.claude/scripts/*.sh` when the claude provider is selected
 - `~/.claude/RTK.md` and `~/.claude/hooks/rtk-rewrite.sh` when RTK is enabled for claude
 - `~/.claude.json` when the claude provider is selected
