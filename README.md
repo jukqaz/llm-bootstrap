@@ -1,66 +1,235 @@
-# codex-bootstrap
+# llm-bootstrap
 
-새 macOS 머신에서 Codex 전역 baseline을 한 번에 재현하는 bootstrap 저장소다.
+macOS 개발 머신에서 `Codex`와 `Gemini` 홈 설정을 한 번에 정리하는 Rust 기반 bootstrap 저장소다.
 
-현재 baseline:
+이 저장소는 다음 원칙으로 동작한다.
 
-- `oh-my-codex` 설치
-- `rtk` 설치 및 Codex global init
-- `icm` 설치 및 MCP 등록
-- `omx setup --scope user --force`
+- provider별 인증 토큰과 세션 상태는 건드리지 않는다
+- 개발용 baseline 문서, MCP, plugin, extension만 반영한다
+- 공통 의도는 repo root `bootstrap.toml`에서 선언하고, provider renderer가 각자 최종 파일로 변환한다
+- 모든 apply는 쓰기 전에 기존 상태를 provider 홈 내부 `backups/llm-bootstrap-<timestamp>/` 아래로 먼저 백업한다
+- apply mode는 `merge`와 `replace`를 지원하고, 기본값은 `merge`다
+- shell script는 Rust CLI를 실행하는 얇은 래퍼만 유지한다
+- `rtk-ai`는 기본 포함이지만 opt-out 할 수 있다
+- 외부 도구는 가능하면 해당 도구가 공식 지원하는 init 경로를 우선 사용한다
+
+## 지원 순서
+
+- 1순위: `Codex`
+- 2순위: `Gemini`
+- 3순위: `Claude Code` 예정
+
+현재 구현은 Codex-first다. richest workflow, plugin, agent baseline은 Codex에 먼저 들어간다.
+Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Code는 이후 compatibility lane으로 추가한다.
+
+설계 기준은 `docs/codex-first-blueprint.md`에 정리했다.
+
+## baseline
+
+단일 baseline으로 간다. preset 분기는 두지 않는다. 이 저장소는 user/home scope만 관리하고, repo/project-level 설정 파일은 만들지 않는다.
+
+- `chrome-devtools`
+- `context7` if `CONTEXT7_API_KEY` is set
+- `exa` if `EXA_API_KEY` is set
+- Codex `llm-dev-kit` plugin
+- Gemini `llm-bootstrap-dev` extension
+- Codex workflow/checklist + browser QA skill
+- Gemini QA agent
+
+현재 `bootstrap.toml`이 관리하는 공통 선언은 다음이다.
+
+- 기본 provider 목록
+- 기본 apply mode
+- 외부 도구 enablement
+- always-on MCP 목록
+- env-gated MCP 목록
+
+최종 `Codex config.toml`이나 `Gemini settings.json` 전체를 공통화하지는 않는다.
+
+## 현재 baseline
+
+- `Codex`: 개발용 `config.toml`, `AGENTS.md`, `RTK.md` when enabled, custom agents, MCP wrapper scripts
+- `Codex`: local marketplace + `llm-dev-kit` skill plugin baseline
+- `Gemini`: 개발용 `GEMINI.md`, `RTK` hook when enabled, MCP scripts, `settings.json` merge
+- `Gemini`: `llm-bootstrap-dev` extension baseline
+
+## MCP 원칙
+
+- 기본 포함:
+  - `chrome-devtools`
+- env가 있을 때만 포함:
+  - `context7`
+  - `exa`
+- 제외:
+  - `filesystem`: Codex/Gemini 기본 파일 작업과 중복
+  - `playwright`: `chrome-devtools`와 역할이 겹치고 baseline 대비 비용이 커서 제외
+- plugin은 skills-only bundle로 유지하고, MCP는 provider home config가 전담한다
+
+`Exa`는 일반 웹/코드 검색 lane으로 두고 `EXA_API_KEY`가 있을 때만 활성화한다.
+`Context7`도 `CONTEXT7_API_KEY`가 있을 때만 활성화한다.
+secret manager SDK/CLI 연계는 기본 제공하지 않는다. 필요한 값은 사용자가 직접 env로 넣는 방식을 기준으로 한다.
+
+## 앱 / 플러그인 연동
+
+- `Figma`, `Linear`는 Codex 쪽에서 MCP보다 official curated app/plugin lane이 더 자연스럽다
+- Codex 소스 기준 discoverable curated plugin allowlist에 `figma@openai-curated`, `linear@openai-curated`가 포함되어 있다
+- bootstrap은 이 두 integration을 강제 설치하지 않고, baseline 준비 후 Codex UI 또는 plugin flow에서 enable 하는 쪽을 권장한다
+- Gemini 쪽은 app lane보다 MCP/extension 구성이 더 현실적이므로 baseline에는 포함하지 않는다
+
+## 어떤 repo에서 무엇을 가져오나
+
+- `oh-my-codex`: Codex home baseline, agent roster, `AGENTS.md` 운영 규율
+- `oh-my-gemini-cli` / `oh-my-gemini`: Gemini extension + settings merge + hook 구조
+- `oh-my-claudecode`: Claude Code compatibility lane
+- `oh-my-openagent`: category routing, fanout, 계층형 context injection
+- `oh-my-agent`: opinionated team workflow pack
+- `OpenHarness`: 모듈형 harness 관점
+- `gstack`: `plan -> review -> qa -> ship` delivery loop
+- `harness/harness`: artifact/release/verification discipline만 참고
+
+반대로 giant state machine, 과한 기본 MCP, 거대한 agent catalog는 들여오지 않는다.
 
 ## 전제조건
 
 - macOS
-- `brew`가 이미 설치되어 있어야 한다
-- `codex` CLI 또는 Codex Desktop이 이미 설치되어 있어야 한다
+- `brew` 설치
+- 대상 도구가 이미 설치되어 있어야 한다
+  - Codex
+  - Gemini CLI/Desktop
+- bootstrap이 다음 도구는 자동으로 맞춘다
+  - `node` / `npx`
+- RTK가 켜져 있으면 `rtk-ai/tap/rtk`를 설치하고 공식 init를 사용한다
+  - Codex: `rtk init -g --codex`
+  - Gemini: `rtk init -g --gemini --auto-patch`
+- 권장 환경 변수
+  - `EXA_API_KEY`
+  - `CONTEXT7_API_KEY`
+- `Bitwarden`/`Vaultwarden`나 `Infisical`을 쓰더라도, bootstrap은 최종적으로 export된 env만 소비한다.
 
-가이드:
+이 저장소는 provider 앱 자체를 설치하지 않는다. 앱 위에 개발용 baseline만 올린다.
 
-- Homebrew: [brew.sh](https://brew.sh)
-- Codex 설치: [Codex Quickstart](https://developers.openai.com/codex/quickstart/#setup)
-
-이 저장소는 `brew`와 `codex`를 직접 설치하지 않는다. 두 도구가 이미 준비된 머신에서 그 위에 `OMX + RTK + ICM` baseline을 올리는 역할만 한다.
-
-## 설치 방식
-
-- `rtk`, `icm`: Homebrew로 설치
-- `oh-my-codex`: `npm install -g oh-my-codex`
-- `node`/`npm`: 없으면 스크립트가 `brew install node`로 보완
-
-즉 `npm`은 OMX 설치 경로로만 사용하고, 나머지 핵심 툴은 Homebrew와 Codex 기존 설치를 전제로 한다.
-
-## 사용법
+## 빠른 사용법
 
 ```bash
-git clone https://github.com/jukqaz/codex-bootstrap.git
-cd codex-bootstrap
+git clone https://github.com/jukqaz/llm-bootstrap.git
+cd llm-bootstrap
 ./install.sh
 ```
 
-## 스크립트가 하는 일
+기본값은 `codex,gemini` 전체 적용이다.
 
-1. 기존 `~/.codex` 핵심 파일을 타임스탬프 백업 디렉터리로 복사한다.
-2. Homebrew로 `rtk`와 `icm`을 설치한다.
-3. `npm install -g oh-my-codex`로 OMX를 최신 상태로 맞춘다.
-4. `omx setup --scope user --force`를 실행한다.
-5. `rtk init -g --codex`를 실행한다.
-6. `~/.codex/config.toml`에 `icm` MCP block이 없으면 추가한다.
-7. `omx doctor`와 `codex mcp list`로 기본 검증을 수행한다.
+RTK:
 
-## 설치 후 기대 상태
+- 기본값은 enabled
+- `bootstrap.toml`의 `external.rtk.enabled = true`가 기준이다
+- 임시로 빼고 싶으면 `cargo run -- apply --without-rtk`
+- RTK 자산은 직접 템플릿으로 복제하지 않고 공식 `rtk init`가 생성하는 경로를 우선 사용한다
 
-- `~/.codex/config.toml`에 `icm`과 `omx_*` MCP block이 존재한다
-- `~/.codex/AGENTS.md`에 `@RTK.md`가 연결된다
-- `omx doctor`가 통과한다
-- 현재 clone한 저장소에는 `.omx/` 상태 파일이 생기지 않는다
+apply mode:
+
+- `merge`:
+  - 기본값
+  - 기존 홈의 추가 파일은 남겨두고 bootstrap 관리 범위만 갱신한다
+  - Gemini `settings.json`과 extension enablement는 기존 상태에 dev baseline만 merge한다
+- `replace`:
+  - bootstrap이 관리하는 경로를 먼저 비우고 다시 생성한다
+  - 하드리셋에 가깝지만, provider 토큰/세션 파일까지 직접 지우지는 않는다
+  - Gemini `settings.json`과 extension enablement는 bootstrap baseline 기준으로 다시 쓰되, 알려진 auth/session 키는 보존한다
+
+특정 provider만 적용하려면:
+
+```bash
+cargo run -- apply --providers codex,gemini
+cargo run -- apply --providers codex
+cargo run -- apply --providers gemini
+```
+
+명시적으로 mode를 고르려면:
+
+```bash
+cargo run -- apply --mode merge
+cargo run -- apply --mode replace
+cargo run -- apply --providers codex --mode replace
+cargo run -- apply --without-rtk
+```
+
+상태 점검:
+
+```bash
+cargo run -- doctor
+cargo run -- doctor --without-rtk
+```
+
+CLI 도움말:
+
+```bash
+cargo run -- --help
+```
+
+## 디렉터리 구조
+
+- `src/main.rs`: bootstrap 엔트리포인트
+- `bootstrap.toml`: 공통 manifest
+- `templates/codex/`: Codex baseline 템플릿
+- `templates/gemini/`: Gemini 문서, 스크립트, extension 템플릿
+- `plugins/llm-dev-kit/`: Codex local plugin bundle
+- `.agents/plugins/marketplace.json`: Codex local marketplace manifest
+- `install.sh`: Rust CLI 실행 래퍼
+
+## apply가 하는 일
+
+1. provider별 대상 파일을 backup 디렉터리로 복사한다.
+2. Homebrew로 `node`를 보장하고, RTK가 enabled면 `rtk`도 보장한다.
+3. `merge`면 기존 추가 파일은 유지하고, `replace`면 bootstrap 관리 경로를 먼저 제거한다.
+4. RTK가 enabled면 공식 `rtk init`로 Codex/Gemini RTK 자산을 먼저 반영하고, disabled면 bootstrap 관리 범위의 RTK 산출물을 제거한다.
+5. 활성 조건을 만족한 MCP wrapper scripts와 `config.toml`을 `~/.codex`로 반영한다.
+6. Codex local marketplace와 `llm-dev-kit` skill plugin을 배치한다.
+7. Codex workflow/checklist와 browser QA skill을 추가한다.
+8. Gemini용 `GEMINI.md`, MCP wrapper scripts를 반영한다.
+9. Gemini extension과 QA agent를 반영한다.
+10. Gemini `settings.json`은 `merge`면 기존 상태에 dev baseline만 합치고, `replace`면 bootstrap baseline 기준으로 다시 쓰되 auth/session 상태 키는 보존한다.
+
+apply를 실행하면 provider별 backup 경로를 항상 출력한다.
+
+## doctor가 확인하는 것
+
+- `node`, `npx`
+- `rtk` when enabled
+- `EXA_API_KEY`, `CONTEXT7_API_KEY` 유무
+- `~/.codex/config.toml`
+- `~/.codex/AGENTS.md`
+- `~/.codex/agents/*.toml`
+- `~/.codex/scripts/*.sh`
+- `~/.codex/.agents/plugins/marketplace.json`
+- `~/.codex/plugins/llm-dev-kit/.codex-plugin/plugin.json`
+- `~/.gemini/GEMINI.md`
+- `~/.gemini/settings.json`
+- `~/.gemini/hooks/rtk-hook-gemini.sh` when RTK is enabled
+- `~/.gemini/scripts/*.sh`
+- `~/.gemini/extensions/llm-bootstrap-dev/gemini-extension.json`
+
+해석 기준:
+
+- `[missing]`: bootstrap 결과물이나 필수 명령이 실제로 없어서 apply 또는 환경 보강이 필요함
+- `[warn]`: 실행은 가능하지만 일부 MCP가 비활성화된 상태임
+- `EXA_API_KEY`, `CONTEXT7_API_KEY` warning: 해당 MCP는 생성되지 않고 disabled 상태로 남음
+
+Optional follow-up:
+
+- `Figma`, `Linear`는 Codex curated app/plugin enable 권장
 
 ## 검증
 
 ```bash
-omx doctor
-codex mcp list
-rtk gain
+bash -n install.sh
+cargo check
+cargo test
+cargo run -- doctor
 ```
 
-정상 상태라면 `omx_*` MCP들과 `icm`이 보이고, `omx doctor`가 통과해야 한다.
+추가로 필요하면 provider별 네이티브 명령으로 점검한다.
+
+```bash
+codex features list
+codex exec --skip-git-repo-check 'print hello'
+```
