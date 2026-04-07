@@ -1,7 +1,7 @@
 # llm-bootstrap 저장소 지침
 
-이 저장소는 새 macOS 머신에서 `Codex`와 `Gemini` 개발 baseline을 한 번에 재현하는 bootstrap source다.
-결과물은 각 provider의 홈 디렉터리(`~/.codex`, `~/.gemini`)에 반영된다.
+이 저장소는 새 macOS 머신에서 `Codex`, `Gemini`, optional `Claude Code` 개발 baseline을 재현하는 bootstrap source다.
+결과물은 각 provider의 홈 디렉터리(`~/.codex`, `~/.gemini`, `~/.claude`)에 반영된다.
 
 ## 목적
 
@@ -25,6 +25,7 @@
 - Gemini는 `merge`에서 `settings.json`을 JSON merge로 반영하고, `replace`에서는 auth/session 키를 보존한 채 bootstrap baseline으로 다시 쓴다
 - `rtk-ai`와 MCP wrapper에 필요한 로컬 툴 설치는 Rust CLI가 보장한다
 - RTK는 기본 enabled지만 `--without-rtk`로 끌 수 있고, enabled일 때는 `rtk init -g --codex` / `rtk init -g --gemini --auto-patch` 결과를 기준으로 맞춘다
+- Claude Code는 선택 provider로만 다루고, MCP는 official `claude mcp add/remove --scope user` 경로를 사용한다
 - 절대경로가 필요한 항목은 실행 시점의 `$HOME`으로 계산한다
 - 단일 baseline을 유지하고, 같은 기능을 plugin/MCP 양쪽에 중복해서 넣지 않는다
 - env가 없는 선택 MCP는 경고만 남기고 생성하지 않는다
@@ -38,6 +39,7 @@
 - `cargo check`
 - `cargo test`
 - `cargo run -- doctor`
+- `cargo run -- doctor --json`
 - `cargo run -- uninstall --providers codex,gemini --without-rtk`
 - `cargo run -- --help`
 

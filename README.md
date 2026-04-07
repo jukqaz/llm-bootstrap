@@ -1,6 +1,6 @@
 # llm-bootstrap
 
-macOS 개발 머신에서 `Codex`와 `Gemini` 홈 설정을 한 번에 정리하는 Rust 기반 bootstrap 저장소다.
+macOS 개발 머신에서 `Codex`, `Gemini`, 그리고 optional `Claude Code` 홈 설정을 정리하는 Rust 기반 bootstrap 저장소다.
 
 이 저장소는 다음 원칙으로 동작한다.
 
@@ -18,10 +18,10 @@ macOS 개발 머신에서 `Codex`와 `Gemini` 홈 설정을 한 번에 정리하
 
 - 1순위: `Codex`
 - 2순위: `Gemini`
-- 3순위: `Claude Code` 예정
+- 3순위: `Claude Code` optional compatibility lane
 
 현재 구현은 Codex-first다. richest workflow, plugin, agent baseline은 Codex에 먼저 들어간다.
-Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Code는 이후 compatibility lane으로 추가한다.
+Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Code는 optional compatibility lane으로 추가한다.
 
 설계 기준은 `docs/codex-first-blueprint.md`에 정리했다.
 
@@ -53,6 +53,7 @@ Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Co
 - `Codex`: local marketplace + `llm-dev-kit` skill plugin baseline
 - `Gemini`: 개발용 `GEMINI.md`, `RTK` hook when enabled, MCP scripts, `settings.json` merge
 - `Gemini`: `llm-bootstrap-dev` extension baseline
+- `Claude Code`: user-scope `CLAUDE.md`, MCP wrapper scripts, optional RTK compatibility lane
 
 ## MCP 원칙
 
@@ -68,6 +69,7 @@ Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Co
 
 `Exa`는 일반 웹/코드 검색 lane으로 두고 `EXA_API_KEY`가 있을 때만 활성화한다.
 `Context7`도 `CONTEXT7_API_KEY`가 있을 때만 활성화한다.
+baseline wrapper는 공급망 drift를 줄이기 위해 검증된 npm 버전으로 pin 한다.
 secret manager SDK/CLI 연계는 기본 제공하지 않는다. 필요한 값은 사용자가 직접 env로 넣는 방식을 기준으로 한다.
 
 ## 앱 / 플러그인 연동
@@ -117,7 +119,7 @@ cd llm-bootstrap
 ./install.sh
 ```
 
-기본값은 `codex,gemini` 전체 적용이다.
+기본값은 `codex,gemini` 전체 적용이다. `Claude Code`는 opt-in provider다.
 
 RTK:
 
@@ -144,6 +146,8 @@ apply mode:
 cargo run -- apply --providers codex,gemini
 cargo run -- apply --providers codex
 cargo run -- apply --providers gemini
+cargo run -- apply --providers claude
+cargo run -- apply --providers codex,gemini,claude
 ```
 
 명시적으로 mode를 고르려면:
@@ -160,6 +164,7 @@ cargo run -- apply --without-rtk
 ```bash
 cargo run -- doctor
 cargo run -- doctor --without-rtk
+cargo run -- doctor --json
 ```
 
 제거:
@@ -184,9 +189,9 @@ cargo run -- --help
 - `src/manifest.rs`: `bootstrap.toml` 타입과 baseline MCP 선언
 - `src/layout.rs`: provider별 관리 경로 목록
 - `src/runtime.rs`: 런타임 명령과 환경 helper
-- `src/json_ops.rs`: Gemini settings / extension JSON 정리 로직
+- `src/json_ops.rs`: Gemini / Claude settings JSON 정리 로직
 - `src/fs_ops.rs`: backup, copy, render helper
-- `src/providers/`: Codex/Gemini install, uninstall, doctor 구현
+- `src/providers/`: Codex/Gemini/Claude install, uninstall, doctor 구현
 - `bootstrap.toml`: 공통 manifest
 - `templates/codex/`: Codex baseline 템플릿
 - `templates/gemini/`: Gemini 문서, 스크립트, extension 템플릿
@@ -207,6 +212,7 @@ cargo run -- --help
 8. Gemini용 `GEMINI.md`, MCP wrapper scripts를 반영한다.
 9. Gemini extension과 QA agent를 반영한다.
 10. Gemini `settings.json`은 `merge`면 기존 상태에 dev baseline만 합치고, `replace`면 bootstrap baseline 기준으로 다시 쓰되 auth/session 상태 키는 보존한다.
+11. Claude provider가 선택되면 `CLAUDE.md`와 MCP wrapper scripts를 반영하고, 공식 `claude mcp add --scope user`로 baseline MCP를 등록한다.
 
 apply를 실행하면 provider별 backup 경로를 항상 출력한다.
 
@@ -220,6 +226,7 @@ apply를 실행하면 provider별 backup 경로를 항상 출력한다.
 4. Gemini에서는 `GEMINI.md`, scripts, extension, QA agent를 제거한다.
 5. Gemini `settings.json`은 파일 전체를 지우지 않고 bootstrap baseline MCP만 제거한다. RTK uninstall이 켜져 있으면 RTK hook도 제거한다.
 6. Gemini `extension-enablement.json`에서는 `llm-bootstrap-dev` 항목만 제거하고 다른 extension 설정은 남긴다.
+7. Claude provider가 선택되면 user-scope baseline MCP를 공식 `claude mcp remove --scope user`로 제거하고, bootstrap이 관리하는 `CLAUDE.md`와 scripts만 걷어낸다.
 
 정확히 이전 상태로 복원해야 하면 uninstall 뒤 provider backup에서 필요한 파일만 되돌리는 방식이 기준이다.
 
@@ -239,6 +246,10 @@ apply를 실행하면 provider별 backup 경로를 항상 출력한다.
 - `~/.gemini/hooks/rtk-hook-gemini.sh` when RTK is enabled
 - `~/.gemini/scripts/*.sh`
 - `~/.gemini/extensions/llm-bootstrap-dev/gemini-extension.json`
+- `~/.claude/CLAUDE.md` when the claude provider is selected
+- `~/.claude/scripts/*.sh` when the claude provider is selected
+- `~/.claude/RTK.md` and `~/.claude/hooks/rtk-rewrite.sh` when RTK is enabled for claude
+- `~/.claude.json` when the claude provider is selected
 
 해석 기준:
 
@@ -258,6 +269,7 @@ bash -n uninstall.sh
 cargo check
 cargo test
 cargo run -- doctor
+cargo run -- doctor --json
 ```
 
 추가로 필요하면 provider별 네이티브 명령으로 점검한다.

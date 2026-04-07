@@ -111,9 +111,10 @@
 
 ### Claude Code lane
 
-- 이후 단계에서 추가
+- optional compatibility lane으로 구현
 - 목표는 feature parity가 아니라 compatibility 우선
-- Codex 기준 workflow를 Claude Code 문맥으로 번역하는 수준에서 시작
+- user-scope `CLAUDE.md`와 official `claude mcp add --scope user` 흐름을 사용
+- Codex 기준 workflow를 Claude Code 문맥으로 번역하는 수준에서 유지
 
 ## 모듈 구조 제안
 
@@ -152,5 +153,5 @@
 1. Codex-centric pack 분리
 2. Gemini parity pack 정리
 3. Figma/Linear integration lane 추가
-4. Claude Code compatibility lane 추가
+4. Claude Code compatibility lane 다듬기
 5. role routing / workflow pack 고도화
