@@ -179,7 +179,14 @@ cargo run -- --help
 
 ## 디렉터리 구조
 
-- `src/main.rs`: bootstrap 엔트리포인트
+- `src/main.rs`: CLI 진입점과 provider dispatch
+- `src/cli.rs`: 명령/인자 타입
+- `src/manifest.rs`: `bootstrap.toml` 타입과 baseline MCP 선언
+- `src/layout.rs`: provider별 관리 경로 목록
+- `src/runtime.rs`: 런타임 명령과 환경 helper
+- `src/json_ops.rs`: Gemini settings / extension JSON 정리 로직
+- `src/fs_ops.rs`: backup, copy, render helper
+- `src/providers/`: Codex/Gemini install, uninstall, doctor 구현
 - `bootstrap.toml`: 공통 manifest
 - `templates/codex/`: Codex baseline 템플릿
 - `templates/gemini/`: Gemini 문서, 스크립트, extension 템플릿
