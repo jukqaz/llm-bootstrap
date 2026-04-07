@@ -10,8 +10,9 @@ use anyhow::{Context, Result, bail};
 use clap::Parser;
 use cli::{Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs, UninstallArgs};
 use manifest::{BaselineMcp, BootstrapManifest};
-use providers::{codex, gemini};
+use providers::{claude, codex, gemini};
 use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root};
+use serde::Serialize;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -50,6 +51,7 @@ fn install(args: InstallArgs, manifest: &BootstrapManifest) -> Result<()> {
         match *provider {
             Provider::Codex => codex::install(&home, mode, manifest, &enabled_mcp, rtk_enabled)?,
             Provider::Gemini => gemini::install(&home, mode, manifest, &enabled_mcp, rtk_enabled)?,
+            Provider::Claude => claude::install(&home, mode, manifest, &enabled_mcp, rtk_enabled)?,
         }
     }
 
@@ -66,11 +68,13 @@ fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let home = home_dir()?;
     let providers = selected_providers(&args.provider_args, manifest);
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
+    let enabled_mcp = enabled_mcp(manifest);
 
     for provider in &providers {
         match *provider {
             Provider::Codex => codex::uninstall(&home, rtk_enabled)?,
             Provider::Gemini => gemini::uninstall(&home, manifest, rtk_enabled)?,
+            Provider::Claude => claude::uninstall(&home, &enabled_mcp, rtk_enabled)?,
         }
     }
 
@@ -89,51 +93,130 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
     let mut warnings = Vec::new();
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
     let enabled_mcp = enabled_mcp(manifest);
+    let mut command_checks = Vec::new();
+    let mut env_checks = Vec::new();
+    let mut provider_reports = Vec::new();
 
-    println!("[doctor] commands");
+    if !args.json {
+        println!("[doctor] commands");
+    }
     let mut commands = vec!["node", "npx"];
     if rtk_enabled {
         commands.insert(0, "rtk");
     }
+    if providers.contains(&Provider::Claude) {
+        commands.insert(0, "claude");
+    }
     for command in commands {
         if command_exists(command) {
-            println!("[ok] command {}", command);
+            if !args.json {
+                println!("[ok] command {}", command);
+            }
+            command_checks.push(DoctorCheck {
+                target: command.to_string(),
+                status: "ok".to_string(),
+                detail: None,
+            });
         } else {
-            println!("[missing] command {}", command);
+            if !args.json {
+                println!("[missing] command {}", command);
+            }
             failures.push(PathBuf::from(command));
+            command_checks.push(DoctorCheck {
+                target: command.to_string(),
+                status: "missing".to_string(),
+                detail: None,
+            });
         }
     }
 
-    println!("[doctor] api");
+    if !args.json {
+        println!("[doctor] api");
+    }
     for gated in &manifest.mcp.env_gated {
         if env_is_set(&gated.env) {
-            println!("[ok] env {} enables {}", gated.env, gated.name.name());
+            if !args.json {
+                println!("[ok] env {} enables {}", gated.env, gated.name.name());
+            }
+            env_checks.push(DoctorEnvCheck {
+                name: gated.name.name().to_string(),
+                env: gated.env.clone(),
+                status: "ok".to_string(),
+                detail: None,
+            });
         } else {
-            println!(
-                "[warn] mcp {} disabled: env {} not set; {}",
-                gated.name.name(),
-                gated.env,
-                env_warning(&gated.env)
-            );
+            let detail = env_warning(&gated.env).to_string();
+            if !args.json {
+                println!(
+                    "[warn] mcp {} disabled: env {} not set; {}",
+                    gated.name.name(),
+                    gated.env,
+                    detail
+                );
+            }
             warnings.push(format!("{} disabled", gated.name.name()));
+            env_checks.push(DoctorEnvCheck {
+                name: gated.name.name().to_string(),
+                env: gated.env.clone(),
+                status: "warn".to_string(),
+                detail: Some(detail),
+            });
         }
     }
 
     for provider in &providers {
-        println!("[doctor] provider {}", provider.name());
+        if !args.json {
+            println!("[doctor] provider {}", provider.name());
+        }
         let checks = match provider {
             Provider::Codex => codex::doctor_checks(&home, manifest, &enabled_mcp, rtk_enabled),
             Provider::Gemini => gemini::doctor_checks(&home, &enabled_mcp, rtk_enabled),
+            Provider::Claude => claude::doctor_checks(&home, &enabled_mcp, rtk_enabled),
         };
+        let mut provider_checks = Vec::new();
 
         for path in checks {
             if path.exists() {
-                println!("[ok] {}", path.display());
+                if !args.json {
+                    println!("[ok] {}", path.display());
+                }
+                provider_checks.push(DoctorCheck {
+                    target: path.display().to_string(),
+                    status: "ok".to_string(),
+                    detail: None,
+                });
             } else {
-                println!("[missing] {}", path.display());
-                failures.push(path);
+                if !args.json {
+                    println!("[missing] {}", path.display());
+                }
+                failures.push(path.clone());
+                provider_checks.push(DoctorCheck {
+                    target: path.display().to_string(),
+                    status: "missing".to_string(),
+                    detail: None,
+                });
             }
         }
+        provider_reports.push(DoctorProviderReport {
+            provider: provider.name().to_string(),
+            checks: provider_checks,
+        });
+    }
+
+    let report = DoctorReport {
+        ok: failures.is_empty(),
+        warning_count: warnings.len(),
+        command_checks,
+        env_checks,
+        providers: provider_reports,
+    };
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        if failures.is_empty() {
+            return Ok(());
+        }
+        std::process::exit(1);
     }
 
     if failures.is_empty() {
@@ -146,6 +229,36 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
     } else {
         bail!("doctor found missing commands or files")
     }
+}
+
+#[derive(Serialize)]
+struct DoctorReport {
+    ok: bool,
+    warning_count: usize,
+    command_checks: Vec<DoctorCheck>,
+    env_checks: Vec<DoctorEnvCheck>,
+    providers: Vec<DoctorProviderReport>,
+}
+
+#[derive(Serialize)]
+struct DoctorProviderReport {
+    provider: String,
+    checks: Vec<DoctorCheck>,
+}
+
+#[derive(Serialize)]
+struct DoctorCheck {
+    target: String,
+    status: String,
+    detail: Option<String>,
+}
+
+#[derive(Serialize)]
+struct DoctorEnvCheck {
+    name: String,
+    env: String,
+    status: String,
+    detail: Option<String>,
 }
 
 fn env_warning(name: &str) -> &'static str {
@@ -206,13 +319,13 @@ mod tests {
     use crate::fs_ops::render_tokens;
     use crate::json_ops::{
         cleanup_extension_enablement, merge_json, preserved_gemini_runtime_state,
-        prune_rtk_gemini_hooks, remove_baseline_mcp_servers,
+        prune_rtk_claude_hooks, prune_rtk_gemini_hooks, remove_baseline_mcp_servers,
     };
     use crate::manifest::{
         BaselineMcp, BootstrapManifest, BootstrapSection, EnvGatedMcp, ExternalSection, McpSection,
         RtkSection,
     };
-    use crate::providers::{codex, gemini};
+    use crate::providers::{claude, codex, gemini};
     use serde_json::json;
     use std::{
         fs,
@@ -395,6 +508,52 @@ mod tests {
     }
 
     #[test]
+    fn prune_rtk_claude_hook_removes_bash_entry_only() {
+        let mut settings = json!({
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "/tmp/.claude/hooks/rtk-rewrite.sh"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": "Edit",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "/tmp/other-hook.sh"
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "/tmp/custom-bash-hook.sh"
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+
+        prune_rtk_claude_hooks(&mut settings);
+
+        assert_eq!(settings["hooks"]["PreToolUse"].as_array().unwrap().len(), 2);
+        assert_eq!(settings["hooks"]["PreToolUse"][0]["matcher"], json!("Edit"));
+        assert_eq!(
+            settings["hooks"]["PreToolUse"][1]["hooks"][0]["command"],
+            json!("/tmp/custom-bash-hook.sh")
+        );
+    }
+
+    #[test]
     fn remove_baseline_mcp_servers_keeps_unmanaged_entries() {
         let manifest = test_manifest();
         let mut settings = json!({
@@ -479,6 +638,103 @@ mod tests {
         assert!(!gemini_home.join("GEMINI.md").exists());
         assert!(!gemini_home.join("extensions/llm-bootstrap-dev").exists());
         assert!(gemini_home.join("backups").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_install_uninstall_round_trip_without_rtk() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        let claude_home = home.join(".claude");
+        assert!(claude_home.join("CLAUDE.md").exists());
+        assert!(claude_home.join("scripts/chrome-devtools-mcp.sh").exists());
+        assert!(!claude_home.join("RTK.md").exists());
+
+        let mcp = claude::claude_user_mcp(&home).unwrap();
+        assert!(mcp["mcpServers"].get("chrome-devtools").is_some());
+
+        claude::uninstall(&home, &enabled, false).unwrap();
+        assert!(!claude_home.join("CLAUDE.md").exists());
+        assert!(!claude_home.join("scripts").exists());
+        assert!(claude_home.join("backups").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_merge_removes_now_disabled_managed_mcp() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
+            false,
+        )
+        .unwrap();
+
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+        )
+        .unwrap();
+
+        let mcp = claude::claude_user_mcp(&home).unwrap();
+        assert!(mcp["mcpServers"].get("chrome-devtools").is_some());
+        assert!(mcp["mcpServers"].get("context7").is_none());
+        assert!(!home.join(".claude/scripts/context7-mcp.sh").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_uninstall_preserves_unmanaged_mcp() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        std::process::Command::new("claude")
+            .env("HOME", &home)
+            .args([
+                "mcp",
+                "add",
+                "--scope",
+                "user",
+                "manual-tool",
+                "--",
+                "/bin/echo",
+                "manual",
+            ])
+            .status()
+            .unwrap();
+
+        claude::uninstall(&home, &enabled, false).unwrap();
+
+        let mcp = claude::claude_user_mcp(&home).unwrap();
+        assert!(mcp["mcpServers"].get("chrome-devtools").is_none());
+        assert!(mcp["mcpServers"].get("manual-tool").is_some());
 
         fs::remove_dir_all(home).unwrap();
     }

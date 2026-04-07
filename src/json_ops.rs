@@ -61,6 +61,28 @@ pub(crate) fn prune_rtk_gemini_hooks(settings: &mut Value) {
     }
 }
 
+pub(crate) fn prune_rtk_claude_hooks(settings: &mut Value) {
+    let Some(root) = settings.as_object_mut() else {
+        return;
+    };
+    let Some(hooks) = root.get_mut("hooks").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let Some(pre_tool_use) = hooks.get_mut("PreToolUse").and_then(Value::as_array_mut) else {
+        return;
+    };
+
+    pre_tool_use.retain(|entry| !is_rtk_claude_bash_hook(entry));
+
+    if pre_tool_use.is_empty() {
+        hooks.remove("PreToolUse");
+    }
+
+    if hooks.is_empty() {
+        root.remove("hooks");
+    }
+}
+
 fn is_rtk_run_shell_command_hook(entry: &Value) -> bool {
     if entry.get("matcher") != Some(&Value::String("run_shell_command".to_string())) {
         return false;
@@ -76,6 +98,25 @@ fn is_rtk_run_shell_command_hook(entry: &Value) -> bool {
                 .get("command")
                 .and_then(Value::as_str)
                 .map(|command| command.ends_with("/.gemini/hooks/rtk-hook-gemini.sh"))
+                .unwrap_or(false)
+    })
+}
+
+fn is_rtk_claude_bash_hook(entry: &Value) -> bool {
+    if entry.get("matcher") != Some(&Value::String("Bash".to_string())) {
+        return false;
+    }
+
+    let Some(commands) = entry.get("hooks").and_then(Value::as_array) else {
+        return false;
+    };
+
+    commands.iter().any(|hook| {
+        hook.get("type") == Some(&Value::String("command".to_string()))
+            && hook
+                .get("command")
+                .and_then(Value::as_str)
+                .map(|command| command.ends_with("/.claude/hooks/rtk-rewrite.sh"))
                 .unwrap_or(false)
     })
 }
@@ -133,6 +174,18 @@ pub(crate) fn cleanup_extension_enablement(path: &Path) -> Result<()> {
     };
     root.remove("llm-bootstrap-dev");
     write_or_remove_json(path, &enablement)
+}
+
+pub(crate) fn cleanup_claude_settings(path: &Path, rtk_enabled: bool) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let mut settings = read_json_or_empty(path)?;
+    if rtk_enabled {
+        prune_rtk_claude_hooks(&mut settings);
+    }
+    write_or_remove_json(path, &settings)
 }
 
 fn write_or_remove_json(path: &Path, value: &Value) -> Result<()> {

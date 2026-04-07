@@ -4,7 +4,7 @@ use serde::Deserialize;
 #[command(
     name = "llm-bootstrap",
     version,
-    about = "Bootstrap Codex and Gemini dev homes"
+    about = "Bootstrap Codex, Gemini, and optional Claude Code dev homes"
 )]
 pub(crate) struct Cli {
     #[command(subcommand)]
@@ -16,6 +16,7 @@ pub(crate) struct Cli {
 pub(crate) enum Provider {
     Codex,
     Gemini,
+    Claude,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
@@ -39,6 +40,7 @@ impl Provider {
         match self {
             Provider::Codex => "codex",
             Provider::Gemini => "gemini",
+            Provider::Claude => "claude",
         }
     }
 }
@@ -92,4 +94,6 @@ pub(crate) struct DoctorArgs {
     pub(crate) provider_args: ProviderArgs,
     #[arg(long, help = "Skip RTK checks even if enabled in bootstrap.toml")]
     pub(crate) without_rtk: bool,
+    #[arg(long, help = "Emit doctor results as JSON")]
+    pub(crate) json: bool,
 }
