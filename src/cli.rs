@@ -1,7 +1,5 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
-
 #[derive(Parser)]
 #[command(
     name = "llm-bootstrap",
@@ -41,13 +39,6 @@ impl Provider {
         match self {
             Provider::Codex => "codex",
             Provider::Gemini => "gemini",
-        }
-    }
-
-    pub(crate) fn home_dir(self, home: &Path) -> PathBuf {
-        match self {
-            Provider::Codex => home.join(".codex"),
-            Provider::Gemini => home.join(".gemini"),
         }
     }
 }
