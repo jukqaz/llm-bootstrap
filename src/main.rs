@@ -330,7 +330,10 @@ mod tests {
     use std::{
         fs,
         path::{Path, PathBuf},
+        sync::atomic::{AtomicU64, Ordering},
     };
+
+    static TEMP_HOME_COUNTER: AtomicU64 = AtomicU64::new(0);
 
     fn test_manifest() -> BootstrapManifest {
         BootstrapManifest {
@@ -358,13 +361,21 @@ mod tests {
     }
 
     fn temp_home() -> PathBuf {
-        let path = std::env::temp_dir().join(format!(
-            "llm-bootstrap-test-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let counter = TEMP_HOME_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir()
+            .join(format!(
+                "llm-bootstrap-test-{}-{}-{}",
+                std::process::id(),
+                std::thread::current().name().unwrap_or("anon"),
+                counter
+            ))
+            .join(format!(
+                "{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
         fs::create_dir_all(&path).unwrap();
         path
     }
@@ -412,12 +423,16 @@ mod tests {
     #[test]
     fn codex_mcp_blocks_include_unified_baseline() {
         let enabled = vec![BaselineMcp::ChromeDevtools];
-        let blocks = codex::mcp_blocks(Path::new("/tmp/home"), &enabled);
+        let root = temp_home().join(".codex");
+        fs::create_dir_all(&root).unwrap();
+        let blocks =
+            codex::mcp_blocks(Path::new("/tmp/home"), &root, &enabled, ApplyMode::Merge).unwrap();
         assert!(blocks.contains("chrome-devtools-mcp.sh"));
         assert!(!blocks.contains("context7-mcp.sh"));
         assert!(!blocks.contains("exa-mcp.sh"));
         assert!(!blocks.contains("playwright-mcp.sh"));
         assert!(!blocks.contains("github-mcp.sh"));
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
     }
 
     #[test]
@@ -429,6 +444,73 @@ mod tests {
     fn apply_mode_names_match_cli_values() {
         assert_eq!(ApplyMode::Merge.name(), "merge");
         assert_eq!(ApplyMode::Replace.name(), "replace");
+    }
+
+    #[test]
+    fn codex_agent_templates_parse_and_only_long_context_roles_pin_windows() {
+        let agents_dir = crate::runtime::repo_root().join("templates/codex/agents");
+        let mut pinned = Vec::new();
+
+        for entry in fs::read_dir(&agents_dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
+                continue;
+            }
+
+            let raw = fs::read_to_string(&path).unwrap();
+            let parsed: toml::Value = raw.parse().unwrap();
+            let name = parsed["name"].as_str().unwrap().to_string();
+            assert!(parsed.get("model").is_some(), "missing model in {}", name);
+            assert!(
+                parsed.get("model_reasoning_effort").is_some(),
+                "missing effort in {}",
+                name
+            );
+            if parsed.get("model_context_window").is_some() {
+                assert_eq!(
+                    parsed["model_context_window"].as_integer(),
+                    Some(1_000_000),
+                    "unexpected context window in {}",
+                    name
+                );
+                assert_eq!(
+                    parsed["model_auto_compact_token_limit"].as_integer(),
+                    Some(900_000),
+                    "unexpected auto compact limit in {}",
+                    name
+                );
+                pinned.push(name);
+            }
+        }
+
+        pinned.sort();
+        assert_eq!(pinned, vec!["architect-1m", "planner-1m", "reviewer-1m"]);
+    }
+
+    #[test]
+    fn claude_agent_templates_use_official_frontmatter_model_fields() {
+        let agents_dir = crate::runtime::repo_root().join("templates/claude/agents");
+        let expected = [
+            ("executor.md", "model: inherit"),
+            ("planner.md", "model: inherit"),
+            ("reviewer.md", "model: sonnet"),
+            ("triage.md", "model: haiku"),
+            ("verifier.md", "model: sonnet"),
+        ];
+
+        for (file, needle) in expected {
+            let raw = fs::read_to_string(agents_dir.join(file)).unwrap();
+            assert!(
+                raw.starts_with("---\n"),
+                "{file} should start with frontmatter"
+            );
+            assert!(raw.contains("name:"), "{file} missing name frontmatter");
+            assert!(
+                raw.contains("description:"),
+                "{file} missing description frontmatter"
+            );
+            assert!(raw.contains(needle), "{file} missing expected model");
+        }
     }
 
     #[test]
@@ -614,6 +696,31 @@ mod tests {
     }
 
     #[test]
+    fn codex_merge_preserves_unmanaged_mcp_blocks() {
+        let home = temp_home();
+        let codex_home = home.join(".codex");
+        fs::create_dir_all(&codex_home).unwrap();
+        fs::write(
+            codex_home.join("config.toml"),
+            "[mcp_servers.bootpay]\ncommand = \"bootpay\"\nenabled = true\n",
+        )
+        .unwrap();
+
+        let blocks = codex::mcp_blocks(
+            &home,
+            &codex_home,
+            &[BaselineMcp::ChromeDevtools],
+            ApplyMode::Merge,
+        )
+        .unwrap();
+
+        assert!(blocks.contains("[mcp_servers.bootpay]"));
+        assert!(blocks.contains("[mcp_servers.\"chrome-devtools\"]"));
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn gemini_install_uninstall_round_trip_without_rtk_preserves_custom_hooks() {
         let home = temp_home();
         let manifest = test_manifest();
@@ -638,6 +745,68 @@ mod tests {
         assert!(!gemini_home.join("GEMINI.md").exists());
         assert!(!gemini_home.join("extensions/llm-bootstrap-dev").exists());
         assert!(gemini_home.join("backups").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_merge_preserves_unmanaged_mcp_servers() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let gemini_home = home.join(".gemini");
+        fs::create_dir_all(&gemini_home).unwrap();
+        fs::write(
+            gemini_home.join("settings.json"),
+            "{\n  \"mcpServers\": {\n    \"icm\": {\"command\": \"icm\"},\n    \"bootpay\": {\"command\": \"bootpay\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
+        )
+        .unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+        )
+        .unwrap();
+
+        let after: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert!(after["mcpServers"].get("icm").is_some());
+        assert!(after["mcpServers"].get("bootpay").is_some());
+        assert!(after["mcpServers"].get("chrome-devtools").is_some());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_replace_keeps_only_baseline_mcp_servers() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let gemini_home = home.join(".gemini");
+        fs::create_dir_all(&gemini_home).unwrap();
+        fs::write(
+            gemini_home.join("settings.json"),
+            "{\n  \"mcpServers\": {\n    \"icm\": {\"command\": \"icm\"},\n    \"bootpay\": {\"command\": \"bootpay\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
+        )
+        .unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Replace,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+        )
+        .unwrap();
+
+        let after: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert!(after["mcpServers"].get("icm").is_none());
+        assert!(after["mcpServers"].get("bootpay").is_none());
+        assert!(after["mcpServers"].get("chrome-devtools").is_some());
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -735,6 +904,40 @@ mod tests {
         let mcp = claude::claude_user_mcp(&home).unwrap();
         assert!(mcp["mcpServers"].get("chrome-devtools").is_none());
         assert!(mcp["mcpServers"].get("manual-tool").is_some());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_replace_removes_unmanaged_mcp() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+
+        std::process::Command::new("claude")
+            .env("HOME", &home)
+            .args([
+                "mcp",
+                "add",
+                "--scope",
+                "user",
+                "manual-tool",
+                "--",
+                "/bin/echo",
+                "manual",
+            ])
+            .status()
+            .unwrap();
+
+        claude::install(&home, ApplyMode::Replace, &manifest, &enabled, false).unwrap();
+
+        let mcp = claude::claude_user_mcp(&home).unwrap();
+        assert!(mcp["mcpServers"].get("manual-tool").is_none());
+        assert!(mcp["mcpServers"].get("chrome-devtools").is_some());
 
         fs::remove_dir_all(home).unwrap();
     }

@@ -7,7 +7,7 @@ When coverage is incomplete, state the remaining gaps explicitly.
 Prefer a small set of high-signal checks over broad low-value coverage.
 Use concrete failure modes and affected user paths to justify the test plan.
 """
-model = "gpt-5.4"
+model = "gpt-5-codex"
 model_reasoning_effort = "high"
 model_reasoning_summary = "concise"
 model_verbosity = "medium"
