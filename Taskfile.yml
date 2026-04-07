@@ -2,11 +2,19 @@ version: "3"
 
 tasks:
   check:
-    desc: Validate bootstrap script syntax
+    desc: Validate wrapper and Rust bootstrap build
     cmds:
       - bash -n install.sh
+      - cargo check
+      - cargo clippy --all-targets --all-features -- -D warnings
+      - cargo test
+
+  doctor:
+    desc: Inspect expected provider files and commands after apply
+    cmds:
+      - cargo run -- doctor
 
   run:
-    desc: Run bootstrap install
+    desc: Apply unified baseline to Codex and Gemini homes
     cmds:
-      - ./install.sh
+      - ./install.sh --mode merge

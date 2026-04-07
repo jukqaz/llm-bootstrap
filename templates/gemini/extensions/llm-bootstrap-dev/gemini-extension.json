@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/google-gemini/gemini-cli/main/packages/cli/schemas/gemini-extension.json",
+  "name": "llm-bootstrap-dev",
+  "version": "0.1.0",
+  "description": "Development baseline extension for Gemini CLI on macOS.",
+  "author": "jukqaz",
+  "license": "MIT",
+  "homepage": "https://github.com/jukqaz/llm-bootstrap",
+  "sourceUrl": "https://github.com/jukqaz/llm-bootstrap",
+  "contextFileName": "GEMINI.md",
+  "settings": []
+}

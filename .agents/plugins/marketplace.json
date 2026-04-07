@@ -1,0 +1,20 @@
+{
+  "name": "llm-bootstrap",
+  "interface": {
+    "displayName": "LLM Bootstrap"
+  },
+  "plugins": [
+    {
+      "name": "llm-dev-kit",
+      "source": {
+        "source": "local",
+        "path": "./plugins/llm-dev-kit"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

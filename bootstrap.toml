@@ -1,0 +1,17 @@
+[bootstrap]
+providers = ["codex", "gemini"]
+default_mode = "merge"
+
+[external.rtk]
+enabled = true
+
+[mcp]
+always_on = ["chrome-devtools"]
+
+[[mcp.env_gated]]
+name = "context7"
+env = "CONTEXT7_API_KEY"
+
+[[mcp.env_gated]]
+name = "exa"
+env = "EXA_API_KEY"
