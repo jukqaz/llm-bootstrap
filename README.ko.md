@@ -4,12 +4,12 @@
 
 ## 바로 설치
 
-현재 release: `v0.1.3`
+현재 release: `v0.1.4`
 
 기본 경로는 wizard 실행이다.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | bash
 ```
 
 release 자산:
@@ -18,7 +18,7 @@ release 자산:
 비대화식 설치가 필요하면 이렇게 실행한다.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | bash -s -- --providers codex,gemini
 ```
 
 ## 문서
@@ -79,7 +79,7 @@ curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-r
 가장 빠른 설치 경로:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | bash
 ```
 
 일반 사용자에게는 release archive 설치가 더 낫다. 이 경로는 Rust가 필요 없다.
@@ -101,8 +101,8 @@ curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-r
 특정 release를 고정해서 설치하려면:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.3 bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
+  LLM_BOOTSTRAP_VERSION=v0.1.4 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.

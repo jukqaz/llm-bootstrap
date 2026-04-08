@@ -9,12 +9,12 @@ integration.
 
 ## Install now
 
-Current release: `v0.1.3`
+Current release: `v0.1.4`
 
 Default path: run the wizard first.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | bash
 ```
 
 Release assets:
@@ -23,7 +23,7 @@ Release assets:
 Direct non-interactive install is still available:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | bash -s -- --providers codex,gemini
 ```
 
 ## Documentation
@@ -144,7 +144,7 @@ cargo run -- install --without-rtk
 Fastest path on macOS or Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | bash
 ```
 
 Recommended for end users: use the release archive and run the bundled binary or
@@ -168,8 +168,8 @@ or:
 To pin a specific release with the curl installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.3 bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
+  LLM_BOOTSTRAP_VERSION=v0.1.4 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
