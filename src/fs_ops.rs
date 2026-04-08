@@ -7,6 +7,12 @@ use std::os::unix::fs::FileTypeExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
+#[derive(Clone, Debug)]
+pub(crate) struct BackupEntry {
+    pub(crate) name: String,
+    pub(crate) path: PathBuf,
+}
+
 pub(crate) fn create_backup_root(provider_root: &Path, timestamp: &str) -> Result<PathBuf> {
     let backups_dir = provider_root.join("backups");
     let mut backup_root = backups_dir.join(format!("llm-bootstrap-{timestamp}"));
@@ -118,6 +124,37 @@ pub(crate) fn resolve_backup_root(
             backups_dir.display()
         )
     })
+}
+
+pub(crate) fn list_backup_entries(provider_root: &Path) -> Result<Vec<BackupEntry>> {
+    let backups_dir = provider_root.join("backups");
+    if !backups_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(&backups_dir)
+        .with_context(|| format!("failed to read {}", backups_dir.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if !name.starts_with("llm-bootstrap-") {
+            continue;
+        }
+        entries.push(BackupEntry {
+            name: name.to_string(),
+            path,
+        });
+    }
+
+    entries.sort_by(|left, right| right.name.cmp(&left.name));
+    Ok(entries)
 }
 
 fn copy_raw_path(source: &Path, destination: &Path) -> Result<()> {
@@ -340,6 +377,25 @@ mod tests {
         backup_relative(&root, &backup_dir, Path::new("source")).unwrap();
 
         assert!(!backup_dir.join("source/test.sock").exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn list_backup_entries_returns_latest_first() {
+        let root =
+            std::env::temp_dir().join(format!("llm-bootstrap-backups-{}", std::process::id()));
+        let provider_root = root.join(".codex");
+        fs::create_dir_all(provider_root.join("backups/llm-bootstrap-100")).unwrap();
+        fs::create_dir_all(provider_root.join("backups/llm-bootstrap-200")).unwrap();
+        fs::create_dir_all(provider_root.join("backups/not-managed")).unwrap();
+
+        let entries = list_backup_entries(&provider_root).unwrap();
+        let names = entries
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect::<Vec<_>>();
+
+        assert_eq!(names, vec!["llm-bootstrap-200", "llm-bootstrap-100"]);
         let _ = fs::remove_dir_all(root);
     }
 }

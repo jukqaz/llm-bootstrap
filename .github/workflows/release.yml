@@ -55,11 +55,14 @@ jobs:
       - name: Package archive
         run: |
           package_root="llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          latest_archive="llm-bootstrap-${{ matrix.target }}.tar.gz"
           mkdir -p "dist/${package_root}"
           cp target/release/llm-bootstrap "dist/${package_root}/"
-          cp install.sh uninstall.sh README.md README.ko.md LICENSE "dist/${package_root}/"
+          cp install.sh install-release.sh uninstall.sh README.md README.ko.md LICENSE "dist/${package_root}/"
           tar -C dist -czf "dist/${package_root}.tar.gz" "${package_root}"
           shasum -a 256 "dist/${package_root}.tar.gz" > "dist/${package_root}.tar.gz.sha256"
+          cp "dist/${package_root}.tar.gz" "dist/${latest_archive}"
+          cp "dist/${package_root}.tar.gz.sha256" "dist/${latest_archive}.sha256"
 
       - name: Upload release assets
         env:
@@ -68,4 +71,6 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" \
             "dist/llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz" \
             "dist/llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz.sha256" \
+            "dist/llm-bootstrap-${{ matrix.target }}.tar.gz" \
+            "dist/llm-bootstrap-${{ matrix.target }}.tar.gz.sha256" \
             --clobber

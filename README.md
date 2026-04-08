@@ -109,6 +109,39 @@ cargo run -- install --without-rtk
 
 ## Install
 
+Fastest path on macOS or Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash -s -- --providers codex,gemini
+```
+
+Recommended for end users: use the release archive and run the bundled binary or
+wrapper scripts. You do not need Rust for that path.
+
+1. Download the latest archive from
+   [GitHub Releases](https://github.com/jukqaz/llm-bootstrap/releases).
+2. Extract it.
+3. Run either:
+
+```bash
+./llm-bootstrap install --providers codex,gemini
+```
+
+or:
+
+```bash
+./install.sh --providers codex,gemini
+```
+
+To pin a specific release with the curl installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | \
+  LLM_BOOTSTRAP_VERSION=v0.1.1 bash -s -- --providers codex,gemini
+```
+
+For source-based development, clone the repo and run from source:
+
 ```bash
 git clone https://github.com/jukqaz/llm-bootstrap.git
 cd llm-bootstrap
@@ -130,6 +163,7 @@ Mode examples:
 ```bash
 cargo run -- install --providers codex --mode replace
 cargo run -- install --providers gemini --mode merge --without-rtk
+cargo run -- install --providers codex,gemini --mode replace --dry-run
 ```
 
 Status and cleanup:
@@ -137,6 +171,7 @@ Status and cleanup:
 ```bash
 cargo run -- doctor --providers codex,gemini,claude --json
 cargo run -- uninstall --providers codex
+cargo run -- uninstall --providers codex,gemini --dry-run
 ```
 
 ## Wizard
@@ -208,6 +243,19 @@ Restore a specific backup directory:
 
 ```bash
 cargo run -- restore --providers codex --backup llm-bootstrap-1712550000
+```
+
+List available backups first:
+
+```bash
+cargo run -- backups --providers codex,gemini,claude
+cargo run -- restore --providers codex,gemini --list --json
+```
+
+Preview a restore without changing files:
+
+```bash
+cargo run -- restore --providers codex,gemini --backup llm-bootstrap-1712550000 --dry-run
 ```
 
 The restore command first backs up the current state again, then restores the

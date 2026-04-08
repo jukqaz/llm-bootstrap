@@ -9,10 +9,11 @@ mod runtime;
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use cli::{
-    CleanupTarget, Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs, RestoreArgs,
-    UninstallArgs, WizardArgs,
+    BackupsArgs, CleanupTarget, Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs,
+    RestoreArgs, UninstallArgs, WizardArgs,
 };
 use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
+use fs_ops::list_backup_entries;
 use manifest::{BaselineMcp, BootstrapManifest};
 use providers::{claude, codex, gemini};
 use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root};
@@ -36,9 +37,11 @@ fn main() -> Result<()> {
         mode: None,
         without_rtk: false,
         cleanup: None,
+        dry_run: false,
     })) {
         Command::Install(args) => install(args, &manifest),
         Command::Restore(args) => restore(args, &manifest),
+        Command::Backups(args) => backups(args, &manifest),
         Command::Uninstall(args) => uninstall(args, &manifest),
         Command::Doctor(args) => doctor(args, &manifest),
         Command::Wizard(args) => wizard(args, &manifest),
@@ -57,15 +60,20 @@ fn install(args: InstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let mode = args.mode.unwrap_or(manifest.bootstrap.default_mode);
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
     let cleanup = selected_cleanup_targets(&args.cleanup);
-    ensure_runtime_dependencies(rtk_enabled)?;
-    let home = home_dir()?;
     let env_gates = resolved_env_gates(manifest, env_is_set);
+    let enabled_mcp = enabled_mcp_from_gates(manifest, &env_gates);
+    let home = home_dir()?;
+    if args.dry_run {
+        print_install_plan(&home, &providers, mode, rtk_enabled, &cleanup, &enabled_mcp);
+        return Ok(());
+    }
+    ensure_runtime_dependencies(rtk_enabled)?;
     install_with(
         &home,
         &providers,
         mode,
         manifest,
-        &enabled_mcp_from_gates(manifest, &env_gates),
+        &enabled_mcp,
         rtk_enabled,
         &cleanup,
     )
@@ -76,6 +84,11 @@ fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let providers = selected_providers(&args.provider_args, manifest);
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
     let enabled_mcp = enabled_mcp(manifest);
+
+    if args.dry_run {
+        print_uninstall_plan(&home, &providers, rtk_enabled, &enabled_mcp);
+        return Ok(());
+    }
 
     for provider in &providers {
         match *provider {
@@ -96,6 +109,12 @@ fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
 fn restore(args: RestoreArgs, manifest: &BootstrapManifest) -> Result<()> {
     let home = home_dir()?;
     let providers = selected_providers(&args.provider_args, manifest);
+    if args.list {
+        return list_backups_for(&home, &providers, args.json);
+    }
+    if args.dry_run {
+        return print_restore_plan(&home, &providers, args.backup.as_deref(), args.json);
+    }
 
     for provider in &providers {
         match *provider {
@@ -111,6 +130,12 @@ fn restore(args: RestoreArgs, manifest: &BootstrapManifest) -> Result<()> {
         args.backup.as_deref().unwrap_or("latest"),
     );
     Ok(())
+}
+
+fn backups(args: BackupsArgs, manifest: &BootstrapManifest) -> Result<()> {
+    let home = home_dir()?;
+    let providers = selected_providers(&args.provider_args, manifest);
+    list_backups_for(&home, &providers, args.json)
 }
 
 fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
@@ -491,6 +516,139 @@ fn install_with(
     Ok(())
 }
 
+fn print_install_plan(
+    home: &Path,
+    providers: &[Provider],
+    mode: cli::ApplyMode,
+    rtk_enabled: bool,
+    cleanup: &[CleanupTarget],
+    enabled_mcp: &[BaselineMcp],
+) {
+    let cleanup_legacy =
+        mode == cli::ApplyMode::Replace || cleanup.contains(&CleanupTarget::Legacy);
+    println!("[dry-run] install");
+    println!("providers: {}", provider_names(providers));
+    println!("mode: {}", mode.name());
+    println!("rtk: {}", if rtk_enabled { "enabled" } else { "disabled" });
+    println!(
+        "baseline_mcp: {}",
+        enabled_mcp
+            .iter()
+            .map(|mcp| mcp.name())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    println!(
+        "cleanup: {}",
+        if cleanup_legacy { "legacy" } else { "none" }
+    );
+    for provider in providers {
+        println!(
+            "- {} root: {}",
+            provider.name(),
+            provider_root(home, *provider).display()
+        );
+    }
+}
+
+fn print_uninstall_plan(
+    home: &Path,
+    providers: &[Provider],
+    rtk_enabled: bool,
+    enabled_mcp: &[BaselineMcp],
+) {
+    println!("[dry-run] uninstall");
+    println!("providers: {}", provider_names(providers));
+    println!("rtk: {}", if rtk_enabled { "enabled" } else { "disabled" });
+    for provider in providers {
+        println!(
+            "- {} root: {}",
+            provider.name(),
+            provider_root(home, *provider).display()
+        );
+    }
+    if providers.contains(&Provider::Claude) {
+        println!(
+            "claude managed_mcp removal target: {}",
+            enabled_mcp
+                .iter()
+                .map(|mcp| mcp.name())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+    }
+}
+
+fn print_restore_plan(
+    home: &Path,
+    providers: &[Provider],
+    backup_name: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    let mut plans = Vec::new();
+    for provider in providers {
+        let root = provider_root(home, *provider);
+        let backup = fs_ops::resolve_backup_root(&root, backup_name)?;
+        plans.push(RestorePlan {
+            provider: provider.name().to_string(),
+            root: root.display().to_string(),
+            backup: backup.display().to_string(),
+        });
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&plans)?);
+        return Ok(());
+    }
+
+    println!("[dry-run] restore");
+    for plan in plans {
+        println!(
+            "- {} root={} backup={}",
+            plan.provider, plan.root, plan.backup
+        );
+    }
+    Ok(())
+}
+
+fn list_backups_for(home: &Path, providers: &[Provider], json: bool) -> Result<()> {
+    let mut reports = Vec::new();
+    for provider in providers {
+        let root = provider_root(home, *provider);
+        let backups = list_backup_entries(&root)?
+            .into_iter()
+            .map(|entry| BackupSummary {
+                name: entry.name,
+                path: entry.path.display().to_string(),
+            })
+            .collect::<Vec<_>>();
+        reports.push(ProviderBackups {
+            provider: provider.name().to_string(),
+            root: root.display().to_string(),
+            backups,
+        });
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&reports)?);
+        return Ok(());
+    }
+
+    println!("[backups]");
+    for report in reports {
+        println!("provider: {}", report.provider);
+        println!("root: {}", report.root);
+        if report.backups.is_empty() {
+            println!("backups: none");
+            continue;
+        }
+        for backup in report.backups {
+            println!("- {} ({})", backup.name, backup.path);
+        }
+    }
+    Ok(())
+}
+
 #[derive(Serialize)]
 struct DoctorReport {
     ok: bool,
@@ -521,11 +679,39 @@ struct DoctorEnvCheck {
     detail: Option<String>,
 }
 
+#[derive(Serialize)]
+struct ProviderBackups {
+    provider: String,
+    root: String,
+    backups: Vec<BackupSummary>,
+}
+
+#[derive(Serialize)]
+struct BackupSummary {
+    name: String,
+    path: String,
+}
+
+#[derive(Serialize)]
+struct RestorePlan {
+    provider: String,
+    root: String,
+    backup: String,
+}
+
 fn env_warning(name: &str) -> &'static str {
     match name {
         "EXA_API_KEY" => "Exa stays disabled until EXA_API_KEY is exported",
         "CONTEXT7_API_KEY" => "Context7 stays disabled until CONTEXT7_API_KEY is exported",
         _ => "recommended runtime env is missing",
+    }
+}
+
+fn provider_root(home: &Path, provider: Provider) -> PathBuf {
+    match provider {
+        Provider::Codex => home.join(".codex"),
+        Provider::Gemini => home.join(".gemini"),
+        Provider::Claude => home.join(".claude"),
     }
 }
 

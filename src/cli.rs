@@ -64,6 +64,7 @@ pub(crate) enum Command {
     #[command(visible_alias = "apply")]
     Install(InstallArgs),
     Restore(RestoreArgs),
+    Backups(BackupsArgs),
     Uninstall(UninstallArgs),
     Doctor(DoctorArgs),
     Wizard(WizardArgs),
@@ -101,6 +102,8 @@ pub(crate) struct InstallArgs {
         help = "Optional cleanup passes to run before install"
     )]
     pub(crate) cleanup: Option<Vec<CleanupTarget>>,
+    #[arg(long, help = "Show the planned install without writing files")]
+    pub(crate) dry_run: bool,
 }
 
 #[derive(clap::Args, Clone)]
@@ -109,6 +112,8 @@ pub(crate) struct UninstallArgs {
     pub(crate) provider_args: ProviderArgs,
     #[arg(long, help = "Skip RTK uninstall even if enabled in bootstrap.toml")]
     pub(crate) without_rtk: bool,
+    #[arg(long, help = "Show the planned uninstall without writing files")]
+    pub(crate) dry_run: bool,
 }
 
 #[derive(clap::Args, Clone)]
@@ -117,6 +122,20 @@ pub(crate) struct RestoreArgs {
     pub(crate) provider_args: ProviderArgs,
     #[arg(long, help = "Optional backup directory name or absolute path")]
     pub(crate) backup: Option<String>,
+    #[arg(long, help = "List available backups for the selected providers")]
+    pub(crate) list: bool,
+    #[arg(long, help = "Emit backup list or restore plan as JSON")]
+    pub(crate) json: bool,
+    #[arg(long, help = "Show the planned restore without writing files")]
+    pub(crate) dry_run: bool,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct BackupsArgs {
+    #[command(flatten)]
+    pub(crate) provider_args: ProviderArgs,
+    #[arg(long, help = "Emit backup list as JSON")]
+    pub(crate) json: bool,
 }
 
 #[derive(clap::Args, Clone)]

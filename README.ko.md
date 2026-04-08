@@ -45,6 +45,37 @@
 
 ## 빠른 시작
 
+가장 빠른 설치 경로:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash -s -- --providers codex,gemini
+```
+
+일반 사용자에게는 release archive 설치가 더 낫다. 이 경로는 Rust가 없어도 된다.
+
+1. [GitHub Releases](https://github.com/jukqaz/llm-bootstrap/releases)에서 최신 압축 파일을 받는다.
+2. 압축을 푼다.
+3. 다음 둘 중 하나로 실행한다.
+
+```bash
+./llm-bootstrap install --providers codex,gemini
+```
+
+또는
+
+```bash
+./install.sh --providers codex,gemini
+```
+
+특정 release를 고정해서 설치하려면:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | \
+  LLM_BOOTSTRAP_VERSION=v0.1.1 bash -s -- --providers codex,gemini
+```
+
+소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.
+
 ```bash
 git clone https://github.com/jukqaz/llm-bootstrap.git
 cd llm-bootstrap
@@ -56,6 +87,8 @@ cd llm-bootstrap
 ```bash
 cargo run -- install --providers codex,gemini
 cargo run -- doctor --providers codex,gemini,claude --json
+cargo run -- install --providers codex,gemini --mode replace --dry-run
+cargo run -- uninstall --providers codex,gemini --dry-run
 ```
 
 ## wizard
@@ -133,6 +166,19 @@ cargo run -- restore --providers codex,gemini,claude
 
 ```bash
 cargo run -- restore --providers codex --backup llm-bootstrap-1712550000
+```
+
+먼저 backup 목록을 보고 싶다면:
+
+```bash
+cargo run -- backups --providers codex,gemini,claude
+cargo run -- restore --providers codex,gemini --list --json
+```
+
+실제 복구 전에 계획만 보려면:
+
+```bash
+cargo run -- restore --providers codex,gemini --backup llm-bootstrap-1712550000 --dry-run
 ```
 
 `restore`는 현재 상태를 한 번 더 backup한 뒤, 선택한 backup 안의
