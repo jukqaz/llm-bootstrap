@@ -1,9 +1,11 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
     backup_relative, copy_render_dir, copy_render_file_with_extras, copy_selected_scripts,
-    create_backup_root, remove_if_exists,
+    create_backup_root, remove_if_exists, resolve_backup_root, restore_named_entry,
+    restore_relative,
 };
 use crate::json_ops::{cleanup_claude_settings, read_json_or_empty, write_json_pretty};
+use crate::layout::CLAUDE_LEGACY_CLEANUP_PATHS;
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
 use anyhow::{Context, Result, bail};
@@ -92,8 +94,10 @@ pub(crate) fn install(
     _manifest: &BootstrapManifest,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
+    cleanup_legacy: bool,
 ) -> Result<()> {
     ensure_claude_cli()?;
+    let cleanup_legacy = cleanup_legacy || mode == ApplyMode::Replace;
 
     let root = home.join(".claude");
     let template_root = repo_root().join("templates/claude");
@@ -109,6 +113,11 @@ pub(crate) fn install(
     for relative in CLAUDE_MANAGED_SKILL_PATHS {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
+    if cleanup_legacy {
+        for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
+            backup_relative(&root, &backup_root, Path::new(relative))?;
+        }
+    }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
 
     if mode == ApplyMode::Replace {
@@ -121,6 +130,11 @@ pub(crate) fn install(
         remove_all_registered_mcp(home)?;
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("hooks"))?;
+    }
+    if cleanup_legacy {
+        for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
+            remove_if_exists(&root.join(relative))?;
+        }
     }
 
     if rtk_enabled {
@@ -260,6 +274,56 @@ pub(crate) fn uninstall(
     remove_if_exists(&root.join("llm-bootstrap-state.json"))?;
 
     println!("[claude] uninstalled {}", root.display());
+    Ok(())
+}
+
+pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
+    ensure_claude_cli()?;
+
+    let root = home.join(".claude");
+    fs::create_dir_all(&root)?;
+    let source_backup = resolve_backup_root(&root, backup_name)?;
+    let backup_root = create_backup_root(&root, &timestamp_string()?)?;
+    println!("[claude] backup {}", backup_root.display());
+
+    for relative in CLAUDE_MANAGED_PATHS {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+    for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+    backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
+
+    for relative in CLAUDE_MANAGED_PATHS {
+        remove_if_exists(&root.join(relative))?;
+    }
+    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+        remove_if_exists(&root.join(relative))?;
+    }
+    for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
+        remove_if_exists(&root.join(relative))?;
+    }
+    remove_if_exists(&home.join(".claude.json"))?;
+
+    for relative in CLAUDE_MANAGED_PATHS {
+        restore_relative(&root, &source_backup, Path::new(relative))?;
+    }
+    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+        restore_relative(&root, &source_backup, Path::new(relative))?;
+    }
+    for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
+        restore_relative(&root, &source_backup, Path::new(relative))?;
+    }
+    restore_named_entry(&source_backup, "claude.json", &home.join(".claude.json"))?;
+
+    println!(
+        "[claude] restored {} from {}",
+        root.display(),
+        source_backup.display()
+    );
     Ok(())
 }
 

@@ -26,11 +26,25 @@ pub(crate) enum ApplyMode {
     Replace,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum CleanupTarget {
+    Legacy,
+}
+
 impl ApplyMode {
     pub(crate) fn name(self) -> &'static str {
         match self {
             ApplyMode::Merge => "merge",
             ApplyMode::Replace => "replace",
+        }
+    }
+}
+
+impl CleanupTarget {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            CleanupTarget::Legacy => "legacy",
         }
     }
 }
@@ -49,6 +63,7 @@ impl Provider {
 pub(crate) enum Command {
     #[command(visible_alias = "apply")]
     Install(InstallArgs),
+    Restore(RestoreArgs),
     Uninstall(UninstallArgs),
     Doctor(DoctorArgs),
     Wizard(WizardArgs),
@@ -79,6 +94,13 @@ pub(crate) struct InstallArgs {
         help = "Skip RTK official init even if enabled in bootstrap.toml"
     )]
     pub(crate) without_rtk: bool,
+    #[arg(
+        long,
+        value_enum,
+        value_delimiter = ',',
+        help = "Optional cleanup passes to run before install"
+    )]
+    pub(crate) cleanup: Option<Vec<CleanupTarget>>,
 }
 
 #[derive(clap::Args, Clone)]
@@ -87,6 +109,14 @@ pub(crate) struct UninstallArgs {
     pub(crate) provider_args: ProviderArgs,
     #[arg(long, help = "Skip RTK uninstall even if enabled in bootstrap.toml")]
     pub(crate) without_rtk: bool,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct RestoreArgs {
+    #[command(flatten)]
+    pub(crate) provider_args: ProviderArgs,
+    #[arg(long, help = "Optional backup directory name or absolute path")]
+    pub(crate) backup: Option<String>,
 }
 
 #[derive(clap::Args, Clone)]

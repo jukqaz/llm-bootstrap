@@ -30,6 +30,13 @@ The current provider priority is:
 2. `Gemini`
 3. `Claude Code`
 
+The default provider set from `bootstrap.toml` is currently:
+
+- `codex`
+- `gemini`
+
+`claude` is supported, but opt-in unless selected explicitly.
+
 ## Baseline
 
 The default baseline is intentionally small.
@@ -163,12 +170,48 @@ Wizard env reuse order:
 `merge`
 - preserves unmanaged MCP
 - refreshes bootstrap-managed files
-- runs targeted migration cleanup for known legacy artifacts
+- preserves previous unmanaged assets, including old oh-my or OMC traces
+
+If an older install leaves conflicting commands, skills, or extensions behind,
+delete those paths manually or use `replace`.
 
 `replace`
 - removes managed bootstrap files first
 - keeps only the current baseline MCP set
 - preserves known auth or session state where supported
+- also removes known legacy oh-my or OMC artifacts for the selected providers
+
+Optional legacy cleanup:
+
+```bash
+cargo run -- install --providers codex,gemini,claude --cleanup legacy
+```
+
+This is off by default for `merge`. Use it when you explicitly want to remove
+known legacy artifacts from older oh-my or OMC style installs while keeping
+normal unmanaged assets intact.
+
+For migration guidance, see
+[docs/legacy-migration.md](docs/legacy-migration.md).
+
+## Restore from backup
+
+Every `install`, `replace`, and `uninstall` creates provider-level backups first.
+
+Restore the latest backup for selected providers:
+
+```bash
+cargo run -- restore --providers codex,gemini,claude
+```
+
+Restore a specific backup directory:
+
+```bash
+cargo run -- restore --providers codex --backup llm-bootstrap-1712550000
+```
+
+The restore command first backs up the current state again, then restores the
+selected backup for bootstrap-managed files and known legacy cleanup targets.
 
 ## Layout
 
@@ -194,7 +237,7 @@ cargo test
 
 ## Release model
 
-CI runs on pushes and pull requests.
+CI runs on pull requests and on pushes to `main`.
 
 Tagged releases publish GitHub Release assets on tags that match `v*`.
 

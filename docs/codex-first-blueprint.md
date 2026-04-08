@@ -109,21 +109,21 @@ the Codex-first design rather than redefining it.
 
 ## Module layout
 
-- `core`
-  - CLI
-  - backup
-  - runtime dependency bootstrap
-  - doctor
-- `providers/codex`
-  - config and plugin renderer
-- `providers/gemini`
-  - settings merge and extension renderer
-- `providers/claude`
-  - user-scope skill and MCP renderer
-- `integrations`
-  - `chrome-devtools`
-  - `context7`
-  - `exa`
+This section describes the logical architecture, not literal top-level paths.
+The actual implementation lives under `src/`, `templates/`, and `plugins/`.
+
+- `src/main.rs`
+  - CLI orchestration
+- `src/runtime.rs`, `src/fs_ops.rs`, `src/json_ops.rs`
+  - runtime dependency bootstrap, backup, file and JSON operations
+- `src/providers/codex.rs`
+  - Codex config and plugin renderer
+- `src/providers/gemini.rs`
+  - Gemini settings merge and extension renderer
+- `src/providers/claude.rs`
+  - Claude user-scope skill and MCP renderer
+- `templates/*` and `plugins/llm-dev-kit/`
+  - provider templates and Codex plugin assets
 
 ## Current baseline
 

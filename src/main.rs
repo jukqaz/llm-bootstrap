@@ -9,7 +9,8 @@ mod runtime;
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use cli::{
-    Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs, UninstallArgs, WizardArgs,
+    CleanupTarget, Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs, RestoreArgs,
+    UninstallArgs, WizardArgs,
 };
 use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
 use manifest::{BaselineMcp, BootstrapManifest};
@@ -34,8 +35,10 @@ fn main() -> Result<()> {
         provider_args: ProviderArgs { providers: None },
         mode: None,
         without_rtk: false,
+        cleanup: None,
     })) {
         Command::Install(args) => install(args, &manifest),
+        Command::Restore(args) => restore(args, &manifest),
         Command::Uninstall(args) => uninstall(args, &manifest),
         Command::Doctor(args) => doctor(args, &manifest),
         Command::Wizard(args) => wizard(args, &manifest),
@@ -53,6 +56,7 @@ fn install(args: InstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let providers = selected_providers(&args.provider_args, manifest);
     let mode = args.mode.unwrap_or(manifest.bootstrap.default_mode);
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
+    let cleanup = selected_cleanup_targets(&args.cleanup);
     ensure_runtime_dependencies(rtk_enabled)?;
     let home = home_dir()?;
     let env_gates = resolved_env_gates(manifest, env_is_set);
@@ -63,6 +67,7 @@ fn install(args: InstallArgs, manifest: &BootstrapManifest) -> Result<()> {
         manifest,
         &enabled_mcp_from_gates(manifest, &env_gates),
         rtk_enabled,
+        &cleanup,
     )
 }
 
@@ -84,6 +89,26 @@ fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
         "uninstalled providers: {} (rtk: {})",
         provider_names(&providers),
         if rtk_enabled { "enabled" } else { "disabled" }
+    );
+    Ok(())
+}
+
+fn restore(args: RestoreArgs, manifest: &BootstrapManifest) -> Result<()> {
+    let home = home_dir()?;
+    let providers = selected_providers(&args.provider_args, manifest);
+
+    for provider in &providers {
+        match *provider {
+            Provider::Codex => codex::restore(&home, args.backup.as_deref())?,
+            Provider::Gemini => gemini::restore(&home, args.backup.as_deref())?,
+            Provider::Claude => claude::restore(&home, args.backup.as_deref())?,
+        }
+    }
+
+    println!(
+        "restored providers: {} (backup: {})",
+        provider_names(&providers),
+        args.backup.as_deref().unwrap_or("latest"),
     );
     Ok(())
 }
@@ -332,6 +357,10 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         .with_prompt("run install now?")
         .default(true)
         .interact()?;
+    let cleanup_legacy = Confirm::with_theme(&theme)
+        .with_prompt("remove known legacy oh-my/omc artifacts for selected providers?")
+        .default(false)
+        .interact()?;
 
     let env_overrides = wizard_env_overrides(&exa_key, &context7_key);
     let env_gates = resolved_env_gates(manifest, |name| {
@@ -341,6 +370,11 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
             .unwrap_or_else(|| env_is_set(name))
     });
     let enabled_mcp = enabled_mcp_from_gates(manifest, &env_gates);
+    let cleanup = if cleanup_legacy {
+        vec![CleanupTarget::Legacy]
+    } else {
+        Vec::new()
+    };
 
     let keys_to_persist = [
         ("EXA_API_KEY", exa_key.as_deref()),
@@ -366,11 +400,29 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         if persist_gui { "yes" } else { "no" },
         if persist_cli { "yes" } else { "no" },
     );
+    if !cleanup.is_empty() {
+        println!(
+            "wizard cleanup: {}",
+            cleanup
+                .iter()
+                .map(|target| target.name())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+    }
 
     if apply_now {
         ensure_runtime_dependencies(rtk_enabled)?;
         let home = home_dir()?;
-        install_with(&home, &providers, mode, manifest, &enabled_mcp, rtk_enabled)?;
+        install_with(
+            &home,
+            &providers,
+            mode,
+            manifest,
+            &enabled_mcp,
+            rtk_enabled,
+            &cleanup,
+        )?;
         doctor_with(
             &home,
             &providers,
@@ -392,20 +444,49 @@ fn install_with(
     manifest: &BootstrapManifest,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
+    cleanup: &[CleanupTarget],
 ) -> Result<()> {
+    let cleanup_legacy =
+        mode == cli::ApplyMode::Replace || cleanup.contains(&CleanupTarget::Legacy);
     for provider in providers {
         match *provider {
-            Provider::Codex => codex::install(home, mode, manifest, enabled_mcp, rtk_enabled)?,
-            Provider::Gemini => gemini::install(home, mode, manifest, enabled_mcp, rtk_enabled)?,
-            Provider::Claude => claude::install(home, mode, manifest, enabled_mcp, rtk_enabled)?,
+            Provider::Codex => codex::install(
+                home,
+                mode,
+                manifest,
+                enabled_mcp,
+                rtk_enabled,
+                cleanup_legacy,
+            )?,
+            Provider::Gemini => gemini::install(
+                home,
+                mode,
+                manifest,
+                enabled_mcp,
+                rtk_enabled,
+                cleanup_legacy,
+            )?,
+            Provider::Claude => claude::install(
+                home,
+                mode,
+                manifest,
+                enabled_mcp,
+                rtk_enabled,
+                cleanup_legacy,
+            )?,
         }
     }
 
     println!(
-        "installed providers: {} (mode: {}, rtk: {})",
+        "installed providers: {} (mode: {}, rtk: {}, cleanup: {})",
         provider_names(providers),
         mode.name(),
-        if rtk_enabled { "enabled" } else { "disabled" }
+        if rtk_enabled { "enabled" } else { "disabled" },
+        if cleanup_legacy {
+            "legacy".to_string()
+        } else {
+            "none".to_string()
+        }
     );
     Ok(())
 }
@@ -502,6 +583,10 @@ fn selected_providers(args: &ProviderArgs, manifest: &BootstrapManifest) -> Vec<
     args.providers
         .clone()
         .unwrap_or_else(|| manifest.bootstrap.providers.clone())
+}
+
+fn selected_cleanup_targets(targets: &Option<Vec<CleanupTarget>>) -> Vec<CleanupTarget> {
+    targets.clone().unwrap_or_default()
 }
 
 fn is_rtk_enabled(without_rtk: bool, manifest: &BootstrapManifest) -> bool {
@@ -1239,7 +1324,7 @@ mod tests {
         let manifest = test_manifest();
 
         let enabled = vec![BaselineMcp::ChromeDevtools];
-        codex::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        codex::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
         let codex_home = home.join(".codex");
         assert!(codex_home.join("config.toml").exists());
         assert!(codex_home.join("AGENTS.md").exists());
@@ -1279,6 +1364,67 @@ mod tests {
     }
 
     #[test]
+    fn codex_restore_recovers_latest_backup() {
+        let home = temp_home();
+        let codex_home = home.join(".codex");
+        fs::create_dir_all(codex_home.join("vendor_imports/skills")).unwrap();
+        fs::write(codex_home.join("AGENTS.md"), "old codex agents").unwrap();
+        fs::write(
+            codex_home.join("vendor_imports/skills/README.md"),
+            "legacy skill cache",
+        )
+        .unwrap();
+
+        codex::install(
+            &home,
+            ApplyMode::Replace,
+            &test_manifest(),
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+        )
+        .unwrap();
+
+        assert_ne!(
+            fs::read_to_string(codex_home.join("AGENTS.md")).unwrap(),
+            "old codex agents"
+        );
+        assert!(!codex_home.join("vendor_imports/skills/README.md").exists());
+
+        codex::restore(&home, None).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(codex_home.join("AGENTS.md")).unwrap(),
+            "old codex agents"
+        );
+        assert!(codex_home.join("vendor_imports/skills/README.md").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn codex_replace_removes_known_legacy_paths() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let legacy_root = home.join(".codex/vendor_imports/skills");
+        fs::create_dir_all(&legacy_root).unwrap();
+        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
+
+        codex::install(
+            &home,
+            ApplyMode::Replace,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+        )
+        .unwrap();
+
+        assert!(!legacy_root.exists());
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn gemini_install_uninstall_round_trip_without_rtk_preserves_custom_hooks() {
         let home = temp_home();
         let manifest = test_manifest();
@@ -1291,7 +1437,7 @@ mod tests {
         .unwrap();
 
         let enabled = vec![BaselineMcp::ChromeDevtools];
-        gemini::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        gemini::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
         let installed = fs::read_to_string(gemini_home.join("settings.json")).unwrap();
         assert!(installed.contains("/tmp/custom-run-shell.sh"));
         assert!(gemini_home.join("GEMINI.md").exists());
@@ -1335,6 +1481,7 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
+            false,
         )
         .unwrap();
 
@@ -1366,6 +1513,7 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
+            false,
         )
         .unwrap();
 
@@ -1394,6 +1542,7 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
+            false,
         )
         .unwrap();
 
@@ -1402,6 +1551,124 @@ mod tests {
         assert!(commands_dir.join("doctor.toml").exists());
         assert!(commands_dir.join("intent.toml").exists());
 
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_preserves_legacy_extension_without_cleanup_opt_in() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let legacy_root = home.join(".gemini/extensions/oh-my-gemini-cli");
+        fs::create_dir_all(&legacy_root).unwrap();
+        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+        )
+        .unwrap();
+
+        assert!(legacy_root.join("README.md").exists());
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_cleanup_legacy_opt_in_removes_old_extension() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let legacy_root = home.join(".gemini/extensions/oh-my-gemini-cli");
+        fs::create_dir_all(&legacy_root).unwrap();
+        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+        )
+        .unwrap();
+
+        assert!(!legacy_root.exists());
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_restore_recovers_latest_backup() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let gemini_home = home.join(".gemini");
+        fs::create_dir_all(gemini_home.join("extensions/oh-my-gemini-cli")).unwrap();
+        fs::write(
+            gemini_home.join("settings.json"),
+            "{\n  \"mcpServers\": {\"manual-tool\": {\"command\": \"manual-tool\"}},\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            gemini_home.join("extensions/oh-my-gemini-cli/README.md"),
+            "legacy gemini extension",
+        )
+        .unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Replace,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+        )
+        .unwrap();
+
+        let after_replace: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert!(after_replace["mcpServers"].get("manual-tool").is_none());
+        assert!(
+            !gemini_home
+                .join("extensions/oh-my-gemini-cli/README.md")
+                .exists()
+        );
+
+        gemini::restore(&home, None).unwrap();
+
+        let restored: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert!(restored["mcpServers"].get("manual-tool").is_some());
+        assert!(
+            gemini_home
+                .join("extensions/oh-my-gemini-cli/README.md")
+                .exists()
+        );
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_replace_removes_old_extension() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let legacy_root = home.join(".gemini/extensions/oh-my-gemini-cli");
+        fs::create_dir_all(&legacy_root).unwrap();
+        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Replace,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+        )
+        .unwrap();
+
+        assert!(!legacy_root.exists());
         fs::remove_dir_all(home).unwrap();
     }
 
@@ -1415,7 +1682,7 @@ mod tests {
         let manifest = test_manifest();
         let enabled = vec![BaselineMcp::ChromeDevtools];
 
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
         let claude_home = home.join(".claude");
         assert!(claude_home.join("CLAUDE.md").exists());
         assert!(claude_home.join("scripts/chrome-devtools-mcp.sh").exists());
@@ -1450,6 +1717,7 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
             false,
+            false,
         )
         .unwrap();
 
@@ -1458,6 +1726,7 @@ mod tests {
             ApplyMode::Merge,
             &manifest,
             &[BaselineMcp::ChromeDevtools],
+            false,
             false,
         )
         .unwrap();
@@ -1480,7 +1749,7 @@ mod tests {
         let manifest = test_manifest();
         let enabled = vec![BaselineMcp::ChromeDevtools];
 
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
         std::process::Command::new("claude")
             .env("HOME", &home)
             .args([
@@ -1522,7 +1791,7 @@ mod tests {
         )
         .unwrap();
 
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
         assert!(home.join(".claude/skills/autopilot/SKILL.md").exists());
         assert!(unmanaged_skill.join("SKILL.md").exists());
 
@@ -1559,11 +1828,107 @@ mod tests {
             .status()
             .unwrap();
 
-        claude::install(&home, ApplyMode::Replace, &manifest, &enabled, false).unwrap();
+        claude::install(&home, ApplyMode::Replace, &manifest, &enabled, false, false).unwrap();
 
         let mcp = claude::claude_user_mcp(&home).unwrap();
         assert!(mcp["mcpServers"].get("manual-tool").is_none());
         assert!(mcp["mcpServers"].get("chrome-devtools").is_some());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_preserves_legacy_omc_state_without_cleanup_opt_in() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+        let legacy_root = home.join(".claude/.omc");
+        fs::create_dir_all(&legacy_root).unwrap();
+        fs::write(legacy_root.join("state.json"), "{}").unwrap();
+
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
+
+        assert!(legacy_root.join("state.json").exists());
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_cleanup_legacy_opt_in_removes_known_omc_state() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+        let legacy_root = home.join(".claude/.omc");
+        fs::create_dir_all(&legacy_root).unwrap();
+        fs::write(legacy_root.join("state.json"), "{}").unwrap();
+
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, true).unwrap();
+
+        assert!(!legacy_root.exists());
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_replace_removes_known_omc_state() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+        let legacy_root = home.join(".claude/.omc");
+        fs::create_dir_all(&legacy_root).unwrap();
+        fs::write(legacy_root.join("state.json"), "{}").unwrap();
+
+        claude::install(&home, ApplyMode::Replace, &manifest, &enabled, false, false).unwrap();
+
+        assert!(!legacy_root.exists());
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_restore_recovers_latest_backup() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        fs::create_dir_all(home.join(".claude/.omc")).unwrap();
+        fs::write(home.join(".claude/.omc/state.json"), "{}").unwrap();
+        fs::write(
+            home.join(".claude.json"),
+            "{\n  \"mcpServers\": {\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  }\n}\n",
+        )
+        .unwrap();
+
+        claude::install(
+            &home,
+            ApplyMode::Replace,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+        )
+        .unwrap();
+
+        let replaced = claude::claude_user_mcp(&home).unwrap();
+        assert!(replaced["mcpServers"].get("manual-tool").is_none());
+        assert!(!home.join(".claude/.omc/state.json").exists());
+
+        claude::restore(&home, None).unwrap();
+
+        let restored = claude::claude_user_mcp(&home).unwrap();
+        assert!(restored["mcpServers"].get("manual-tool").is_some());
+        assert!(home.join(".claude/.omc/state.json").exists());
 
         fs::remove_dir_all(home).unwrap();
     }

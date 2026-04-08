@@ -30,6 +30,20 @@ pub(crate) const GEMINI_LEGACY_PATHS: &[&str] = &[
     "extensions/llm-bootstrap-dev/commands/intent.md",
 ];
 
+pub(crate) const CODEX_LEGACY_CLEANUP_PATHS: &[&str] = &["vendor_imports/skills", ".tmp/plugins"];
+
+pub(crate) const GEMINI_LEGACY_CLEANUP_PATHS: &[&str] = &["extensions/oh-my-gemini-cli"];
+
+pub(crate) const CLAUDE_LEGACY_CLEANUP_PATHS: &[&str] = &[
+    "plugins/oh-my-claudecode",
+    "plugins/cache/omc",
+    "plugins/data/oh-my-claudecode-omc",
+    "plugins/marketplaces/omc",
+    ".omc",
+    ".omc-config.json",
+    "hud/omc-hud.mjs",
+];
+
 pub(crate) fn managed_paths(
     base: &[&'static str],
     rtk_path: &'static str,

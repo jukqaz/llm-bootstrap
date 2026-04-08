@@ -23,6 +23,13 @@
 2. `Gemini`
 3. `Claude Code`
 
+현재 `bootstrap.toml` 기본 provider는 다음 둘이다.
+
+- `codex`
+- `gemini`
+
+`claude`는 지원하지만 명시적으로 고를 때만 설치된다.
+
 ## 기본 baseline
 
 - 항상 켜짐:
@@ -89,3 +96,44 @@ cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 ```
+
+## legacy cleanup 옵션
+
+`merge`는 이전 unmanaged 자산을 보존한다. 그래서 예전 oh-my/OMC
+설치 흔적이 남아 있으면 command, skill, extension이 겹쳐 보일 수 있다.
+이 경우에는 직접 지우거나 `replace`를 사용해야 한다.
+
+`replace`는 bootstrap 관리 자산을 다시 쓰고, 선택한 provider의 known
+legacy oh-my/OMC 흔적도 함께 정리한다.
+
+`merge`에서만 legacy cleanup이 기본값으로 꺼져 있다. 필요할 때만
+명시적으로 켠다.
+
+```bash
+cargo run -- install --providers codex,gemini,claude --cleanup legacy
+```
+
+이 옵션은 이전 bootstrap의 known legacy artifact만 정리하고, 일반적인
+unmanaged 자산은 보존하는 방향으로 동작한다.
+
+자세한 마이그레이션 가이드는
+[docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)를 참고하면 된다.
+
+## backup에서 복구
+
+모든 `install`, `replace`, `uninstall`은 provider별 backup을 먼저 만든다.
+
+선택한 provider의 최신 backup을 복구하려면:
+
+```bash
+cargo run -- restore --providers codex,gemini,claude
+```
+
+특정 backup 디렉터리를 복구하려면:
+
+```bash
+cargo run -- restore --providers codex --backup llm-bootstrap-1712550000
+```
+
+`restore`는 현재 상태를 한 번 더 backup한 뒤, 선택한 backup 안의
+bootstrap 관리 자산과 known legacy cleanup 대상을 복구한다.

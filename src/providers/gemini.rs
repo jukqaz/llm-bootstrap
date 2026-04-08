@@ -1,13 +1,15 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
     backup_relative, copy_render_dir, copy_render_file_with_extras, copy_selected_scripts,
-    create_backup_root, remove_if_exists,
+    create_backup_root, remove_if_exists, resolve_backup_root, restore_relative,
 };
 use crate::json_ops::{
     cleanup_extension_enablement, cleanup_gemini_settings, merge_json,
     preserved_gemini_runtime_state, prune_rtk_gemini_hooks, read_json_or_empty, write_json_pretty,
 };
-use crate::layout::{GEMINI_LEGACY_PATHS, gemini_managed_paths, gemini_uninstall_paths};
+use crate::layout::{
+    GEMINI_LEGACY_CLEANUP_PATHS, GEMINI_LEGACY_PATHS, gemini_managed_paths, gemini_uninstall_paths,
+};
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
 use anyhow::Result;
@@ -59,10 +61,12 @@ pub(crate) fn install(
     _manifest: &BootstrapManifest,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
+    cleanup_legacy: bool,
 ) -> Result<()> {
     let root = home.join(".gemini");
     let template_root = repo_root().join("templates/gemini");
     let bundle_root = repo_root().join("bundles/full/gemini");
+    let cleanup_legacy = cleanup_legacy || mode == ApplyMode::Replace;
 
     fs::create_dir_all(&root)?;
     fs::create_dir_all(root.join("hooks"))?;
@@ -74,6 +78,11 @@ pub(crate) fn install(
     for relative in gemini_managed_paths() {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
+    if cleanup_legacy {
+        for relative in GEMINI_LEGACY_CLEANUP_PATHS {
+            backup_relative(&root, &backup_root, Path::new(relative))?;
+        }
+    }
 
     if mode == ApplyMode::Replace {
         for relative in gemini_managed_paths() {
@@ -82,6 +91,11 @@ pub(crate) fn install(
         fs::create_dir_all(root.join("hooks"))?;
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("extensions"))?;
+    }
+    if cleanup_legacy {
+        for relative in GEMINI_LEGACY_CLEANUP_PATHS {
+            remove_if_exists(&root.join(relative))?;
+        }
     }
 
     cleanup_legacy_paths(&root)?;
@@ -182,6 +196,42 @@ pub(crate) fn uninstall(
     cleanup_extension_enablement(&root.join("extensions/extension-enablement.json"))?;
 
     println!("[gemini] uninstalled {}", root.display());
+    Ok(())
+}
+
+pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
+    let root = home.join(".gemini");
+    fs::create_dir_all(&root)?;
+    let source_backup = resolve_backup_root(&root, backup_name)?;
+    let backup_root = create_backup_root(&root, &timestamp_string()?)?;
+    println!("[gemini] backup {}", backup_root.display());
+
+    for relative in gemini_managed_paths() {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+    for relative in GEMINI_LEGACY_CLEANUP_PATHS {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+
+    for relative in gemini_managed_paths() {
+        remove_if_exists(&root.join(relative))?;
+    }
+    for relative in GEMINI_LEGACY_CLEANUP_PATHS {
+        remove_if_exists(&root.join(relative))?;
+    }
+
+    for relative in gemini_managed_paths() {
+        restore_relative(&root, &source_backup, Path::new(relative))?;
+    }
+    for relative in GEMINI_LEGACY_CLEANUP_PATHS {
+        restore_relative(&root, &source_backup, Path::new(relative))?;
+    }
+
+    println!(
+        "[gemini] restored {} from {}",
+        root.display(),
+        source_backup.display()
+    );
     Ok(())
 }
 

@@ -1,9 +1,10 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
     backup_relative, copy_render_dir, copy_render_file, copy_render_file_with_extras,
-    copy_selected_scripts, create_backup_root, remove_if_exists, toml_table_key,
+    copy_selected_scripts, create_backup_root, remove_if_exists, resolve_backup_root,
+    restore_relative, toml_table_key,
 };
-use crate::layout::{codex_managed_paths, codex_uninstall_paths};
+use crate::layout::{CODEX_LEGACY_CLEANUP_PATHS, codex_managed_paths, codex_uninstall_paths};
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
 use anyhow::{Context, Result};
@@ -54,6 +55,7 @@ pub(crate) fn install(
     _manifest: &BootstrapManifest,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
+    cleanup_legacy: bool,
 ) -> Result<()> {
     let root = home.join(".codex");
     let template_root = repo_root().join("templates/codex");
@@ -62,6 +64,7 @@ pub(crate) fn install(
     let installed_plugin_root = root.join("plugins/cache/llm-bootstrap/llm-dev-kit/local");
     let bundle_root = repo_root().join("bundles/full/codex");
     let bundle_plugin_root = repo_root().join("bundles/full/plugins/llm-dev-kit");
+    let cleanup_legacy = cleanup_legacy || mode == ApplyMode::Replace;
 
     fs::create_dir_all(&root)?;
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
@@ -70,9 +73,19 @@ pub(crate) fn install(
     for relative in codex_managed_paths() {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
+    if cleanup_legacy {
+        for relative in CODEX_LEGACY_CLEANUP_PATHS {
+            backup_relative(&root, &backup_root, Path::new(relative))?;
+        }
+    }
 
     if mode == ApplyMode::Replace {
         for relative in codex_managed_paths() {
+            remove_if_exists(&root.join(relative))?;
+        }
+    }
+    if cleanup_legacy {
+        for relative in CODEX_LEGACY_CLEANUP_PATHS {
             remove_if_exists(&root.join(relative))?;
         }
     }
@@ -149,6 +162,41 @@ pub(crate) fn uninstall(home: &Path, rtk_enabled: bool) -> Result<()> {
     }
 
     println!("[codex] uninstalled {}", root.display());
+    Ok(())
+}
+
+pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
+    let root = home.join(".codex");
+    fs::create_dir_all(&root)?;
+    let source_backup = resolve_backup_root(&root, backup_name)?;
+    let backup_root = create_backup_root(&root, &timestamp_string()?)?;
+    println!("[codex] backup {}", backup_root.display());
+
+    for relative in codex_managed_paths() {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+    for relative in CODEX_LEGACY_CLEANUP_PATHS {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
+
+    for relative in codex_managed_paths() {
+        remove_if_exists(&root.join(relative))?;
+    }
+    for relative in CODEX_LEGACY_CLEANUP_PATHS {
+        remove_if_exists(&root.join(relative))?;
+    }
+    for relative in codex_managed_paths() {
+        restore_relative(&root, &source_backup, Path::new(relative))?;
+    }
+    for relative in CODEX_LEGACY_CLEANUP_PATHS {
+        restore_relative(&root, &source_backup, Path::new(relative))?;
+    }
+
+    println!(
+        "[codex] restored {} from {}",
+        root.display(),
+        source_backup.display()
+    );
     Ok(())
 }
 

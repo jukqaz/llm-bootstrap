@@ -98,9 +98,13 @@
 - review/qa/ship artifacts
 - `office-hours` / `investigate` workflow artifact
 - `autopilot` / `retro` artifact
-- app/plugin lane for Figma/Linear
 - long-context lane와 fanout 운영 기준
 - 공식 agent TOML 옵션으로 role-specific model / effort / long-context pin 사용
+
+참고:
+
+- Figma/Linear 같은 app/plugin lane은 현재 구현 범위에 포함하지 않았다
+- 현재 저장소는 user/home bootstrap과 provider native surface 정리에 집중한다
 
 ### Gemini lane
 
