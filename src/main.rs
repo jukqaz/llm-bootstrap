@@ -32,13 +32,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let manifest = load_manifest()?;
 
-    match cli.command.unwrap_or(Command::Install(InstallArgs {
-        provider_args: ProviderArgs { providers: None },
-        mode: None,
-        without_rtk: false,
-        cleanup: None,
-        dry_run: false,
-    })) {
+    match cli.command.unwrap_or_else(default_command) {
         Command::Install(args) => install(args, &manifest),
         Command::Restore(args) => restore(args, &manifest),
         Command::Backups(args) => backups(args, &manifest),
@@ -46,6 +40,10 @@ fn main() -> Result<()> {
         Command::Doctor(args) => doctor(args, &manifest),
         Command::Wizard(args) => wizard(args, &manifest),
     }
+}
+
+fn default_command() -> Command {
+    Command::Wizard(WizardArgs::default())
 }
 
 fn load_manifest() -> Result<BootstrapManifest> {
@@ -1195,6 +1193,14 @@ mod tests {
     fn apply_mode_names_match_cli_values() {
         assert_eq!(ApplyMode::Merge.name(), "merge");
         assert_eq!(ApplyMode::Replace.name(), "replace");
+    }
+
+    #[test]
+    fn default_command_is_wizard() {
+        match super::default_command() {
+            super::Command::Wizard(_) => {}
+            _ => panic!("default command must be wizard"),
+        }
     }
 
     #[test]

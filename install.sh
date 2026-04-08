@@ -13,8 +13,30 @@ fail() {
   exit 1
 }
 
+resolve_command() {
+  if [[ $# -eq 0 ]]; then
+    printf 'wizard'
+    return
+  fi
+
+  case "$1" in
+    install|wizard|doctor|restore|backups|uninstall|help|--help|-h)
+      printf '%s' "$1"
+      ;;
+    *)
+      printf 'install'
+      ;;
+  esac
+}
+
+COMMAND="$(resolve_command "$@")"
+FIRST_ARG="${1-}"
+
 if [[ -x "$BUNDLED_BIN" ]]; then
-  exec "$BUNDLED_BIN" install "$@"
+  if [[ -n "$FIRST_ARG" && ( "$COMMAND" == "$FIRST_ARG" || "$COMMAND" == "--help" || "$COMMAND" == "-h" ) ]]; then
+    exec "$BUNDLED_BIN" "$@"
+  fi
+  exec "$BUNDLED_BIN" "$COMMAND" "$@"
 fi
 
 if ! command -v cargo >/dev/null 2>&1; then
@@ -27,4 +49,8 @@ if [[ ! -f "$SCRIPT_DIR/Cargo.toml" ]]; then
   fail "Cargo.toml not found and bundled llm-bootstrap binary is unavailable"
 fi
 
-exec cargo run --quiet --manifest-path "$SCRIPT_DIR/Cargo.toml" -- install "$@"
+if [[ $# -gt 0 && ( "$COMMAND" == "$FIRST_ARG" || "$COMMAND" == "--help" || "$COMMAND" == "-h" ) ]]; then
+  exec cargo run --quiet --manifest-path "$SCRIPT_DIR/Cargo.toml" -- "$@"
+fi
+
+exec cargo run --quiet --manifest-path "$SCRIPT_DIR/Cargo.toml" -- "$COMMAND" "$@"
