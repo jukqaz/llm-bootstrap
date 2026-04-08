@@ -213,6 +213,25 @@ CLI 도움말:
 cargo run -- --help
 ```
 
+wizard:
+
+```bash
+cargo run -- wizard
+```
+
+wizard는 다음을 순서대로 묻는다.
+
+- 적용할 provider
+  - 스페이스로 체크하고 엔터로 확정
+- `merge` 또는 `replace`
+- RTK 포함 여부
+- `EXA_API_KEY`
+- `CONTEXT7_API_KEY`
+- 입력한 키를 `launchctl setenv`로 macOS 세션에 반영할지 여부
+- 바로 `install`과 `doctor`까지 실행할지 여부
+
+즉 line prompt를 길게 치지 않아도, 체크박스와 confirm 중심으로 필요한 순간에 한 번에 입력하고 적용할 수 있다.
+
 ## 디렉터리 구조
 
 - `src/main.rs`: CLI 진입점과 provider dispatch

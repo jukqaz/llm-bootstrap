@@ -8,14 +8,19 @@ mod runtime;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use cli::{Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs, UninstallArgs};
+use cli::{
+    Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs, UninstallArgs, WizardArgs,
+};
+use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
 use manifest::{BaselineMcp, BootstrapManifest};
 use providers::{claude, codex, gemini};
 use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root};
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command as ProcessCommand;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -29,6 +34,7 @@ fn main() -> Result<()> {
         Command::Install(args) => install(args, &manifest),
         Command::Uninstall(args) => uninstall(args, &manifest),
         Command::Doctor(args) => doctor(args, &manifest),
+        Command::Wizard(args) => wizard(args, &manifest),
     }
 }
 
@@ -45,23 +51,15 @@ fn install(args: InstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
     ensure_runtime_dependencies(rtk_enabled)?;
     let home = home_dir()?;
-    let enabled_mcp = enabled_mcp(manifest);
-
-    for provider in &providers {
-        match *provider {
-            Provider::Codex => codex::install(&home, mode, manifest, &enabled_mcp, rtk_enabled)?,
-            Provider::Gemini => gemini::install(&home, mode, manifest, &enabled_mcp, rtk_enabled)?,
-            Provider::Claude => claude::install(&home, mode, manifest, &enabled_mcp, rtk_enabled)?,
-        }
-    }
-
-    println!(
-        "installed providers: {} (mode: {}, rtk: {})",
-        provider_names(&providers),
-        mode.name(),
-        if rtk_enabled { "enabled" } else { "disabled" }
-    );
-    Ok(())
+    let env_gates = resolved_env_gates(manifest, env_is_set);
+    install_with(
+        &home,
+        &providers,
+        mode,
+        manifest,
+        &enabled_mcp_from_gates(manifest, &env_gates),
+        rtk_enabled,
+    )
 }
 
 fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
@@ -89,15 +87,34 @@ fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
 fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
     let home = home_dir()?;
     let providers = selected_providers(&args.provider_args, manifest);
+    let env_gates = resolved_env_gates(manifest, env_is_set);
+    doctor_with(
+        &home,
+        &providers,
+        manifest,
+        &enabled_mcp_from_gates(manifest, &env_gates),
+        &env_gates,
+        is_rtk_enabled(args.without_rtk, manifest),
+        args.json,
+    )
+}
+
+fn doctor_with(
+    home: &std::path::Path,
+    providers: &[Provider],
+    manifest: &BootstrapManifest,
+    enabled_mcp: &[BaselineMcp],
+    env_gates: &[ResolvedEnvGate],
+    rtk_enabled: bool,
+    json: bool,
+) -> Result<()> {
     let mut failures = Vec::new();
     let mut warnings = Vec::new();
-    let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
-    let enabled_mcp = enabled_mcp(manifest);
     let mut command_checks = Vec::new();
     let mut env_checks = Vec::new();
     let mut provider_reports = Vec::new();
 
-    if !args.json {
+    if !json {
         println!("[doctor] commands");
     }
     let mut commands = vec!["node", "npx"];
@@ -109,7 +126,7 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
     }
     for command in commands {
         if command_exists(command) {
-            if !args.json {
+            if !json {
                 println!("[ok] command {}", command);
             }
             command_checks.push(DoctorCheck {
@@ -118,7 +135,7 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
                 detail: None,
             });
         } else {
-            if !args.json {
+            if !json {
                 println!("[missing] command {}", command);
             }
             failures.push(PathBuf::from(command));
@@ -130,12 +147,12 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
         }
     }
 
-    if !args.json {
+    if !json {
         println!("[doctor] api");
     }
-    for gated in &manifest.mcp.env_gated {
-        if env_is_set(&gated.env) {
-            if !args.json {
+    for gated in env_gates {
+        if gated.enabled {
+            if !json {
                 println!("[ok] env {} enables {}", gated.env, gated.name.name());
             }
             env_checks.push(DoctorEnvCheck {
@@ -146,7 +163,7 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
             });
         } else {
             let detail = env_warning(&gated.env).to_string();
-            if !args.json {
+            if !json {
                 println!(
                     "[warn] mcp {} disabled: env {} not set; {}",
                     gated.name.name(),
@@ -164,20 +181,20 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
         }
     }
 
-    for provider in &providers {
-        if !args.json {
+    for provider in providers {
+        if !json {
             println!("[doctor] provider {}", provider.name());
         }
         let checks = match provider {
-            Provider::Codex => codex::doctor_checks(&home, manifest, &enabled_mcp, rtk_enabled),
-            Provider::Gemini => gemini::doctor_checks(&home, &enabled_mcp, rtk_enabled),
-            Provider::Claude => claude::doctor_checks(&home, &enabled_mcp, rtk_enabled),
+            Provider::Codex => codex::doctor_checks(home, manifest, enabled_mcp, rtk_enabled),
+            Provider::Gemini => gemini::doctor_checks(home, enabled_mcp, rtk_enabled),
+            Provider::Claude => claude::doctor_checks(home, enabled_mcp, rtk_enabled),
         };
         let mut provider_checks = Vec::new();
 
         for path in checks {
             if path.exists() {
-                if !args.json {
+                if !json {
                     println!("[ok] {}", path.display());
                 }
                 provider_checks.push(DoctorCheck {
@@ -186,7 +203,7 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
                     detail: None,
                 });
             } else {
-                if !args.json {
+                if !json {
                     println!("[missing] {}", path.display());
                 }
                 failures.push(path.clone());
@@ -211,7 +228,7 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
         providers: provider_reports,
     };
 
-    if args.json {
+    if json {
         println!("{}", serde_json::to_string_pretty(&report)?);
         if failures.is_empty() {
             return Ok(());
@@ -229,6 +246,155 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
     } else {
         bail!("doctor found missing commands or files")
     }
+}
+
+fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
+    let defaults = selected_providers(&ProviderArgs { providers: None }, manifest);
+    let default_mode = manifest.bootstrap.default_mode;
+    let default_rtk = manifest.external.rtk.enabled;
+    let theme = ColorfulTheme::default();
+    let provider_items = [Provider::Codex, Provider::Gemini, Provider::Claude];
+    let provider_labels = provider_items
+        .iter()
+        .map(|provider| provider.name())
+        .collect::<Vec<_>>();
+    let provider_defaults = provider_items
+        .iter()
+        .map(|provider| defaults.contains(provider))
+        .collect::<Vec<_>>();
+
+    println!("llm-bootstrap wizard");
+    println!(
+        "defaults: providers={}, mode={}, rtk={}",
+        provider_names(&defaults),
+        default_mode.name(),
+        if default_rtk { "enabled" } else { "disabled" }
+    );
+
+    let selected_indices = MultiSelect::with_theme(&theme)
+        .with_prompt("providers")
+        .items(&provider_labels)
+        .defaults(&provider_defaults)
+        .interact()?;
+    let providers = if selected_indices.is_empty() {
+        defaults
+    } else {
+        selected_indices
+            .into_iter()
+            .map(|index| provider_items[index])
+            .collect::<Vec<_>>()
+    };
+
+    let mode = match Select::with_theme(&theme)
+        .with_prompt("mode")
+        .items(["merge", "replace"])
+        .default(if default_mode == cli::ApplyMode::Merge {
+            0
+        } else {
+            1
+        })
+        .interact()?
+    {
+        0 => cli::ApplyMode::Merge,
+        1 => cli::ApplyMode::Replace,
+        _ => unreachable!(),
+    };
+    let rtk_enabled = Confirm::with_theme(&theme)
+        .with_prompt("enable RTK?")
+        .default(default_rtk)
+        .interact()?;
+
+    let exa_key = prompt_secret_with_dialoguer(
+        &theme,
+        "EXA_API_KEY (leave blank to keep current or disabled)",
+    )?;
+    let context7_key = prompt_secret_with_dialoguer(
+        &theme,
+        "CONTEXT7_API_KEY (leave blank to keep current or disabled)",
+    )?;
+    let persist_env = Confirm::with_theme(&theme)
+        .with_prompt("persist entered keys with launchctl setenv?")
+        .default(true)
+        .interact()?;
+    let apply_now = Confirm::with_theme(&theme)
+        .with_prompt("run install now?")
+        .default(true)
+        .interact()?;
+
+    let env_overrides = wizard_env_overrides(&exa_key, &context7_key);
+    let env_gates = resolved_env_gates(manifest, |name| {
+        env_overrides
+            .get(name)
+            .copied()
+            .unwrap_or_else(|| env_is_set(name))
+    });
+    let enabled_mcp = enabled_mcp_from_gates(manifest, &env_gates);
+
+    if let Some(value) = exa_key.as_deref() {
+        persist_env_key("EXA_API_KEY", value, persist_env)?;
+    }
+    if let Some(value) = context7_key.as_deref() {
+        persist_env_key("CONTEXT7_API_KEY", value, persist_env)?;
+    }
+
+    println!(
+        "wizard summary: providers={}, mode={}, rtk={}, exa={}, context7={}",
+        provider_names(&providers),
+        mode.name(),
+        if rtk_enabled { "enabled" } else { "disabled" },
+        if enabled_mcp.contains(&BaselineMcp::Exa) {
+            "enabled"
+        } else {
+            "disabled"
+        },
+        if enabled_mcp.contains(&BaselineMcp::Context7) {
+            "enabled"
+        } else {
+            "disabled"
+        },
+    );
+
+    if apply_now {
+        ensure_runtime_dependencies(rtk_enabled)?;
+        let home = home_dir()?;
+        install_with(&home, &providers, mode, manifest, &enabled_mcp, rtk_enabled)?;
+        doctor_with(
+            &home,
+            &providers,
+            manifest,
+            &enabled_mcp,
+            &env_gates,
+            rtk_enabled,
+            false,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn install_with(
+    home: &std::path::Path,
+    providers: &[Provider],
+    mode: cli::ApplyMode,
+    manifest: &BootstrapManifest,
+    enabled_mcp: &[BaselineMcp],
+    rtk_enabled: bool,
+) -> Result<()> {
+    for provider in providers {
+        match *provider {
+            Provider::Codex => codex::install(home, mode, manifest, enabled_mcp, rtk_enabled)?,
+            Provider::Gemini => gemini::install(home, mode, manifest, enabled_mcp, rtk_enabled)?,
+            Provider::Claude => claude::install(home, mode, manifest, enabled_mcp, rtk_enabled)?,
+        }
+    }
+
+    println!(
+        "installed providers: {} (mode: {}, rtk: {})",
+        provider_names(providers),
+        mode.name(),
+        if rtk_enabled { "enabled" } else { "disabled" }
+    );
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -303,6 +469,107 @@ where
             .map(|gated| gated.name),
     );
     enabled
+}
+
+#[derive(Clone)]
+struct ResolvedEnvGate {
+    name: BaselineMcp,
+    env: String,
+    enabled: bool,
+}
+
+fn resolved_env_gates<F>(manifest: &BootstrapManifest, is_enabled: F) -> Vec<ResolvedEnvGate>
+where
+    F: Fn(&str) -> bool,
+{
+    manifest
+        .mcp
+        .env_gated
+        .iter()
+        .map(|gated| ResolvedEnvGate {
+            name: gated.name,
+            env: gated.env.clone(),
+            enabled: is_enabled(&gated.env),
+        })
+        .collect()
+}
+
+fn enabled_mcp_from_gates(
+    manifest: &BootstrapManifest,
+    env_gates: &[ResolvedEnvGate],
+) -> Vec<BaselineMcp> {
+    let mut enabled = manifest.mcp.always_on.clone();
+    enabled.extend(
+        env_gates
+            .iter()
+            .filter(|gated| gated.enabled)
+            .map(|gated| gated.name),
+    );
+    enabled
+}
+
+fn prompt_secret_with_dialoguer(theme: &ColorfulTheme, label: &str) -> Result<Option<String>> {
+    let value = Password::with_theme(theme)
+        .with_prompt(label)
+        .allow_empty_password(true)
+        .interact()?;
+    if value.trim().is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(value))
+    }
+}
+
+#[cfg(test)]
+fn parse_provider_list(value: &str) -> Result<Vec<Provider>> {
+    let mut providers = Vec::new();
+    for item in value
+        .split(',')
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+    {
+        let provider = match item {
+            "codex" => Provider::Codex,
+            "gemini" => Provider::Gemini,
+            "claude" => Provider::Claude,
+            other => anyhow::bail!("unsupported provider: {}", other),
+        };
+        if !providers.contains(&provider) {
+            providers.push(provider);
+        }
+    }
+
+    if providers.is_empty() {
+        anyhow::bail!("at least one provider is required");
+    }
+
+    Ok(providers)
+}
+
+fn persist_env_key(name: &str, value: &str, persist: bool) -> Result<()> {
+    if persist {
+        let status = ProcessCommand::new("launchctl")
+            .args(["setenv", name, value])
+            .status()?;
+        if !status.success() {
+            anyhow::bail!("launchctl setenv failed for {}", name);
+        }
+    }
+    Ok(())
+}
+
+fn wizard_env_overrides(
+    exa_key: &Option<String>,
+    context7_key: &Option<String>,
+) -> BTreeMap<&'static str, bool> {
+    let mut overrides = BTreeMap::new();
+    if let Some(value) = exa_key {
+        overrides.insert("EXA_API_KEY", !value.trim().is_empty());
+    }
+    if let Some(value) = context7_key {
+        overrides.insert("CONTEXT7_API_KEY", !value.trim().is_empty());
+    }
+    overrides
 }
 
 fn provider_names(providers: &[Provider]) -> String {
@@ -444,6 +711,23 @@ mod tests {
     fn apply_mode_names_match_cli_values() {
         assert_eq!(ApplyMode::Merge.name(), "merge");
         assert_eq!(ApplyMode::Replace.name(), "replace");
+    }
+
+    #[test]
+    fn parse_provider_list_accepts_unique_values() {
+        let providers = super::parse_provider_list("codex, gemini, codex").unwrap();
+        assert_eq!(
+            providers,
+            vec![super::Provider::Codex, super::Provider::Gemini]
+        );
+    }
+
+    #[test]
+    fn wizard_env_overrides_marks_only_non_empty_keys() {
+        let overrides =
+            super::wizard_env_overrides(&Some("exa-key".to_string()), &Some("".to_string()));
+        assert_eq!(overrides.get("EXA_API_KEY"), Some(&true));
+        assert_eq!(overrides.get("CONTEXT7_API_KEY"), Some(&false));
     }
 
     #[test]

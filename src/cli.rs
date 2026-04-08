@@ -51,6 +51,7 @@ pub(crate) enum Command {
     Install(InstallArgs),
     Uninstall(UninstallArgs),
     Doctor(DoctorArgs),
+    Wizard(WizardArgs),
 }
 
 #[derive(clap::Args, Clone)]
@@ -97,3 +98,6 @@ pub(crate) struct DoctorArgs {
     #[arg(long, help = "Emit doctor results as JSON")]
     pub(crate) json: bool,
 }
+
+#[derive(clap::Args, Clone, Default)]
+pub(crate) struct WizardArgs {}
