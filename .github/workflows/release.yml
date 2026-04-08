@@ -56,13 +56,14 @@ jobs:
         run: |
           package_root="llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}"
           latest_archive="llm-bootstrap-${{ matrix.target }}.tar.gz"
+          latest_checksum="dist/${latest_archive}.sha256"
           mkdir -p "dist/${package_root}"
           cp target/release/llm-bootstrap "dist/${package_root}/"
           cp install.sh install-release.sh uninstall.sh README.md README.ko.md LICENSE "dist/${package_root}/"
           tar -C dist -czf "dist/${package_root}.tar.gz" "${package_root}"
           shasum -a 256 "dist/${package_root}.tar.gz" > "dist/${package_root}.tar.gz.sha256"
           cp "dist/${package_root}.tar.gz" "dist/${latest_archive}"
-          cp "dist/${package_root}.tar.gz.sha256" "dist/${latest_archive}.sha256"
+          shasum -a 256 "dist/${latest_archive}" > "$latest_checksum"
 
       - name: Upload release assets
         env:

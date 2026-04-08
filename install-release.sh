@@ -86,14 +86,25 @@ archive_name() {
 verify_checksum() {
   local archive="$1"
   local checksum_file="$2"
+  local archive_name checksum_dir normalized_checksum
+  archive_name="$(basename "$archive")"
+  checksum_dir="$(dirname "$checksum_file")"
+  normalized_checksum="${checksum_dir}/$(basename "$checksum_file").normalized"
+
+  awk -v archive_name="$archive_name" '
+    {
+      $2 = archive_name
+      print $1 "  " $2
+    }
+  ' "$checksum_file" > "$normalized_checksum"
 
   if command -v shasum >/dev/null 2>&1; then
-    (cd "$(dirname "$archive")" && shasum -a 256 -c "$(basename "$checksum_file")")
+    (cd "$(dirname "$archive")" && shasum -a 256 -c "$(basename "$normalized_checksum")")
     return
   fi
 
   if command -v sha256sum >/dev/null 2>&1; then
-    (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$checksum_file")")
+    (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$normalized_checksum")")
     return
   fi
 

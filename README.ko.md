@@ -4,7 +4,7 @@
 
 ## 바로 설치
 
-현재 release: `v0.1.2`
+현재 release: `v0.1.3`
 
 기본 경로는 wizard 실행이다.
 
@@ -102,7 +102,7 @@ curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-r
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.2 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.3 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.

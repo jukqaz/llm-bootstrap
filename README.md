@@ -9,7 +9,7 @@ integration.
 
 ## Install now
 
-Current release: `v0.1.2`
+Current release: `v0.1.3`
 
 Default path: run the wizard first.
 
@@ -169,7 +169,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.2 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.3 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
