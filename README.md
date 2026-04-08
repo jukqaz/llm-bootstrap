@@ -7,6 +7,17 @@ provider auth tokens or project-level files. It applies a small, reproducible
 baseline for MCP wiring, workflow docs, native skills or commands, and RTK
 integration.
 
+## Install now
+
+Current release: `v0.1.1`
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash -s -- --providers codex,gemini
+```
+
+Release assets:
+- [GitHub Releases](https://github.com/jukqaz/llm-bootstrap/releases)
+
 ## Documentation
 
 English:

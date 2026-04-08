@@ -2,6 +2,17 @@
 
 `Codex`, `Gemini`, optional `Claude Code`의 사용자 홈 설정을 정리하는 macOS용 bootstrap 저장소다.
 
+## 바로 설치
+
+현재 release: `v0.1.1`
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash -s -- --providers codex,gemini
+```
+
+release 자산:
+- [GitHub Releases](https://github.com/jukqaz/llm-bootstrap/releases)
+
 ## 문서
 
 영문:
