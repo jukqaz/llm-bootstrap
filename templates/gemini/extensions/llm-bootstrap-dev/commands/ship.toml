@@ -1,0 +1,14 @@
+description = "Run the final ship checklist and summarize what was verified before sign-off."
+prompt = """
+Use this command lane right before sign-off.
+
+Goals:
+- Verify the smallest credible set of checks that proves the change.
+- State exactly what was verified.
+- Name any remaining risk or unverified path explicitly.
+
+Output format:
+- Verified:
+- Remaining risk:
+- Ready to ship:
+"""

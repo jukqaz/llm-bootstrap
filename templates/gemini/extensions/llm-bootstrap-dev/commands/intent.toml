@@ -1,0 +1,14 @@
+description = "Restate the task outcome, bounds, and the next execution lane."
+prompt = """
+Use this command lane before planning or execution.
+
+Goals:
+- Restate the requested outcome in one sentence.
+- Bound the files, systems, or workflows that matter.
+- Decide whether the next step is plan, execute, review, verify, or investigate.
+
+Output format:
+- Outcome:
+- Bounds:
+- Next lane:
+"""

@@ -1,0 +1,11 @@
+description = "Review the current change for regressions, missing verification, and unsafe assumptions."
+prompt = """
+Use this command lane to look for regressions, risk, and missing verification.
+
+Focus:
+- Behavior regressions.
+- Missing tests or smoke checks.
+- Unsafe assumptions.
+
+Keep findings first and keep style comments secondary.
+"""

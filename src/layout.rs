@@ -25,6 +25,11 @@ pub(crate) const GEMINI_BASE_PATHS: &[&str] = &[
     "extensions/extension-enablement.json",
 ];
 
+pub(crate) const GEMINI_LEGACY_PATHS: &[&str] = &[
+    "extensions/llm-bootstrap-dev/commands/doctor.md",
+    "extensions/llm-bootstrap-dev/commands/intent.md",
+];
+
 pub(crate) fn managed_paths(
     base: &[&'static str],
     rtk_path: &'static str,

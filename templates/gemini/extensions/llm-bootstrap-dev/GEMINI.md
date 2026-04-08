@@ -8,6 +8,7 @@ This extension adds a development-first baseline for Gemini CLI on macOS.
 - RTK shell hook for noisy commands
 - Context7, Exa, and Chrome DevTools MCP baseline when enabled
 - Lightweight planner / reviewer / executor extension notes
+- Native Gemini custom commands for `intent`, `doctor`, `autopilot`, `review`, and `ship`
 
 ## Model note
 

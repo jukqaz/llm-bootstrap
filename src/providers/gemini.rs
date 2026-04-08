@@ -7,7 +7,7 @@ use crate::json_ops::{
     cleanup_extension_enablement, cleanup_gemini_settings, merge_json,
     preserved_gemini_runtime_state, prune_rtk_gemini_hooks, read_json_or_empty, write_json_pretty,
 };
-use crate::layout::{gemini_managed_paths, gemini_uninstall_paths};
+use crate::layout::{GEMINI_LEGACY_PATHS, gemini_managed_paths, gemini_uninstall_paths};
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
 use anyhow::Result;
@@ -30,8 +30,11 @@ pub(crate) fn doctor_checks(
         root.join("extensions/llm-bootstrap-dev/OFFICE_HOURS.md"),
         root.join("extensions/llm-bootstrap-dev/AUTOPILOT.md"),
         root.join("extensions/llm-bootstrap-dev/RETRO.md"),
-        root.join("extensions/llm-bootstrap-dev/commands/intent.md"),
-        root.join("extensions/llm-bootstrap-dev/commands/doctor.md"),
+        root.join("extensions/llm-bootstrap-dev/commands/intent.toml"),
+        root.join("extensions/llm-bootstrap-dev/commands/doctor.toml"),
+        root.join("extensions/llm-bootstrap-dev/commands/autopilot.toml"),
+        root.join("extensions/llm-bootstrap-dev/commands/review.toml"),
+        root.join("extensions/llm-bootstrap-dev/commands/ship.toml"),
         root.join("extensions/llm-bootstrap-dev/agents/triage.md"),
         root.join("extensions/llm-bootstrap-dev/agents/docs-researcher.md"),
         root.join("extensions/extension-enablement.json"),
@@ -80,6 +83,8 @@ pub(crate) fn install(
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("extensions"))?;
     }
+
+    cleanup_legacy_paths(&root)?;
 
     if rtk_enabled {
         run_rtk_init(home)?;
@@ -134,6 +139,13 @@ pub(crate) fn install(
     write_json_pretty(&enablement_path, &enablement)?;
 
     println!("[gemini] installed {} ({})", root.display(), mode.name());
+    Ok(())
+}
+
+fn cleanup_legacy_paths(root: &Path) -> Result<()> {
+    for relative in GEMINI_LEGACY_PATHS {
+        remove_if_exists(&root.join(relative))?;
+    }
     Ok(())
 }
 

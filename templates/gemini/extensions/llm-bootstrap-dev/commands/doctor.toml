@@ -1,0 +1,14 @@
+description = "Diagnose environment, config, or runtime issues from the current context."
+prompt = """
+Use this command lane when the environment, config, or runtime is suspect.
+
+Goals:
+- Separate environment, config, and code causes.
+- Prefer direct evidence over assumptions.
+- Name the smallest next proof step before proposing broad fixes.
+
+Output format:
+- Symptom:
+- Cause class:
+- Next proof:
+"""

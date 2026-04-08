@@ -30,6 +30,16 @@ const CLAUDE_MANAGED_PATHS: &[&str] = &[
     "llm-bootstrap-state.json",
 ];
 
+const CLAUDE_MANAGED_SKILL_PATHS: &[&str] = &[
+    "skills/autopilot",
+    "skills/investigate",
+    "skills/review",
+    "skills/qa",
+    "skills/ship",
+    "skills/retro",
+    "skills/office-hours",
+];
+
 pub(crate) fn doctor_checks(
     home: &Path,
     enabled_mcp: &[BaselineMcp],
@@ -52,6 +62,13 @@ pub(crate) fn doctor_checks(
         root.join("REVIEW.md"),
         root.join("QA.md"),
         root.join("SHIP.md"),
+        root.join("skills/autopilot/SKILL.md"),
+        root.join("skills/investigate/SKILL.md"),
+        root.join("skills/review/SKILL.md"),
+        root.join("skills/qa/SKILL.md"),
+        root.join("skills/ship/SKILL.md"),
+        root.join("skills/retro/SKILL.md"),
+        root.join("skills/office-hours/SKILL.md"),
     ];
 
     if rtk_enabled {
@@ -89,10 +106,16 @@ pub(crate) fn install(
     for relative in CLAUDE_MANAGED_PATHS {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
+    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
 
     if mode == ApplyMode::Replace {
         for relative in CLAUDE_MANAGED_PATHS {
+            remove_if_exists(&root.join(relative))?;
+        }
+        for relative in CLAUDE_MANAGED_SKILL_PATHS {
             remove_if_exists(&root.join(relative))?;
         }
         remove_all_registered_mcp(home)?;
@@ -116,6 +139,7 @@ pub(crate) fn install(
         &rtk_tokens(rtk_enabled),
     )?;
     copy_render_dir(&template_root.join("agents"), &root.join("agents"), home)?;
+    copy_render_dir(&template_root.join("skills"), &root.join("skills"), home)?;
     copy_selected_scripts(
         &template_root.join("scripts"),
         &root.join("scripts"),
@@ -212,6 +236,9 @@ pub(crate) fn uninstall(
     for relative in CLAUDE_MANAGED_PATHS {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
+    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+        backup_relative(&root, &backup_root, Path::new(relative))?;
+    }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
 
     remove_managed_mcp(home, &managed_mcp(&root)?)?;
@@ -222,6 +249,9 @@ pub(crate) fn uninstall(
 
     remove_if_exists(&root.join("CLAUDE.md"))?;
     remove_if_exists(&root.join("scripts"))?;
+    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+        remove_if_exists(&root.join(relative))?;
+    }
     if rtk_enabled {
         remove_if_exists(&root.join("RTK.md"))?;
         remove_if_exists(&root.join("hooks/rtk-rewrite.sh"))?;

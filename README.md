@@ -54,9 +54,9 @@ Gemini는 extension/hook/settings merge로 등가 기능을 맞추고, Claude Co
 - `Codex`: local marketplace + `llm-dev-kit` skill plugin baseline
 - `Codex`: `WORKFLOW`, `SHIP_CHECKLIST`, `OFFICE_HOURS`, `INVESTIGATE`, `AUTOPILOT`, `RETRO`
 - `Gemini`: 개발용 `GEMINI.md`, `RTK` hook when enabled, MCP scripts, `settings.json` merge
-- `Gemini`: `llm-bootstrap-dev` extension baseline with workflow docs, command docs, review/qa agents, `AUTOPILOT`, `RETRO`
+- `Gemini`: `llm-bootstrap-dev` extension baseline with workflow docs, native custom commands, review/qa agents, `AUTOPILOT`, `RETRO`
 - `Claude Code`: user-scope `CLAUDE.md`, MCP wrapper scripts, optional RTK compatibility lane
-- `Claude Code`: `WORKFLOW`, `SHIP_CHECKLIST`, `OFFICE_HOURS`, `INVESTIGATE`, `AUTOPILOT`, `RETRO`, `REVIEW`, `QA`, `SHIP`
+- `Claude Code`: `WORKFLOW`, `SHIP_CHECKLIST`, `OFFICE_HOURS`, `INVESTIGATE`, `AUTOPILOT`, `RETRO`, `REVIEW`, `QA`, `SHIP`, native personal skills
 
 ## 서브에이전트 설정 원칙
 
@@ -165,6 +165,7 @@ apply mode:
   - 기본값
   - 기존 홈의 추가 파일은 남겨두고 bootstrap 관리 범위만 갱신한다
   - 세 provider 모두 기존 non-baseline MCP는 유지하고, bootstrap baseline MCP만 추가/갱신한다
+  - provider별로 알려진 legacy bootstrap 산출물은 migration cleanup으로 정리한다
   - Gemini `settings.json`과 extension enablement는 기존 상태에 dev baseline만 merge한다
 - `replace`:
   - bootstrap이 관리하는 경로를 먼저 비우고 다시 생성한다
@@ -260,7 +261,7 @@ wizard는 다음을 순서대로 묻는다.
 6. Codex local marketplace와 `llm-dev-kit` skill plugin을 배치한다.
 7. Codex workflow/checklist와 `office-hours`, `investigate`, `autopilot`, `retro`, browser QA skill을 추가한다.
 8. Gemini용 `GEMINI.md`, MCP wrapper scripts를 반영한다.
-9. Gemini extension과 command docs, review/qa agent pack, `AUTOPILOT`, `RETRO`를 반영한다.
+9. Gemini extension과 native custom commands, review/qa agent pack, `AUTOPILOT`, `RETRO`를 반영한다.
 10. Gemini `settings.json`은 `merge`면 기존 상태에 dev baseline만 합치고, `replace`면 bootstrap baseline 기준으로 다시 쓰되 auth/session 상태 키는 보존한다.
 11. Claude provider가 선택되면 `CLAUDE.md`, workflow docs, lightweight agent pack, `AUTOPILOT`, `RETRO`, MCP wrapper scripts를 반영하고, 공식 `claude mcp add --scope user`로 baseline MCP를 등록한다.
 
@@ -304,7 +305,7 @@ apply를 실행하면 provider별 backup 경로를 항상 출력한다.
 - `~/.gemini/extensions/llm-bootstrap-dev/gemini-extension.json`
 - `~/.gemini/extensions/llm-bootstrap-dev/AUTOPILOT.md`
 - `~/.gemini/extensions/llm-bootstrap-dev/RETRO.md`
-- `~/.gemini/extensions/llm-bootstrap-dev/commands/*.md`
+- `~/.gemini/extensions/llm-bootstrap-dev/commands/*.toml`
 - `~/.claude/CLAUDE.md` when the claude provider is selected
 - `~/.claude/WORKFLOW.md`
 - `~/.claude/AUTOPILOT.md`

@@ -21,5 +21,6 @@ Keep execution direct, compact, and evidence-based.
 
 - This file is user/home guidance only.
 - Project-specific rules belong in project `CLAUDE.md` files.
+- Native workflow entrypoints live in `~/.claude/skills/*/SKILL.md`.
 
 __RTK_CLAUDE_IMPORT__
