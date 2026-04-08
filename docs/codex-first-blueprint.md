@@ -12,7 +12,7 @@ The target support order is:
 Codex is the mainline. Gemini and Claude Code are bridge layers that preserve
 the Codex-first design rather than redefining it.
 
-## What we borrow
+## Borrowed patterns
 
 ### oh-my-codex
 
@@ -57,7 +57,7 @@ the Codex-first design rather than redefining it.
   - ship
 - separate artifacts for investigation, office hours, and retro
 
-### harness or harnesskit style patterns
+### Harness-style patterns
 
 - verification discipline
 - release discipline

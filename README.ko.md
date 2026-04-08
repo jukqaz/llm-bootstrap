@@ -2,12 +2,16 @@
 
 `Codex`, `Gemini`, optional `Claude Code`의 사용자 홈 설정을 정리하는 macOS용 bootstrap 저장소다.
 
-영문 기본 문서:
+## 문서
+
+영문:
 - [README.md](README.md)
 - [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
+- [docs/legacy-migration.md](docs/legacy-migration.md)
 
-한국어 보조 문서:
+한국어:
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
+- [docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)
 
 ## 핵심 원칙
 
@@ -43,6 +47,14 @@
 
 프로젝트 전용 MCP는 기본 배포물에 넣지 않는다. `merge`에서는 기존 unmanaged MCP가 유지된다.
 
+## 안전 모델
+
+- `install`, `replace`, `restore`, `uninstall` 전에 항상 backup을 만든다
+- `merge`는 unmanaged 자산을 유지한다
+- `replace`는 managed 자산을 다시 만들고 known legacy 흔적을 정리한다
+- `restore`는 현재 상태를 다시 backup한 뒤 선택한 backup을 복구한다
+- env가 없는 선택 MCP는 disabled 상태로 남는다
+
 ## 빠른 시작
 
 가장 빠른 설치 경로:
@@ -51,7 +63,7 @@
 curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-release.sh | bash -s -- --providers codex,gemini
 ```
 
-일반 사용자에게는 release archive 설치가 더 낫다. 이 경로는 Rust가 없어도 된다.
+일반 사용자에게는 release archive 설치가 더 낫다. 이 경로는 Rust가 필요 없다.
 
 1. [GitHub Releases](https://github.com/jukqaz/llm-bootstrap/releases)에서 최신 압축 파일을 받는다.
 2. 압축을 푼다.
@@ -82,7 +94,7 @@ cd llm-bootstrap
 ./install.sh
 ```
 
-예시:
+자주 쓰는 예시:
 
 ```bash
 cargo run -- install --providers codex,gemini
@@ -130,11 +142,18 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 ```
 
-## legacy cleanup 옵션
+## 모드
 
-`merge`는 이전 unmanaged 자산을 보존한다. 그래서 예전 oh-my/OMC
+`merge`
+- 이전 unmanaged 자산을 보존한다
+- bootstrap baseline만 덮어쓴다
+- 예전 oh-my/OMC
 설치 흔적이 남아 있으면 command, skill, extension이 겹쳐 보일 수 있다.
 이 경우에는 직접 지우거나 `replace`를 사용해야 한다.
+
+`replace`
+- bootstrap 관리 자산을 다시 쓴다
+- 선택한 provider의 known legacy 흔적도 함께 정리한다
 
 `replace`는 bootstrap 관리 자산을 다시 쓰고, 선택한 provider의 known
 legacy oh-my/OMC 흔적도 함께 정리한다.
@@ -149,10 +168,10 @@ cargo run -- install --providers codex,gemini,claude --cleanup legacy
 이 옵션은 이전 bootstrap의 known legacy artifact만 정리하고, 일반적인
 unmanaged 자산은 보존하는 방향으로 동작한다.
 
-자세한 마이그레이션 가이드는
-[docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)를 참고하면 된다.
+마이그레이션 가이드:
+- [docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)
 
-## backup에서 복구
+## backup과 복구
 
 모든 `install`, `replace`, `uninstall`은 provider별 backup을 먼저 만든다.
 

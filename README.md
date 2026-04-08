@@ -7,12 +7,17 @@ provider auth tokens or project-level files. It applies a small, reproducible
 baseline for MCP wiring, workflow docs, native skills or commands, and RTK
 integration.
 
-Korean documentation:
+## Documentation
+
+English:
+- [README.md](README.md)
+- [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
+- [docs/legacy-migration.md](docs/legacy-migration.md)
+
+Korean:
 - [README.ko.md](README.ko.md)
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
-
-Design notes:
-- [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
+- [docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)
 
 ## Scope
 
@@ -37,7 +42,7 @@ The default provider set from `bootstrap.toml` is currently:
 
 `claude` is supported, but opt-in unless selected explicitly.
 
-## Baseline
+## Default baseline
 
 The default baseline is intentionally small.
 
@@ -60,7 +65,15 @@ This repository does not ship project-specific MCP such as payment, internal,
 or app-specific tools. In `merge` mode, unmanaged MCP already present in a
 user's local home stays intact.
 
-## Public repo policy
+## Safety model
+
+- backups are created before `install`, `replace`, `restore`, and `uninstall`
+- `merge` preserves unmanaged assets
+- `replace` resets managed assets and removes known legacy traces
+- `restore` replays a selected backup after creating a fresh backup first
+- env-gated MCP stay disabled until the required env is available
+
+## Public repository policy
 
 This repository is safe to publish as long as these rules remain true:
 
@@ -76,7 +89,7 @@ The wizard can persist keys for both GUI and CLI use:
 
 The repo never stores the actual secret values.
 
-## Native surfaces by provider
+## Provider surfaces
 
 `Codex`
 - agent TOML files
@@ -93,7 +106,7 @@ The repo never stores the actual secret values.
 - user-scope workflow artifacts
 - lightweight subagent docs
 
-## RTK policy
+## RTK
 
 RTK is enabled by default but can be disabled.
 
@@ -101,7 +114,7 @@ RTK is enabled by default but can be disabled.
 - Gemini: `rtk init -g --gemini --auto-patch`
 - Claude: `rtk init -g --auto-patch`
 
-Skip RTK for any command with:
+Disable RTK for any command with:
 
 ```bash
 cargo run -- install --without-rtk
@@ -116,7 +129,7 @@ curl -fsSL https://raw.githubusercontent.com/jukqaz/llm-bootstrap/main/install-r
 ```
 
 Recommended for end users: use the release archive and run the bundled binary or
-wrapper scripts. You do not need Rust for that path.
+wrapper scripts. This path does not require Rust.
 
 1. Download the latest archive from
    [GitHub Releases](https://github.com/jukqaz/llm-bootstrap/releases).
@@ -148,7 +161,7 @@ cd llm-bootstrap
 ./install.sh
 ```
 
-Provider-first examples:
+Common install examples:
 
 ```bash
 cargo run -- install --providers codex
@@ -200,7 +213,7 @@ Wizard env reuse order:
 2. `launchctl getenv`
 3. managed CLI env file
 
-## Merge and replace
+## Modes
 
 `merge`
 - preserves unmanaged MCP
@@ -216,7 +229,7 @@ delete those paths manually or use `replace`.
 - preserves known auth or session state where supported
 - also removes known legacy oh-my or OMC artifacts for the selected providers
 
-Optional legacy cleanup:
+Optional legacy cleanup for `merge`:
 
 ```bash
 cargo run -- install --providers codex,gemini,claude --cleanup legacy
@@ -226,10 +239,10 @@ This is off by default for `merge`. Use it when you explicitly want to remove
 known legacy artifacts from older oh-my or OMC style installs while keeping
 normal unmanaged assets intact.
 
-For migration guidance, see
-[docs/legacy-migration.md](docs/legacy-migration.md).
+Migration guide:
+- [docs/legacy-migration.md](docs/legacy-migration.md)
 
-## Restore from backup
+## Backup and restore
 
 Every `install`, `replace`, and `uninstall` creates provider-level backups first.
 
@@ -245,7 +258,7 @@ Restore a specific backup directory:
 cargo run -- restore --providers codex --backup llm-bootstrap-1712550000
 ```
 
-List available backups first:
+List available backups:
 
 ```bash
 cargo run -- backups --providers codex,gemini,claude
@@ -261,7 +274,7 @@ cargo run -- restore --providers codex,gemini --backup llm-bootstrap-1712550000 
 The restore command first backs up the current state again, then restores the
 selected backup for bootstrap-managed files and known legacy cleanup targets.
 
-## Layout
+## Repository layout
 
 - [bootstrap.toml](bootstrap.toml): shared manifest
 - [src/main.rs](src/main.rs): CLI orchestration
@@ -289,7 +302,7 @@ CI runs on pull requests and on pushes to `main`.
 
 Tagged releases publish GitHub Release assets on tags that match `v*`.
 
-## Related references
+## References
 
 This repository borrows ideas, not full runtime behavior, from:
 

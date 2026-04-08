@@ -4,6 +4,12 @@
 바로 적용할 때는 이게 기본값으로 맞지만, 예전 harness 흔적도 같이 남을 수
 있다.
 
+## 빠른 판단 기준
+
+- unmanaged MCP, skill, command, extension을 유지하려면 `merge`
+- 선택한 provider를 기준으로 깔끔하게 다시 맞추려면 `replace`
+- 전체 reset은 원치 않고 known legacy 흔적만 정리하려면 `merge --cleanup legacy`
+
 ## `merge`를 써야 하는 경우
 
 현재 unmanaged MCP, commands, skills, extensions를 유지하면서 bootstrap

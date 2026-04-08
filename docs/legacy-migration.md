@@ -4,6 +4,12 @@
 right default for existing machines, but it also means older harness traces can
 stay behind.
 
+## Decision guide
+
+- Choose `merge` when you want to keep unmanaged MCP, skills, commands, or extensions.
+- Choose `replace` when you want a clean reset for the selected providers.
+- Choose `merge --cleanup legacy` only when you want narrow cleanup without a full reset.
+
 ## When to use `merge`
 
 Use `merge` when you want to keep your current unmanaged MCP, commands, skills,
