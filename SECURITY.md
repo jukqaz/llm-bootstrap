@@ -1,0 +1,23 @@
+# Security Policy
+
+## Supported scope
+
+This repository contains bootstrap logic, templates, and workflows.
+It must not contain live credentials, tokens, or user-specific local state.
+
+## Reporting
+
+If you find a security issue:
+
+- do not open a public issue with live secrets
+- redact any credential-like material
+- prefer a private GitHub security advisory if available
+
+If a public issue is the only available path, report the minimum reproducible
+details without including secrets, personal paths, or machine-specific state.
+
+## Expected secret handling
+
+- secrets are provided through environment variables only
+- the repository does not commit secret values
+- wizard persistence writes to user home, not to the repository

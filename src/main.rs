@@ -1198,7 +1198,7 @@ mod tests {
                 "chrome-devtools": {"command": "a"},
                 "context7": {"command": "b"},
                 "exa": {"command": "c"},
-                "bootpay": {"command": "keep"}
+                "manual-tool": {"command": "keep"}
             }
         });
 
@@ -1207,7 +1207,10 @@ mod tests {
         assert!(settings["mcpServers"].get("chrome-devtools").is_none());
         assert!(settings["mcpServers"].get("context7").is_none());
         assert!(settings["mcpServers"].get("exa").is_none());
-        assert_eq!(settings["mcpServers"]["bootpay"]["command"], json!("keep"));
+        assert_eq!(
+            settings["mcpServers"]["manual-tool"]["command"],
+            json!("keep")
+        );
     }
 
     #[test]
@@ -1257,7 +1260,7 @@ mod tests {
         fs::create_dir_all(&codex_home).unwrap();
         fs::write(
             codex_home.join("config.toml"),
-            "[mcp_servers.bootpay]\ncommand = \"bootpay\"\nenabled = true\n",
+            "[mcp_servers.manual-tool]\ncommand = \"manual-tool\"\nenabled = true\n",
         )
         .unwrap();
 
@@ -1269,7 +1272,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(blocks.contains("[mcp_servers.bootpay]"));
+        assert!(blocks.contains("[mcp_servers.manual-tool]"));
         assert!(blocks.contains("[mcp_servers.\"chrome-devtools\"]"));
 
         fs::remove_dir_all(home).unwrap();
@@ -1322,7 +1325,7 @@ mod tests {
         fs::create_dir_all(&gemini_home).unwrap();
         fs::write(
             gemini_home.join("settings.json"),
-            "{\n  \"mcpServers\": {\n    \"icm\": {\"command\": \"icm\"},\n    \"bootpay\": {\"command\": \"bootpay\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
+            "{\n  \"mcpServers\": {\n    \"legacy-memory\": {\"command\": \"legacy-memory\"},\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
         )
         .unwrap();
 
@@ -1338,8 +1341,8 @@ mod tests {
         let after: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
                 .unwrap();
-        assert!(after["mcpServers"].get("icm").is_some());
-        assert!(after["mcpServers"].get("bootpay").is_some());
+        assert!(after["mcpServers"].get("legacy-memory").is_some());
+        assert!(after["mcpServers"].get("manual-tool").is_some());
         assert!(after["mcpServers"].get("chrome-devtools").is_some());
 
         fs::remove_dir_all(home).unwrap();
@@ -1353,7 +1356,7 @@ mod tests {
         fs::create_dir_all(&gemini_home).unwrap();
         fs::write(
             gemini_home.join("settings.json"),
-            "{\n  \"mcpServers\": {\n    \"icm\": {\"command\": \"icm\"},\n    \"bootpay\": {\"command\": \"bootpay\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
+            "{\n  \"mcpServers\": {\n    \"legacy-memory\": {\"command\": \"legacy-memory\"},\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
         )
         .unwrap();
 
@@ -1369,8 +1372,8 @@ mod tests {
         let after: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
                 .unwrap();
-        assert!(after["mcpServers"].get("icm").is_none());
-        assert!(after["mcpServers"].get("bootpay").is_none());
+        assert!(after["mcpServers"].get("legacy-memory").is_none());
+        assert!(after["mcpServers"].get("manual-tool").is_none());
         assert!(after["mcpServers"].get("chrome-devtools").is_some());
 
         fs::remove_dir_all(home).unwrap();
