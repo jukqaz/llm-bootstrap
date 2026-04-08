@@ -228,7 +228,10 @@ wizard는 다음을 순서대로 묻는다.
 - RTK 포함 여부
 - `EXA_API_KEY`
 - `CONTEXT7_API_KEY`
-- 입력한 키를 `launchctl setenv`로 macOS 세션에 반영할지 여부
+- 입력한 키를 어디에 저장할지 여부
+  - GUI 앱용 `launchctl setenv`
+  - CLI 셸용 `~/.zshrc.d/llm-bootstrap-env.zsh`
+  - 필요하면 `~/.zshrc`에 source block도 추가
 - 바로 `install`과 `doctor`까지 실행할지 여부
 
 즉 line prompt를 길게 치지 않아도, 체크박스와 confirm 중심으로 필요한 순간에 한 번에 입력하고 적용할 수 있다.
@@ -313,6 +316,7 @@ apply를 실행하면 provider별 backup 경로를 항상 출력한다.
 - `~/.claude/REVIEW.md`
 - `~/.claude/QA.md`
 - `~/.claude/SHIP.md`
+- `~/.claude/skills/*/SKILL.md`
 - `~/.claude/scripts/*.sh` when the claude provider is selected
 - `~/.claude/RTK.md` and `~/.claude/hooks/rtk-rewrite.sh` when RTK is enabled for claude
 - `~/.claude.json` when the claude provider is selected

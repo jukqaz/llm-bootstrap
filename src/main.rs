@@ -19,8 +19,12 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
+
+const ZSHRC_MARKER_START: &str = "# >>> llm-bootstrap env >>>";
+const ZSHRC_MARKER_END: &str = "# <<< llm-bootstrap env <<<";
+const ZSHRC_ENV_RELATIVE_PATH: &str = ".zshrc.d/llm-bootstrap-env.zsh";
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -312,10 +316,18 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         &theme,
         "CONTEXT7_API_KEY (leave blank to keep current or disabled)",
     )?;
-    let persist_env = Confirm::with_theme(&theme)
-        .with_prompt("persist entered keys with launchctl setenv?")
-        .default(true)
+    let persistence_items = [
+        "GUI apps (launchctl setenv)",
+        "CLI shells (~/.zshrc + ~/.zshrc.d/llm-bootstrap-env.zsh)",
+    ];
+    let persistence_defaults = [true, true];
+    let persistence = MultiSelect::with_theme(&theme)
+        .with_prompt("persist entered keys for")
+        .items(persistence_items)
+        .defaults(&persistence_defaults)
         .interact()?;
+    let persist_gui = persistence.contains(&0);
+    let persist_cli = persistence.contains(&1);
     let apply_now = Confirm::with_theme(&theme)
         .with_prompt("run install now?")
         .default(true)
@@ -330,15 +342,14 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
     });
     let enabled_mcp = enabled_mcp_from_gates(manifest, &env_gates);
 
-    if let Some(value) = exa_key.as_deref() {
-        persist_env_key("EXA_API_KEY", value, persist_env)?;
-    }
-    if let Some(value) = context7_key.as_deref() {
-        persist_env_key("CONTEXT7_API_KEY", value, persist_env)?;
-    }
+    let keys_to_persist = [
+        ("EXA_API_KEY", exa_key.as_deref()),
+        ("CONTEXT7_API_KEY", context7_key.as_deref()),
+    ];
+    persist_env_keys(&keys_to_persist, persist_gui, persist_cli)?;
 
     println!(
-        "wizard summary: providers={}, mode={}, rtk={}, exa={}, context7={}",
+        "wizard summary: providers={}, mode={}, rtk={}, exa={}, context7={}, gui_persist={}, cli_persist={}",
         provider_names(&providers),
         mode.name(),
         if rtk_enabled { "enabled" } else { "disabled" },
@@ -352,6 +363,8 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         } else {
             "disabled"
         },
+        if persist_gui { "yes" } else { "no" },
+        if persist_cli { "yes" } else { "no" },
     );
 
     if apply_now {
@@ -436,9 +449,53 @@ fn env_warning(name: &str) -> &'static str {
 }
 
 fn env_is_set(name: &str) -> bool {
-    env::var(name)
+    env_is_set_with(
+        name,
+        process_env_value,
+        launchctl_env_value,
+        managed_cli_env_value,
+    )
+}
+
+fn env_is_set_with<F, G, H>(
+    name: &str,
+    process_lookup: F,
+    launchctl_lookup: G,
+    managed_lookup: H,
+) -> bool
+where
+    F: Fn(&str) -> Option<String>,
+    G: Fn(&str) -> Option<String>,
+    H: Fn(&str) -> Option<String>,
+{
+    process_lookup(name)
+        .or_else(|| launchctl_lookup(name))
+        .or_else(|| managed_lookup(name))
         .map(|value| !value.trim().is_empty())
         .unwrap_or(false)
+}
+
+fn process_env_value(name: &str) -> Option<String> {
+    env::var(name).ok()
+}
+
+fn launchctl_env_value(name: &str) -> Option<String> {
+    let output = ProcessCommand::new("launchctl")
+        .args(["getenv", name])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if value.is_empty() { None } else { Some(value) }
+}
+
+fn managed_cli_env_value(name: &str) -> Option<String> {
+    let path = managed_zsh_env_path().ok()?;
+    let raw = fs::read_to_string(path).ok()?;
+    parse_managed_env_content(&raw, name)
 }
 
 fn selected_providers(args: &ProviderArgs, manifest: &BootstrapManifest) -> Vec<Provider> {
@@ -546,8 +603,31 @@ fn parse_provider_list(value: &str) -> Result<Vec<Provider>> {
     Ok(providers)
 }
 
-fn persist_env_key(name: &str, value: &str, persist: bool) -> Result<()> {
-    if persist {
+fn persist_env_keys(
+    keys: &[(&str, Option<&str>)],
+    persist_gui: bool,
+    persist_cli: bool,
+) -> Result<()> {
+    let persisted = keys
+        .iter()
+        .filter_map(|(name, value)| value.map(|value| (*name, value)))
+        .collect::<Vec<_>>();
+
+    if persist_gui {
+        for (name, value) in &persisted {
+            persist_launchctl_env_key(name, value)?;
+        }
+    }
+
+    if persist_cli && !persisted.is_empty() {
+        persist_cli_env_keys(&persisted)?;
+    }
+
+    Ok(())
+}
+
+fn persist_launchctl_env_key(name: &str, value: &str) -> Result<()> {
+    if !value.trim().is_empty() {
         let status = ProcessCommand::new("launchctl")
             .args(["setenv", name, value])
             .status()?;
@@ -556,6 +636,139 @@ fn persist_env_key(name: &str, value: &str, persist: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn persist_cli_env_keys(keys: &[(&str, &str)]) -> Result<()> {
+    let zshrc_env_path = managed_zsh_env_path()?;
+    let zshrc_dir = zshrc_env_path
+        .parent()
+        .context("managed zsh env file must have parent directory")?;
+    fs::create_dir_all(zshrc_dir)
+        .with_context(|| format!("failed to create {}", zshrc_dir.display()))?;
+
+    let mut existing = read_managed_env_entries(&zshrc_env_path)?;
+    for (name, value) in keys {
+        if !value.trim().is_empty() {
+            existing.insert((*name).to_string(), (*value).to_string());
+        }
+    }
+    write_managed_env_entries(&zshrc_env_path, &existing)?;
+    ensure_zshrc_sources_managed_env()?;
+    Ok(())
+}
+
+fn managed_zsh_env_path() -> Result<PathBuf> {
+    Ok(home_dir()?.join(ZSHRC_ENV_RELATIVE_PATH))
+}
+
+fn zshrc_path() -> Result<PathBuf> {
+    Ok(home_dir()?.join(".zshrc"))
+}
+
+fn read_managed_env_entries(path: &Path) -> Result<BTreeMap<String, String>> {
+    if !path.exists() {
+        return Ok(BTreeMap::new());
+    }
+    let raw =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut entries = BTreeMap::new();
+    for line in raw.lines() {
+        if let Some((name, value)) = parse_managed_env_line(line) {
+            entries.insert(name, value);
+        }
+    }
+    Ok(entries)
+}
+
+fn write_managed_env_entries(path: &Path, entries: &BTreeMap<String, String>) -> Result<()> {
+    let mut body = String::from("# managed by llm-bootstrap\n");
+    for (name, value) in entries {
+        body.push_str("export ");
+        body.push_str(name);
+        body.push('=');
+        body.push_str(&shell_single_quote(value));
+        body.push('\n');
+    }
+    fs::write(path, body).with_context(|| format!("failed to write {}", path.display()))
+}
+
+fn ensure_zshrc_sources_managed_env() -> Result<()> {
+    let zshrc = zshrc_path()?;
+    let existing = if zshrc.exists() {
+        fs::read_to_string(&zshrc).with_context(|| format!("failed to read {}", zshrc.display()))?
+    } else {
+        String::new()
+    };
+
+    if existing.contains("llm-bootstrap-env.zsh") || zshrc_has_zshrc_d_loader(&existing) {
+        return Ok(());
+    }
+
+    let block = format!(
+        "{start}\nif [[ -r \"$HOME/{path}\" ]]; then\n  source \"$HOME/{path}\"\nfi\n{end}\n",
+        start = ZSHRC_MARKER_START,
+        path = ZSHRC_ENV_RELATIVE_PATH,
+        end = ZSHRC_MARKER_END,
+    );
+    let updated = upsert_managed_block(&existing, &block);
+    fs::write(&zshrc, updated).with_context(|| format!("failed to write {}", zshrc.display()))
+}
+
+fn zshrc_has_zshrc_d_loader(raw: &str) -> bool {
+    raw.contains(".zshrc.d") && raw.contains("*.zsh")
+}
+
+fn upsert_managed_block(existing: &str, block: &str) -> String {
+    if let Some(start) = existing.find(ZSHRC_MARKER_START)
+        && let Some(end_rel) = existing[start..].find(ZSHRC_MARKER_END)
+    {
+        let end = start + end_rel + ZSHRC_MARKER_END.len();
+        let mut updated = String::new();
+        updated.push_str(existing[..start].trim_end());
+        if !updated.is_empty() {
+            updated.push_str("\n\n");
+        }
+        updated.push_str(block.trim_end());
+        updated.push('\n');
+        let tail = existing[end..].trim_start_matches('\n');
+        if !tail.is_empty() {
+            updated.push('\n');
+            updated.push_str(tail);
+        }
+        return updated;
+    }
+
+    let mut updated = existing.trim_end().to_string();
+    if !updated.is_empty() {
+        updated.push_str("\n\n");
+    }
+    updated.push_str(block.trim_end());
+    updated.push('\n');
+    updated
+}
+
+fn parse_managed_env_content(raw: &str, target: &str) -> Option<String> {
+    raw.lines().find_map(|line| {
+        let (name, value) = parse_managed_env_line(line)?;
+        (name == target).then_some(value)
+    })
+}
+
+fn parse_managed_env_line(line: &str) -> Option<(String, String)> {
+    let line = line.trim();
+    let remainder = line.strip_prefix("export ")?;
+    let (name, raw_value) = remainder.split_once('=')?;
+    let value = parse_shell_single_quoted_value(raw_value.trim())?;
+    Some((name.trim().to_string(), value))
+}
+
+fn parse_shell_single_quoted_value(raw: &str) -> Option<String> {
+    let inner = raw.strip_prefix('\'')?.strip_suffix('\'')?;
+    Some(inner.replace("'\\''", "'"))
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn wizard_env_overrides(
@@ -825,6 +1038,64 @@ mod tests {
     }
 
     #[test]
+    fn env_is_set_with_reuses_launchctl_value_when_process_env_is_missing() {
+        assert!(super::env_is_set_with(
+            "EXA_API_KEY",
+            |_| None,
+            |name| (name == "EXA_API_KEY").then(|| "saved-key".to_string()),
+            |_| None,
+        ));
+    }
+
+    #[test]
+    fn env_is_set_with_prefers_process_env_over_launchctl() {
+        assert!(super::env_is_set_with(
+            "EXA_API_KEY",
+            |name| (name == "EXA_API_KEY").then(|| "process-key".to_string()),
+            |_| Some("saved-key".to_string()),
+            |_| Some("managed-key".to_string()),
+        ));
+    }
+
+    #[test]
+    fn env_is_set_with_treats_blank_values_as_disabled() {
+        assert!(!super::env_is_set_with(
+            "EXA_API_KEY",
+            |_| Some("   ".to_string()),
+            |_| Some("".to_string()),
+            |_| Some("".to_string()),
+        ));
+    }
+
+    #[test]
+    fn env_is_set_with_reuses_managed_cli_value_when_process_and_launchctl_are_missing() {
+        assert!(super::env_is_set_with(
+            "EXA_API_KEY",
+            |_| None,
+            |_| None,
+            |name| (name == "EXA_API_KEY").then(|| "managed-key".to_string()),
+        ));
+    }
+
+    #[test]
+    fn parse_managed_env_content_reads_exported_key() {
+        let raw = "# managed by llm-bootstrap\nexport EXA_API_KEY='exa-key'\nexport CONTEXT7_API_KEY='ctx-key'\n";
+        assert_eq!(
+            super::parse_managed_env_content(raw, "CONTEXT7_API_KEY"),
+            Some("ctx-key".to_string())
+        );
+    }
+
+    #[test]
+    fn upsert_managed_block_appends_when_missing() {
+        let existing = "export PATH=\"$HOME/.local/bin:$PATH\"\n";
+        let block = "# >>> llm-bootstrap env >>>\nsource test\n# <<< llm-bootstrap env <<<\n";
+        let updated = super::upsert_managed_block(existing, block);
+        assert!(updated.contains("llm-bootstrap env"));
+        assert!(updated.contains("source test"));
+    }
+
+    #[test]
     fn prune_rtk_hook_removes_run_shell_command_entry_only() {
         let mut settings = json!({
             "hooks": {
@@ -1021,6 +1292,16 @@ mod tests {
         let installed = fs::read_to_string(gemini_home.join("settings.json")).unwrap();
         assert!(installed.contains("/tmp/custom-run-shell.sh"));
         assert!(gemini_home.join("GEMINI.md").exists());
+        assert!(
+            gemini_home
+                .join("extensions/llm-bootstrap-dev/commands/doctor.toml")
+                .exists()
+        );
+        assert!(
+            gemini_home
+                .join("extensions/llm-bootstrap-dev/commands/autopilot.toml")
+                .exists()
+        );
         assert!(!gemini_home.join("hooks/rtk-hook-gemini.sh").exists());
 
         gemini::uninstall(&home, &manifest, false).unwrap();
@@ -1096,6 +1377,32 @@ mod tests {
     }
 
     #[test]
+    fn gemini_merge_cleans_up_legacy_markdown_commands() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let commands_dir = home.join(".gemini/extensions/llm-bootstrap-dev/commands");
+        fs::create_dir_all(&commands_dir).unwrap();
+        fs::write(commands_dir.join("doctor.md"), "# old").unwrap();
+        fs::write(commands_dir.join("intent.md"), "# old").unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+        )
+        .unwrap();
+
+        assert!(!commands_dir.join("doctor.md").exists());
+        assert!(!commands_dir.join("intent.md").exists());
+        assert!(commands_dir.join("doctor.toml").exists());
+        assert!(commands_dir.join("intent.toml").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn claude_install_uninstall_round_trip_without_rtk() {
         if !crate::runtime::command_exists("claude") {
             return;
@@ -1109,6 +1416,8 @@ mod tests {
         let claude_home = home.join(".claude");
         assert!(claude_home.join("CLAUDE.md").exists());
         assert!(claude_home.join("scripts/chrome-devtools-mcp.sh").exists());
+        assert!(claude_home.join("skills/autopilot/SKILL.md").exists());
+        assert!(claude_home.join("skills/review/SKILL.md").exists());
         assert!(!claude_home.join("RTK.md").exists());
 
         let mcp = claude::claude_user_mcp(&home).unwrap();
@@ -1117,6 +1426,7 @@ mod tests {
         claude::uninstall(&home, &enabled, false).unwrap();
         assert!(!claude_home.join("CLAUDE.md").exists());
         assert!(!claude_home.join("scripts").exists());
+        assert!(!claude_home.join("skills/autopilot").exists());
         assert!(claude_home.join("backups").exists());
 
         fs::remove_dir_all(home).unwrap();
@@ -1188,6 +1498,35 @@ mod tests {
         let mcp = claude::claude_user_mcp(&home).unwrap();
         assert!(mcp["mcpServers"].get("chrome-devtools").is_none());
         assert!(mcp["mcpServers"].get("manual-tool").is_some());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_uninstall_preserves_unmanaged_skills() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+        let unmanaged_skill = home.join(".claude/skills/omc-reference");
+        fs::create_dir_all(&unmanaged_skill).unwrap();
+        fs::write(
+            unmanaged_skill.join("SKILL.md"),
+            "---\nname: omc-reference\n---\n",
+        )
+        .unwrap();
+
+        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false).unwrap();
+        assert!(home.join(".claude/skills/autopilot/SKILL.md").exists());
+        assert!(unmanaged_skill.join("SKILL.md").exists());
+
+        claude::uninstall(&home, &enabled, false).unwrap();
+
+        assert!(unmanaged_skill.join("SKILL.md").exists());
+        assert!(!home.join(".claude/skills/autopilot").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
