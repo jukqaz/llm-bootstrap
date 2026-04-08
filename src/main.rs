@@ -1289,8 +1289,8 @@ mod tests {
 
     #[test]
     fn gemini_agent_templates_include_required_frontmatter() {
-        let agents_dir =
-            crate::runtime::repo_root().join("templates/gemini/extensions/llm-bootstrap-dev/agents");
+        let agents_dir = crate::runtime::repo_root()
+            .join("templates/gemini/extensions/llm-bootstrap-dev/agents");
         let expected = [
             "docs-researcher.md",
             "executor.md",
