@@ -1288,6 +1288,50 @@ mod tests {
     }
 
     #[test]
+    fn gemini_agent_templates_include_required_frontmatter() {
+        let agents_dir =
+            crate::runtime::repo_root().join("templates/gemini/extensions/llm-bootstrap-dev/agents");
+        let expected = [
+            "docs-researcher.md",
+            "executor.md",
+            "planner.md",
+            "qa.md",
+            "reviewer.md",
+            "triage.md",
+            "verifier.md",
+        ];
+
+        for file in expected {
+            let raw = fs::read_to_string(agents_dir.join(file)).unwrap();
+            assert!(
+                raw.starts_with("---\n"),
+                "{file} should start with frontmatter"
+            );
+            assert!(raw.contains("name:"), "{file} missing name frontmatter");
+            assert!(
+                raw.contains("description:"),
+                "{file} missing description frontmatter"
+            );
+        }
+
+        let bundled_qa = crate::runtime::repo_root()
+            .join("bundles/full/gemini/extensions/llm-bootstrap-dev/agents/qa.md");
+        let bundled_raw = fs::read_to_string(bundled_qa).unwrap();
+        assert!(
+            bundled_raw.starts_with("---\n"),
+            "bundled Gemini QA agent should start with frontmatter"
+        );
+        assert!(
+            bundled_raw.contains("name:"),
+            "bundled Gemini QA agent missing name frontmatter"
+        );
+        assert!(
+            bundled_raw.contains("description:"),
+            "bundled Gemini QA agent missing description frontmatter"
+        );
+    }
+
+    #[test]
     fn preserved_gemini_runtime_state_keeps_auth_shape_only() {
         let existing = json!({
             "selectedAuthType": "oauth-personal",
@@ -1742,6 +1786,29 @@ mod tests {
         assert!(!commands_dir.join("intent.md").exists());
         assert!(commands_dir.join("doctor.toml").exists());
         assert!(commands_dir.join("intent.toml").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_install_bootstraps_projects_registry() {
+        let home = temp_home();
+        let manifest = test_manifest();
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+        )
+        .unwrap();
+
+        let registry: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(home.join(".gemini/projects.json")).unwrap())
+                .unwrap();
+        assert_eq!(registry, json!({ "projects": {} }));
 
         fs::remove_dir_all(home).unwrap();
     }

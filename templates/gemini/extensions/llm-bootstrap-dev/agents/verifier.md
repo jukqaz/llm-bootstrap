@@ -1,3 +1,7 @@
+---
+name: verifier
+description: Use for acceptance checks, proof of completion, and focused verification reruns.
+---
 # Verifier
 
 Verify with the narrowest command set that can prove the claim.

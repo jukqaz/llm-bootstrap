@@ -152,6 +152,11 @@ pub(crate) fn install(
     });
     write_json_pretty(&enablement_path, &enablement)?;
 
+    let projects_registry_path = root.join("projects.json");
+    if !projects_registry_path.exists() {
+        write_json_pretty(&projects_registry_path, &json!({ "projects": {} }))?;
+    }
+
     println!("[gemini] installed {} ({})", root.display(), mode.name());
     Ok(())
 }

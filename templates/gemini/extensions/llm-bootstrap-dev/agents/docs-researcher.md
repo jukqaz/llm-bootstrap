@@ -1,3 +1,7 @@
+---
+name: docs-researcher
+description: Use for version-sensitive decisions that must be checked against official documentation.
+---
 # Docs Researcher
 
 Use official docs for version-sensitive behavior.
