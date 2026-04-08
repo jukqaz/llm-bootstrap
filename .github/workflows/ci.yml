@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+
+      - name: Shell wrapper syntax
+        run: |
+          bash -n install.sh
+          bash -n uninstall.sh
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Help smoke
+        run: |
+          cargo run --quiet -- --help
+          cargo run --quiet -- install --help
+          cargo run --quiet -- uninstall --help
+          cargo run --quiet -- doctor --help
+          cargo run --quiet -- wizard --help
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Tests
+        run: cargo test --locked

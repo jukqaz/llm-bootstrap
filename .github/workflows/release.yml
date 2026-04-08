@@ -1,0 +1,67 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+
+  build-and-upload:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+
+      - name: Build release binary
+        run: cargo build --locked --release
+
+      - name: Package archive
+        run: |
+          package_root="llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/${package_root}"
+          cp target/release/llm-bootstrap "dist/${package_root}/"
+          cp install.sh uninstall.sh README.md README.ko.md LICENSE "dist/${package_root}/"
+          tar -C dist -czf "dist/${package_root}.tar.gz" "${package_root}"
+          shasum -a 256 "dist/${package_root}.tar.gz" > "dist/${package_root}.tar.gz.sha256"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            "dist/llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz" \
+            "dist/llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz.sha256" \
+            --clobber
