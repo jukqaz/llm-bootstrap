@@ -107,6 +107,28 @@ pub(crate) fn home_dir() -> Result<PathBuf> {
 }
 
 pub(crate) fn repo_root() -> PathBuf {
+    if let Ok(override_root) = env::var("LLM_BOOTSTRAP_REPO_ROOT") {
+        let path = PathBuf::from(override_root);
+        if path.join("bootstrap.toml").exists() {
+            return path;
+        }
+    }
+
+    if let Ok(exe) = env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        let path = parent.to_path_buf();
+        if path.join("bootstrap.toml").exists() {
+            return path;
+        }
+    }
+
+    if let Ok(current) = env::current_dir()
+        && current.join("bootstrap.toml").exists()
+    {
+        return current;
+    }
+
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
