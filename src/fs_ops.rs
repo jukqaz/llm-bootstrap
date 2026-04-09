@@ -31,9 +31,16 @@ pub(crate) fn backup_relative(root: &Path, backup_root: &Path, relative: &Path) 
     if !source.exists() {
         return Ok(());
     }
+    if should_skip_path(&source)? {
+        return Ok(());
+    }
 
     let destination = backup_root.join(relative);
-    if source.is_dir() {
+    if fs::symlink_metadata(&source)
+        .with_context(|| format!("failed to stat {}", source.display()))?
+        .file_type()
+        .is_dir()
+    {
         copy_raw_dir(&source, &destination)?;
     } else {
         copy_raw_file(&source, &destination)?;
@@ -61,6 +68,9 @@ pub(crate) fn restore_relative(root: &Path, backup_root: &Path, relative: &Path)
     if !source.exists() {
         return Ok(());
     }
+    if should_skip_path(&source)? {
+        return Ok(());
+    }
 
     let destination = root.join(relative);
     copy_raw_path(&source, &destination)
@@ -73,6 +83,9 @@ pub(crate) fn restore_named_entry(
 ) -> Result<()> {
     let source = source_root.join(entry_name);
     if !source.exists() {
+        return Ok(());
+    }
+    if should_skip_path(&source)? {
         return Ok(());
     }
 
@@ -158,7 +171,15 @@ pub(crate) fn list_backup_entries(provider_root: &Path) -> Result<Vec<BackupEntr
 }
 
 fn copy_raw_path(source: &Path, destination: &Path) -> Result<()> {
-    if source.is_dir() {
+    if should_skip_path(source)? {
+        return Ok(());
+    }
+
+    if fs::symlink_metadata(source)
+        .with_context(|| format!("failed to stat {}", source.display()))?
+        .file_type()
+        .is_dir()
+    {
         copy_raw_dir(source, destination)
     } else {
         copy_raw_file(source, destination)
@@ -181,6 +202,9 @@ fn copy_raw_dir(source: &Path, destination: &Path) -> Result<()> {
 
         #[cfg(unix)]
         if is_unsupported_special_file(&file_type) {
+            continue;
+        }
+        if file_type.is_symlink() {
             continue;
         }
 
@@ -235,8 +259,15 @@ pub(crate) fn copy_render_dir(source: &Path, destination: &Path, home: &Path) ->
         let entry = entry?;
         let src = entry.path();
         let dest = destination.join(entry.file_name());
+        let file_type = entry
+            .file_type()
+            .with_context(|| format!("failed to stat {}", src.display()))?;
 
-        if src.is_dir() {
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        if file_type.is_dir() {
             copy_render_dir(&src, &dest, home)?;
         } else {
             copy_render_file(&src, &dest, is_executable_script(&src), home)?;
@@ -255,7 +286,15 @@ pub(crate) fn copy_render_relative_entries(
     for relative in relatives {
         let source = source_root.join(relative);
         let destination = destination_root.join(relative);
-        if source.is_dir() {
+        if should_skip_path(&source)? {
+            continue;
+        }
+
+        if fs::symlink_metadata(&source)
+            .with_context(|| format!("failed to stat {}", source.display()))?
+            .file_type()
+            .is_dir()
+        {
             copy_render_dir(&source, &destination, home)?;
         } else {
             copy_render_file(&source, &destination, is_executable_script(&source), home)?;
@@ -303,6 +342,10 @@ pub(crate) fn copy_render_file_with_extras(
     home: &Path,
     extra_tokens: &[(&str, &str)],
 ) -> Result<()> {
+    if should_skip_path(source)? {
+        return Ok(());
+    }
+
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
@@ -369,6 +412,23 @@ fn is_executable_script(path: &Path) -> bool {
     )
 }
 
+fn should_skip_path(path: &Path) -> Result<bool> {
+    let file_type = fs::symlink_metadata(path)
+        .with_context(|| format!("failed to stat {}", path.display()))?
+        .file_type();
+
+    if file_type.is_symlink() {
+        return Ok(true);
+    }
+
+    #[cfg(unix)]
+    if is_unsupported_special_file(&file_type) {
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
 #[cfg(unix)]
 fn is_unsupported_special_file(file_type: &fs::FileType) -> bool {
     file_type.is_socket()
@@ -381,6 +441,7 @@ fn is_unsupported_special_file(file_type: &fs::FileType) -> bool {
 mod tests {
     use super::*;
     use std::fs;
+    use std::os::unix::fs::symlink;
     use std::os::unix::net::UnixListener;
 
     #[test]
@@ -414,6 +475,48 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(names, vec!["llm-bootstrap-200", "llm-bootstrap-100"]);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn backup_relative_skips_symbolic_links() {
+        let root = std::env::temp_dir().join(format!(
+            "llm-bootstrap-fsops-symlink-backup-{}",
+            std::process::id()
+        ));
+        let source_dir = root.join("source");
+        let backup_dir = root.join("backup");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("real.txt"), "hello").unwrap();
+        symlink(source_dir.join("real.txt"), source_dir.join("linked.txt")).unwrap();
+
+        backup_relative(&root, &backup_dir, Path::new("source")).unwrap();
+
+        assert!(backup_dir.join("source/real.txt").exists());
+        assert!(!backup_dir.join("source/linked.txt").exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn restore_relative_skips_symbolic_links() {
+        let root = std::env::temp_dir().join(format!(
+            "llm-bootstrap-fsops-symlink-restore-{}",
+            std::process::id()
+        ));
+        let backup_dir = root.join("backup");
+        let restore_root = root.join("restore");
+        fs::create_dir_all(backup_dir.join("source")).unwrap();
+        fs::write(backup_dir.join("source/real.txt"), "hello").unwrap();
+        symlink(
+            backup_dir.join("source/real.txt"),
+            backup_dir.join("source/linked.txt"),
+        )
+        .unwrap();
+
+        restore_relative(&restore_root, &backup_dir, Path::new("source")).unwrap();
+
+        assert!(restore_root.join("source/real.txt").exists());
+        assert!(!restore_root.join("source/linked.txt").exists());
         let _ = fs::remove_dir_all(root);
     }
 }
