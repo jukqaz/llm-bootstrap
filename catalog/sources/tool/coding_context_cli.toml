@@ -1,0 +1,41 @@
+id = "coding_context_cli"
+name = "Coding Context CLI"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["context-assembly", "rules", "workflow"]
+weight = "optional"
+summary = "Reference for separating durable rules from per-task context instead of stuffing both into every prompt."
+
+urls = [
+  "https://github.com/kitproj/coding-context-cli",
+  "https://kitproj.github.io/coding-context-cli/how-to/use-with-ai-agents.html"
+]
+
+capabilities = [
+  "rule and task assembly",
+  "write-rules mode",
+  "agent-targeted output paths",
+  "token-aware context shaping"
+]
+
+adoptable_parts = [
+  "write durable rules into provider files",
+  "keep current task context separate from long-lived rules",
+  "treat rule rendering as a provider renderer concern"
+]
+
+do_not_copy = [
+  "a second standalone runtime when source metadata can live in our catalog"
+]
+
+[[evidence]]
+label = "Coding Context CLI README"
+url = "https://github.com/kitproj/coding-context-cli"
+note = "The project focuses on getting session context for coding agents and supports a write-rules mode for agent-specific paths."
+
+[[evidence]]
+label = "Coding Context CLI guide"
+url = "https://kitproj.github.io/coding-context-cli/how-to/use-with-ai-agents.html"
+note = "The guide explains how to combine durable rules and per-task context for coding agents."
+

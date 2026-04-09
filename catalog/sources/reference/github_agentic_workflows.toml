@@ -1,0 +1,48 @@
+id = "github_agentic_workflows"
+name = "GitHub Agentic Workflows"
+source_type = "reference"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["workflow-contract", "automation", "sandboxed-execution"]
+weight = "optional"
+summary = "Reference for markdown-to-workflow automation that delegates to external coding agents with guardrails."
+
+urls = [
+  "https://github.github.com/gh-aw",
+  "https://githubnext.com/projects/agentic-workflows",
+  "https://github.com/githubnext/agentics"
+]
+
+capabilities = [
+  "workflow as code",
+  "GitHub Actions orchestration",
+  "agent engine abstraction",
+  "guardrailed repository automation"
+]
+
+adoptable_parts = [
+  "workflow contract thinking for automation lanes",
+  "separating workflow frontmatter from engine-specific execution",
+  "continuous AI tasks for triage, CI diagnosis, and repo questions"
+]
+
+do_not_copy = [
+  "GitHub Actions centric runtime into local bootstrap core",
+  "production assumptions from a research demonstrator"
+]
+
+[[evidence]]
+label = "GitHub Agentic Workflows site"
+url = "https://github.github.com/gh-aw"
+note = "GitHub positions agentic workflows as repository automation with security-first design and continuous AI use cases."
+
+[[evidence]]
+label = "GitHub Next project page"
+url = "https://githubnext.com/projects/agentic-workflows"
+note = "GitHub describes markdown instructions compiling into executable workflows that run coding agents."
+
+[[evidence]]
+label = "Sample workflow pack"
+url = "https://github.com/githubnext/agentics"
+note = "The sample pack shows reusable workflows such as issue triage, CI doctor, repo ask, and workflow optimization."
+

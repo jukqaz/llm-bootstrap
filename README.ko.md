@@ -2,9 +2,9 @@
 
 `Codex`, `Gemini`, optional `Claude Code`의 사용자 홈 설정을 정리하는 macOS용 bootstrap 저장소다.
 
-## 바로 설치
+## 설치
 
-현재 release: `v0.1.6`
+현재 release: `v0.1.7`
 
 기본 경로는 wizard 실행이다.
 
@@ -26,11 +26,20 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 영문:
 - [README.md](README.md)
 - [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
-- [docs/legacy-migration.md](docs/legacy-migration.md)
 
 한국어:
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
-- [docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)
+- [docs/direction-review.ko.md](docs/direction-review.ko.md)
+- [docs/business-ops-blueprint.ko.md](docs/business-ops-blueprint.ko.md)
+- [docs/dev-company-operating-model.ko.md](docs/dev-company-operating-model.ko.md)
+- [docs/external-tool-landscape.ko.md](docs/external-tool-landscape.ko.md)
+- [docs/official-best-practices.ko.md](docs/official-best-practices.ko.md)
+- [docs/recent-signal-scan.ko.md](docs/recent-signal-scan.ko.md)
+- [docs/provider-surface-strategy.ko.md](docs/provider-surface-strategy.ko.md)
+
+참고 데이터:
+- [catalog/sources/README.md](catalog/sources/README.md)
+- [catalog/sources/index.toml](catalog/sources/index.toml)
 
 ## 핵심 원칙
 
@@ -62,7 +71,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
   - `exa`
 - `Codex`: plugin, skill, workflow docs
 - `Gemini`: extension, native command, workflow docs
-- `Claude Code`: skill, workflow docs, lightweight agent docs
+- `Claude Code`: official MCP registration, subagent docs, workflow skill pack
 
 프로젝트 전용 MCP는 기본 배포물에 넣지 않는다. `merge`에서는 기존 unmanaged MCP가 유지된다.
 
@@ -70,11 +79,11 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 - `install`, `replace`, `restore`, `uninstall` 전에 항상 backup을 만든다
 - `merge`는 unmanaged 자산을 유지한다
-- `replace`는 managed 자산을 다시 만들고 known legacy 흔적을 정리한다
+- `replace`는 managed 자산을 다시 만든다
 - `restore`는 현재 상태를 다시 backup한 뒤 선택한 backup을 복구한다
 - env가 없는 선택 MCP는 disabled 상태로 남는다
 
-## 빠른 시작
+## 실행 예시
 
 가장 빠른 설치 경로:
 
@@ -102,7 +111,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.6 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.7 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.
@@ -117,10 +126,96 @@ cd llm-bootstrap
 
 ```bash
 cargo run -- install --providers codex,gemini
+cargo run -- install --providers codex,gemini --preset light
+cargo run -- install --providers codex,gemini,claude --preset full
 cargo run -- doctor --providers codex,gemini,claude --json
 cargo run -- install --providers codex,gemini --mode replace --dry-run
 cargo run -- uninstall --providers codex,gemini --dry-run
 ```
+
+`doctor --json`에는 현재 요청한 preset/pack 외에 실제 홈에 기록된
+`installed_preset`, `installed_packs`, `state_mismatch`도 나온다. 새 preset을
+아직 설치하지 않은 홈이라면 이 값으로 드리프트를 먼저 확인할 수 있다.
+
+## 세트메뉴 preset
+
+`oh-my` 계열처럼 빠르게 고를 수 있는 세트메뉴는 `preset`으로 제공한다.
+내부 source of truth는 여전히 `pack`이고, preset은 pack 묶음 alias다.
+
+- `light`
+  - `delivery-pack`
+- `normal`
+  - `delivery-pack`, `incident-pack`
+- `full`
+  - `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
+- `company`
+  - `founder-pack`, `ops-pack`
+
+`company`와 `full`은 이제 개발 surface를 끄는 수준이 아니라,
+실제로 아래 회사운영 자산을 provider native surface에 렌더링한다.
+
+- `RALPH_PLAN.md`
+- `FOUNDER_LOOP.md`
+- `OPERATING_REVIEW.md`
+- `CONNECTORS.md`
+- `AUTOMATIONS.md`
+- Codex skill / Gemini command / Claude skill 진입점
+
+예시:
+
+```bash
+cargo run -- install --providers codex,gemini --preset normal
+cargo run -- install --providers codex,gemini,claude --preset full
+cargo run -- doctor --providers codex,gemini --preset company --json
+```
+
+세밀 제어가 필요하면 기존처럼 `--packs delivery-pack,incident-pack`를 직접 써도 된다.
+`--preset`과 `--packs`는 함께 쓰지 않는다.
+
+### preset별 연결 성격
+
+각 preset은 단순 문서 묶음이 아니라 `pack -> apps -> MCP -> provider surface` 조합으로 동작한다.
+
+- `light`
+  - packs: `delivery-pack`
+  - apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - surfaces:
+    - Codex: `llm-dev-kit`, `delivery-skills`
+    - Gemini: `llm-bootstrap-dev`, `delivery-commands`
+    - Claude: `claude-skills`, `delivery-skills`
+- `normal`
+  - packs: `delivery-pack`, `incident-pack`
+  - apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - surfaces:
+    - Codex: `delivery-skills`, `incident-skills`
+    - Gemini: `delivery-commands`, `incident-commands`
+    - Claude: `delivery-skills`, `incident-skills`
+- `full`
+  - packs: `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
+  - apps: `github`, `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - MCP: `chrome-devtools`, `context7`, `exa`
+  - surfaces:
+    - Codex: development + company skills
+    - Gemini: development + company commands
+    - Claude: development + company skills
+- `company`
+  - packs: `founder-pack`, `ops-pack`
+  - apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - MCP: `exa`
+  - surfaces:
+    - Codex: company skills
+    - Gemini: company commands
+    - Claude: company skills
+
+`doctor --json`은 이 조합을 pack별로 그대로 노출한다. 현재 기준으로 `apps`와 `MCP`는 pack 메타와 doctor에 반영되고, provider surface는 install slicing의 설명 단위로도 같이 유지된다.
+
+남은 점:
+
+- connector health와 auth 체크는 아직 metadata-first다
+- recurring automation은 문서와 catalog까지만 있고 자동 등록은 아직 없다
+- uninstall/restore는 안전하지만 pack 단위 미세 투영까지는 아직 아니다
 
 ## wizard
 
@@ -166,29 +261,9 @@ cargo test
 `merge`
 - 이전 unmanaged 자산을 보존한다
 - bootstrap baseline만 덮어쓴다
-- 예전 oh-my/OMC
-설치 흔적이 남아 있으면 command, skill, extension이 겹쳐 보일 수 있다.
-이 경우에는 직접 지우거나 `replace`를 사용해야 한다.
 
 `replace`
 - bootstrap 관리 자산을 다시 쓴다
-- 선택한 provider의 known legacy 흔적도 함께 정리한다
-
-`replace`는 bootstrap 관리 자산을 다시 쓰고, 선택한 provider의 known
-legacy oh-my/OMC 흔적도 함께 정리한다.
-
-`merge`에서만 legacy cleanup이 기본값으로 꺼져 있다. 필요할 때만
-명시적으로 켠다.
-
-```bash
-cargo run -- install --providers codex,gemini,claude --cleanup legacy
-```
-
-이 옵션은 이전 bootstrap의 known legacy artifact만 정리하고, 일반적인
-unmanaged 자산은 보존하는 방향으로 동작한다.
-
-마이그레이션 가이드:
-- [docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)
 
 ## backup과 복구
 
@@ -220,4 +295,4 @@ cargo run -- restore --providers codex,gemini --backup llm-bootstrap-1712550000 
 ```
 
 `restore`는 현재 상태를 한 번 더 backup한 뒤, 선택한 backup 안의
-bootstrap 관리 자산과 known legacy cleanup 대상을 복구한다.
+bootstrap 관리 자산을 복구한다.

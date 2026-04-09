@@ -1,0 +1,12 @@
+description = "Run a weekly operating review with KPI, pipeline, and action sections."
+prompt = """
+Use this command for weekly company operations.
+
+Required sections:
+- KPI snapshot
+- Pipeline status
+- Customer signal
+- Risks
+- Decisions
+- Actions and owners
+"""

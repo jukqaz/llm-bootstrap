@@ -1,0 +1,42 @@
+id = "goose"
+name = "Goose"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "mcp", "desktop-cli", "multi-model"]
+weight = "optional"
+summary = "Popular open-source local agent runtime with MCP support, desktop and CLI surfaces, and multi-model configuration."
+
+urls = [
+  "https://github.com/block/goose"
+]
+
+capabilities = [
+  "local coding agent runtime",
+  "desktop and CLI packaging",
+  "MCP integration",
+  "multi-model configuration",
+  "edit execute and test loop"
+]
+
+adoptable_parts = [
+  "cross-provider runtime reference",
+  "desktop plus CLI coexistence",
+  "MCP-first extensibility patterns"
+]
+
+do_not_copy = [
+  "full local runtime into bootstrap core",
+  "unsafe execution defaults without sandbox guidance"
+]
+
+[[evidence]]
+label = "Goose README"
+url = "https://github.com/block/goose"
+note = "Goose presents itself as an open-source extensible agent that can install, execute, edit, and test with any LLM."
+
+[[evidence]]
+label = "Goose security guidance"
+url = "https://github.com/block/goose/security"
+note = "The project explicitly warns about local execution risk and recommends VM or container isolation."
+

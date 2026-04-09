@@ -5,22 +5,26 @@ mod layout;
 mod manifest;
 mod providers;
 mod runtime;
+mod state;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use cli::{
-    BackupsArgs, CleanupTarget, Cli, Command, DoctorArgs, InstallArgs, Provider, ProviderArgs,
+    BackupsArgs, Cli, Command, DoctorArgs, InstallArgs, PackArgs, Provider, ProviderArgs,
     RestoreArgs, UninstallArgs, WizardArgs,
 };
 use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
 use fs_ops::list_backup_entries;
-use manifest::{BaselineMcp, BootstrapManifest};
+use indexmap::IndexSet;
+use manifest::{BaselineMcp, BootstrapManifest, DistributionTarget};
 use providers::{claude, codex, gemini};
 use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root};
 use serde::Serialize;
+use state::{read_installed_state, write_installed_state};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
@@ -50,38 +54,31 @@ fn load_manifest() -> Result<BootstrapManifest> {
     let path = repo_root().join("bootstrap.toml");
     let raw =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
-    toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))
+    let manifest: BootstrapManifest =
+        toml::from_str(&raw).with_context(|| format!("failed to parse {}", path.display()))?;
+    validate_manifest(&manifest)?;
+    Ok(manifest)
 }
 
 fn install(args: InstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let providers = selected_providers(&args.provider_args, manifest);
     let mode = args.mode.unwrap_or(manifest.bootstrap.default_mode);
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
-    let cleanup = selected_cleanup_targets(&args.cleanup);
-    let env_gates = resolved_env_gates(manifest, env_is_set);
-    let enabled_mcp = enabled_mcp_from_gates(manifest, &env_gates);
+    let resolved = resolve_plan(manifest, &args.pack_args)?;
     let home = home_dir()?;
     if args.dry_run {
-        print_install_plan(&home, &providers, mode, rtk_enabled, &cleanup, &enabled_mcp);
+        print_install_plan(&home, &providers, manifest, mode, rtk_enabled, &resolved);
         return Ok(());
     }
     ensure_runtime_dependencies(rtk_enabled)?;
-    install_with(
-        &home,
-        &providers,
-        mode,
-        manifest,
-        &enabled_mcp,
-        rtk_enabled,
-        &cleanup,
-    )
+    install_with(&home, &providers, manifest, mode, rtk_enabled, &resolved)
 }
 
 fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let home = home_dir()?;
     let providers = selected_providers(&args.provider_args, manifest);
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
-    let enabled_mcp = enabled_mcp(manifest);
+    let enabled_mcp = all_manifest_mcp(manifest);
 
     if args.dry_run {
         print_uninstall_plan(&home, &providers, rtk_enabled, &enabled_mcp);
@@ -139,15 +136,14 @@ fn backups(args: BackupsArgs, manifest: &BootstrapManifest) -> Result<()> {
 fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
     let home = home_dir()?;
     let providers = selected_providers(&args.provider_args, manifest);
-    let env_gates = resolved_env_gates(manifest, env_is_set);
+    let resolved = resolve_plan(manifest, &args.pack_args)?;
     doctor_with(
         &home,
         &providers,
         manifest,
-        &enabled_mcp_from_gates(manifest, &env_gates),
-        &env_gates,
         is_rtk_enabled(args.without_rtk, manifest),
         args.json,
+        &resolved,
     )
 }
 
@@ -155,16 +151,31 @@ fn doctor_with(
     home: &std::path::Path,
     providers: &[Provider],
     manifest: &BootstrapManifest,
-    enabled_mcp: &[BaselineMcp],
-    env_gates: &[ResolvedEnvGate],
     rtk_enabled: bool,
     json: bool,
+    resolved: &ResolvedPlan,
 ) -> Result<()> {
     let mut failures = Vec::new();
     let mut warnings = Vec::new();
     let mut command_checks = Vec::new();
     let mut env_checks = Vec::new();
     let mut provider_reports = Vec::new();
+    let catalog_report = doctor_catalog_report(
+        manifest,
+        &resolved.selection,
+        &resolved.requested_mcp,
+        &resolved.enabled_mcp,
+        &resolved.distribution_state,
+    );
+    let codex_plugin_enabled = resolved
+        .distribution_state
+        .enabled(DistributionTarget::CodexPlugin);
+    let gemini_extension_enabled = resolved
+        .distribution_state
+        .enabled(DistributionTarget::GeminiExtension);
+    let claude_skills_enabled = resolved
+        .distribution_state
+        .enabled(DistributionTarget::ClaudeSkills);
 
     if !json {
         println!("[doctor] commands");
@@ -202,7 +213,10 @@ fn doctor_with(
     if !json {
         println!("[doctor] api");
     }
-    for gated in env_gates {
+    for gated in &resolved.env_gates {
+        if !resolved.requested_mcp.contains(&gated.name) {
+            continue;
+        }
         if gated.enabled {
             if !json {
                 println!("[ok] env {} enables {}", gated.env, gated.name.name());
@@ -234,13 +248,48 @@ fn doctor_with(
     }
 
     for provider in providers {
+        let installed_state = read_installed_state(&provider_root(home, *provider))?;
+        let state_mismatch = installed_state.mismatch(
+            resolved.selection.preset.as_deref(),
+            &resolved.selection.packs,
+            &resolved.selection.harnesses,
+        );
         if !json {
             println!("[doctor] provider {}", provider.name());
+            if state_mismatch {
+                println!(
+                    "[warn] installed state differs: preset={}, packs={}",
+                    installed_state
+                        .active_preset
+                        .as_deref()
+                        .unwrap_or("unknown"),
+                    installed_state.active_packs.join(",")
+                );
+            }
         }
         let checks = match provider {
-            Provider::Codex => codex::doctor_checks(home, manifest, enabled_mcp, rtk_enabled),
-            Provider::Gemini => gemini::doctor_checks(home, enabled_mcp, rtk_enabled),
-            Provider::Claude => claude::doctor_checks(home, enabled_mcp, rtk_enabled),
+            Provider::Codex => codex::doctor_checks(
+                home,
+                manifest,
+                &resolved.enabled_mcp,
+                rtk_enabled,
+                codex_plugin_enabled,
+                &resolved.surfaces.codex,
+            ),
+            Provider::Gemini => gemini::doctor_checks(
+                home,
+                &resolved.enabled_mcp,
+                rtk_enabled,
+                gemini_extension_enabled,
+                &resolved.surfaces.gemini,
+            ),
+            Provider::Claude => claude::doctor_checks(
+                home,
+                &resolved.enabled_mcp,
+                rtk_enabled,
+                claude_skills_enabled,
+                &resolved.surfaces.claude,
+            ),
         };
         let mut provider_checks = Vec::new();
 
@@ -268,8 +317,93 @@ fn doctor_with(
         }
         provider_reports.push(DoctorProviderReport {
             provider: provider.name().to_string(),
+            installed_preset: installed_state.active_preset,
+            installed_packs: installed_state.active_packs,
+            installed_harnesses: installed_state.active_harnesses,
+            state_mismatch,
             checks: provider_checks,
         });
+    }
+
+    if !json {
+        println!("[doctor] catalog");
+        println!("[ok] default preset: {}", catalog_report.default_preset);
+        println!(
+            "[ok] active packs: {}",
+            catalog_report.active_packs.join(",")
+        );
+        println!(
+            "[ok] active preset: {}",
+            catalog_report.active_preset.as_deref().unwrap_or("custom")
+        );
+        println!(
+            "[ok] active harnesses: {}",
+            catalog_report.active_harnesses.join(",")
+        );
+        println!(
+            "[ok] requested mcp: {}",
+            catalog_report.requested_mcp_servers.join(",")
+        );
+        println!(
+            "[ok] active mcp: {}",
+            catalog_report.active_mcp_servers.join(",")
+        );
+        println!(
+            "[ok] active connectors: {}",
+            catalog_report.active_connectors.join(",")
+        );
+        println!(
+            "[ok] active automations: {}",
+            catalog_report.active_automations.join(",")
+        );
+        println!(
+            "[ok] requested distribution targets: {}",
+            catalog_report.requested_distribution_targets.join(",")
+        );
+        println!(
+            "[ok] active distribution targets: {}",
+            catalog_report.active_distribution_targets.join(",")
+        );
+        for harness in &catalog_report.harnesses {
+            println!(
+                "[ok] harness {} (category: {}, default: {})",
+                harness.name,
+                harness.category,
+                if harness.default_enabled { "yes" } else { "no" }
+            );
+        }
+        for pack in &catalog_report.packs {
+            println!(
+                "[ok] pack {} (scope: {}, lane: {}, harnesses: {}, apps: {}, mcp: {}, selected: {}, targets: {})",
+                pack.name,
+                pack.scope,
+                pack.lane,
+                pack.harnesses.join(","),
+                pack.apps.join(","),
+                pack.mcp_servers.join(","),
+                if pack.selected { "yes" } else { "no" },
+                pack.distribution_targets.join(",")
+            );
+        }
+        for connector in &catalog_report.connectors {
+            println!(
+                "[ok] connector {} (category: {}, access: {}, approval: {}, active: {})",
+                connector.name,
+                connector.category,
+                connector.access,
+                connector.approval,
+                if connector.active { "yes" } else { "no" }
+            );
+        }
+        for automation in &catalog_report.automations {
+            println!(
+                "[ok] automation {} (cadence: {}, artifact: {}, active: {})",
+                automation.name,
+                automation.cadence,
+                automation.artifact,
+                if automation.active { "yes" } else { "no" }
+            );
+        }
     }
 
     let report = DoctorReport {
@@ -278,6 +412,7 @@ fn doctor_with(
         command_checks,
         env_checks,
         providers: provider_reports,
+        catalog: catalog_report,
     };
 
     if json {
@@ -304,6 +439,13 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
     let defaults = selected_providers(&ProviderArgs { providers: None }, manifest);
     let default_mode = manifest.bootstrap.default_mode;
     let default_rtk = manifest.external.rtk.enabled;
+    let default_pack_selection = selected_pack_names(
+        &PackArgs {
+            preset: None,
+            packs: None,
+        },
+        manifest,
+    )?;
     let theme = ColorfulTheme::default();
     let provider_items = [Provider::Codex, Provider::Gemini, Provider::Claude];
     let provider_labels = provider_items
@@ -317,11 +459,28 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
 
     println!("llm-bootstrap wizard");
     println!(
-        "defaults: providers={}, mode={}, rtk={}",
+        "defaults: providers={}, mode={}, rtk={}, preset={}",
         provider_names(&defaults),
         default_mode.name(),
-        if default_rtk { "enabled" } else { "disabled" }
+        if default_rtk { "enabled" } else { "disabled" },
+        default_pack_selection.preset.as_deref().unwrap_or("custom")
     );
+
+    let preset_items = manifest
+        .presets
+        .iter()
+        .map(|preset| format!("{}: {}", preset.name, preset.description))
+        .collect::<Vec<_>>();
+    let default_preset_index = default_pack_selection
+        .preset
+        .as_ref()
+        .and_then(|name| {
+            manifest
+                .presets
+                .iter()
+                .position(|preset| &preset.name == name)
+        })
+        .unwrap_or(0);
 
     let selected_indices = MultiSelect::with_theme(&theme)
         .with_prompt("providers")
@@ -335,6 +494,23 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
             .into_iter()
             .map(|index| provider_items[index])
             .collect::<Vec<_>>()
+    };
+
+    let pack_selection = if preset_items.is_empty() {
+        default_pack_selection
+    } else {
+        let preset_index = Select::with_theme(&theme)
+            .with_prompt("set menu")
+            .items(&preset_items)
+            .default(default_preset_index)
+            .interact()?;
+        selected_pack_names(
+            &PackArgs {
+                preset: Some(manifest.presets[preset_index].name.clone()),
+                packs: None,
+            },
+            manifest,
+        )?
     };
 
     let mode = match Select::with_theme(&theme)
@@ -380,10 +556,6 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         .with_prompt("run install now?")
         .default(true)
         .interact()?;
-    let cleanup_legacy = Confirm::with_theme(&theme)
-        .with_prompt("remove known legacy oh-my/omc artifacts for selected providers?")
-        .default(false)
-        .interact()?;
 
     let env_overrides = wizard_env_overrides(&exa_key, &context7_key);
     let env_gates = resolved_env_gates(manifest, |name| {
@@ -392,12 +564,7 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
             .copied()
             .unwrap_or_else(|| env_is_set(name))
     });
-    let enabled_mcp = enabled_mcp_from_gates(manifest, &env_gates);
-    let cleanup = if cleanup_legacy {
-        vec![CleanupTarget::Legacy]
-    } else {
-        Vec::new()
-    };
+    let resolved = build_resolved_plan(manifest, pack_selection.clone(), env_gates);
 
     let keys_to_persist = [
         ("EXA_API_KEY", exa_key.as_deref()),
@@ -406,16 +573,18 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
     persist_env_keys(&keys_to_persist, persist_gui, persist_cli)?;
 
     println!(
-        "wizard summary: providers={}, mode={}, rtk={}, exa={}, context7={}, gui_persist={}, cli_persist={}",
+        "wizard summary: providers={}, mode={}, rtk={}, preset={}, packs={}, exa={}, context7={}, gui_persist={}, cli_persist={}",
         provider_names(&providers),
         mode.name(),
         if rtk_enabled { "enabled" } else { "disabled" },
-        if enabled_mcp.contains(&BaselineMcp::Exa) {
+        resolved.selection.preset.as_deref().unwrap_or("custom"),
+        resolved.selection.packs.join(","),
+        if resolved.enabled_mcp.contains(&BaselineMcp::Exa) {
             "enabled"
         } else {
             "disabled"
         },
-        if enabled_mcp.contains(&BaselineMcp::Context7) {
+        if resolved.enabled_mcp.contains(&BaselineMcp::Context7) {
             "enabled"
         } else {
             "disabled"
@@ -423,38 +592,12 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         if persist_gui { "yes" } else { "no" },
         if persist_cli { "yes" } else { "no" },
     );
-    if !cleanup.is_empty() {
-        println!(
-            "wizard cleanup: {}",
-            cleanup
-                .iter()
-                .map(|target| target.name())
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-    }
 
     if apply_now {
         ensure_runtime_dependencies(rtk_enabled)?;
         let home = home_dir()?;
-        install_with(
-            &home,
-            &providers,
-            mode,
-            manifest,
-            &enabled_mcp,
-            rtk_enabled,
-            &cleanup,
-        )?;
-        doctor_with(
-            &home,
-            &providers,
-            manifest,
-            &enabled_mcp,
-            &env_gates,
-            rtk_enabled,
-            false,
-        )?;
+        install_with(&home, &providers, manifest, mode, rtk_enabled, &resolved)?;
+        doctor_with(&home, &providers, manifest, rtk_enabled, false, &resolved)?;
     }
 
     Ok(())
@@ -463,53 +606,80 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
 fn install_with(
     home: &std::path::Path,
     providers: &[Provider],
-    mode: cli::ApplyMode,
     manifest: &BootstrapManifest,
-    enabled_mcp: &[BaselineMcp],
+    mode: cli::ApplyMode,
     rtk_enabled: bool,
-    cleanup: &[CleanupTarget],
+    resolved: &ResolvedPlan,
 ) -> Result<()> {
-    let cleanup_legacy =
-        mode == cli::ApplyMode::Replace || cleanup.contains(&CleanupTarget::Legacy);
+    let codex_plugin_enabled = resolved
+        .distribution_state
+        .enabled(DistributionTarget::CodexPlugin);
+    let gemini_extension_enabled = resolved
+        .distribution_state
+        .enabled(DistributionTarget::GeminiExtension);
+    let claude_skills_enabled = resolved
+        .distribution_state
+        .enabled(DistributionTarget::ClaudeSkills);
     for provider in providers {
         match *provider {
             Provider::Codex => codex::install(
                 home,
                 mode,
                 manifest,
-                enabled_mcp,
+                &resolved.enabled_mcp,
                 rtk_enabled,
-                cleanup_legacy,
+                codex_plugin_enabled,
+                &resolved.surfaces.codex,
             )?,
             Provider::Gemini => gemini::install(
                 home,
                 mode,
                 manifest,
-                enabled_mcp,
+                &resolved.enabled_mcp,
                 rtk_enabled,
-                cleanup_legacy,
+                gemini_extension_enabled,
+                &resolved.surfaces.gemini,
             )?,
             Provider::Claude => claude::install(
                 home,
                 mode,
                 manifest,
-                enabled_mcp,
+                &resolved.enabled_mcp,
                 rtk_enabled,
-                cleanup_legacy,
+                claude_skills_enabled,
+                &resolved.surfaces.claude,
             )?,
         }
+        write_installed_state(
+            &provider_root(home, *provider),
+            &resolved.enabled_mcp,
+            &resolved.selection.packs,
+            &resolved.selection.harnesses,
+            resolved.selection.preset.as_deref(),
+        )?;
     }
 
     println!(
-        "installed providers: {} (mode: {}, rtk: {}, cleanup: {})",
+        "installed providers: {} (mode: {}, rtk: {}, preset: {}, packs: {}, requested_targets: {}, targets: {})",
         provider_names(providers),
         mode.name(),
         if rtk_enabled { "enabled" } else { "disabled" },
-        if cleanup_legacy {
-            "legacy".to_string()
-        } else {
-            "none".to_string()
-        }
+        resolved.selection.preset.as_deref().unwrap_or("custom"),
+        resolved.selection.packs.join(","),
+        resolved
+            .distribution_state
+            .requested
+            .iter()
+            .map(|target| target.name())
+            .collect::<Vec<_>>()
+            .join(","),
+        resolved
+            .distribution_state
+            .effective
+            .iter()
+            .map(|target| target.name())
+            .collect::<Vec<_>>()
+            .join(","),
     );
     Ok(())
 }
@@ -517,28 +687,58 @@ fn install_with(
 fn print_install_plan(
     home: &Path,
     providers: &[Provider],
+    _manifest: &BootstrapManifest,
     mode: cli::ApplyMode,
     rtk_enabled: bool,
-    cleanup: &[CleanupTarget],
-    enabled_mcp: &[BaselineMcp],
+    resolved: &ResolvedPlan,
 ) {
-    let cleanup_legacy =
-        mode == cli::ApplyMode::Replace || cleanup.contains(&CleanupTarget::Legacy);
     println!("[dry-run] install");
     println!("providers: {}", provider_names(providers));
     println!("mode: {}", mode.name());
+    println!(
+        "preset: {}",
+        resolved.selection.preset.as_deref().unwrap_or("custom")
+    );
+    println!("packs: {}", resolved.selection.packs.join(","));
+    println!("harnesses: {}", resolved.selection.harnesses.join(","));
+    println!(
+        "requested_distribution_targets: {}",
+        resolved
+            .distribution_state
+            .requested
+            .iter()
+            .map(|target| target.name())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    println!(
+        "distribution_targets: {}",
+        resolved
+            .distribution_state
+            .effective
+            .iter()
+            .map(|target| target.name())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
     println!("rtk: {}", if rtk_enabled { "enabled" } else { "disabled" });
     println!(
-        "baseline_mcp: {}",
-        enabled_mcp
+        "requested_mcp: {}",
+        resolved
+            .requested_mcp
             .iter()
             .map(|mcp| mcp.name())
             .collect::<Vec<_>>()
             .join(",")
     );
     println!(
-        "cleanup: {}",
-        if cleanup_legacy { "legacy" } else { "none" }
+        "baseline_mcp: {}",
+        resolved
+            .enabled_mcp
+            .iter()
+            .map(|mcp| mcp.name())
+            .collect::<Vec<_>>()
+            .join(",")
     );
     for provider in providers {
         println!(
@@ -654,11 +854,16 @@ struct DoctorReport {
     command_checks: Vec<DoctorCheck>,
     env_checks: Vec<DoctorEnvCheck>,
     providers: Vec<DoctorProviderReport>,
+    catalog: DoctorCatalogReport,
 }
 
 #[derive(Serialize)]
 struct DoctorProviderReport {
     provider: String,
+    installed_preset: Option<String>,
+    installed_packs: Vec<String>,
+    installed_harnesses: Vec<String>,
+    state_mismatch: bool,
     checks: Vec<DoctorCheck>,
 }
 
@@ -675,6 +880,121 @@ struct DoctorEnvCheck {
     env: String,
     status: String,
     detail: Option<String>,
+}
+
+#[derive(Serialize)]
+struct DoctorCatalogReport {
+    default_preset: String,
+    active_preset: Option<String>,
+    active_packs: Vec<String>,
+    active_harnesses: Vec<String>,
+    requested_mcp_servers: Vec<String>,
+    active_mcp_servers: Vec<String>,
+    active_connectors: Vec<String>,
+    active_automations: Vec<String>,
+    requested_distribution_targets: Vec<String>,
+    active_distribution_targets: Vec<String>,
+    harnesses: Vec<DoctorHarnessReport>,
+    packs: Vec<DoctorPackReport>,
+    presets: Vec<DoctorPresetReport>,
+    connectors: Vec<DoctorConnectorReport>,
+    automations: Vec<DoctorAutomationReport>,
+}
+
+#[derive(Serialize)]
+struct DoctorPresetReport {
+    name: String,
+    packs: Vec<String>,
+    selected: bool,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct DoctorConnectorReport {
+    name: String,
+    category: String,
+    tool_source: String,
+    access: String,
+    approval: String,
+    automation_allowed: bool,
+    active: bool,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct DoctorAutomationReport {
+    name: String,
+    cadence: String,
+    packs: Vec<String>,
+    connectors: Vec<String>,
+    artifact: String,
+    active: bool,
+    description: String,
+}
+
+struct ResolvedDistributionState {
+    requested: Vec<DistributionTarget>,
+    effective: Vec<DistributionTarget>,
+}
+
+#[derive(Clone)]
+struct ActiveSelection {
+    preset: Option<String>,
+    packs: Vec<String>,
+    harnesses: Vec<String>,
+}
+
+struct ProviderSurfaces {
+    codex: Vec<String>,
+    gemini: Vec<String>,
+    claude: Vec<String>,
+}
+
+struct ResolvedPlan {
+    selection: ActiveSelection,
+    env_gates: Vec<ResolvedEnvGate>,
+    requested_mcp: Vec<BaselineMcp>,
+    enabled_mcp: Vec<BaselineMcp>,
+    distribution_state: ResolvedDistributionState,
+    surfaces: ProviderSurfaces,
+}
+
+impl ResolvedDistributionState {
+    fn resolve(manifest: &BootstrapManifest, active_packs: &[String]) -> Self {
+        Self {
+            requested: selected_distribution_targets(manifest, active_packs),
+            effective: effective_distribution_targets(manifest, active_packs),
+        }
+    }
+
+    fn enabled(&self, target: DistributionTarget) -> bool {
+        has_distribution_target(&self.effective, target)
+    }
+}
+
+#[derive(Serialize)]
+struct DoctorHarnessReport {
+    name: String,
+    category: String,
+    default_enabled: bool,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct DoctorPackReport {
+    name: String,
+    scope: String,
+    lane: String,
+    harnesses: Vec<String>,
+    apps: Vec<String>,
+    mcp_servers: Vec<String>,
+    connectors: Vec<String>,
+    codex_surfaces: Vec<String>,
+    gemini_surfaces: Vec<String>,
+    claude_surfaces: Vec<String>,
+    distribution_targets: Vec<String>,
+    selected: bool,
+    description: String,
 }
 
 #[derive(Serialize)]
@@ -702,6 +1022,118 @@ fn env_warning(name: &str) -> &'static str {
         "EXA_API_KEY" => "Exa stays disabled until EXA_API_KEY is exported",
         "CONTEXT7_API_KEY" => "Context7 stays disabled until CONTEXT7_API_KEY is exported",
         _ => "recommended runtime env is missing",
+    }
+}
+
+fn doctor_catalog_report(
+    manifest: &BootstrapManifest,
+    selection: &ActiveSelection,
+    requested_mcp: &[BaselineMcp],
+    active_mcp: &[BaselineMcp],
+    distribution_state: &ResolvedDistributionState,
+) -> DoctorCatalogReport {
+    let active_connectors = selected_connector_names(manifest, &selection.packs);
+    let active_automations = selected_automation_names(manifest, &selection.packs);
+
+    DoctorCatalogReport {
+        default_preset: manifest.bootstrap.default_preset.clone(),
+        active_preset: selection.preset.clone(),
+        active_packs: selection.packs.clone(),
+        active_harnesses: selection.harnesses.clone(),
+        requested_mcp_servers: requested_mcp
+            .iter()
+            .map(|mcp| mcp.name().to_string())
+            .collect(),
+        active_mcp_servers: active_mcp
+            .iter()
+            .map(|mcp| mcp.name().to_string())
+            .collect(),
+        active_connectors: active_connectors.clone(),
+        active_automations: active_automations.clone(),
+        requested_distribution_targets: distribution_state
+            .requested
+            .iter()
+            .map(|target| target.name().to_string())
+            .collect(),
+        active_distribution_targets: distribution_state
+            .effective
+            .iter()
+            .map(|target| target.name().to_string())
+            .collect(),
+        harnesses: manifest
+            .harnesses
+            .iter()
+            .map(|harness| DoctorHarnessReport {
+                name: harness.name.clone(),
+                category: harness.category.name().to_string(),
+                default_enabled: harness.default_enabled,
+                description: harness.description.clone(),
+            })
+            .collect(),
+        packs: manifest
+            .packs
+            .iter()
+            .map(|pack| DoctorPackReport {
+                name: pack.name.clone(),
+                scope: pack.scope.name().to_string(),
+                lane: pack.lane.name().to_string(),
+                harnesses: pack.harnesses.clone(),
+                apps: pack.apps.clone(),
+                mcp_servers: pack
+                    .mcp_servers
+                    .iter()
+                    .map(|mcp| mcp.name().to_string())
+                    .collect(),
+                connectors: pack.connectors.clone(),
+                codex_surfaces: pack.codex_surfaces.clone(),
+                gemini_surfaces: pack.gemini_surfaces.clone(),
+                claude_surfaces: pack.claude_surfaces.clone(),
+                distribution_targets: pack
+                    .distribution_targets
+                    .iter()
+                    .map(|target| target.name().to_string())
+                    .collect(),
+                selected: selection.packs.contains(&pack.name),
+                description: pack.description.clone(),
+            })
+            .collect(),
+        presets: manifest
+            .presets
+            .iter()
+            .map(|preset| DoctorPresetReport {
+                name: preset.name.clone(),
+                packs: preset.packs.clone(),
+                selected: selection.preset.as_deref() == Some(preset.name.as_str()),
+                description: preset.description.clone(),
+            })
+            .collect(),
+        connectors: manifest
+            .connectors
+            .iter()
+            .map(|connector| DoctorConnectorReport {
+                name: connector.name.clone(),
+                category: connector.category.name().to_string(),
+                tool_source: connector.tool_source.name().to_string(),
+                access: connector.access.name().to_string(),
+                approval: connector.approval.name().to_string(),
+                automation_allowed: connector.automation_allowed,
+                active: active_connectors.contains(&connector.name),
+                description: connector.description.clone(),
+            })
+            .collect(),
+        automations: manifest
+            .automations
+            .iter()
+            .map(|automation| DoctorAutomationReport {
+                name: automation.name.clone(),
+                cadence: automation.cadence.name().to_string(),
+                packs: automation.packs.clone(),
+                connectors: automation.connectors.clone(),
+                artifact: automation.artifact.clone(),
+                active: active_automations.contains(&automation.name),
+                description: automation.description.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -769,32 +1201,273 @@ fn selected_providers(args: &ProviderArgs, manifest: &BootstrapManifest) -> Vec<
         .unwrap_or_else(|| manifest.bootstrap.providers.clone())
 }
 
-fn selected_cleanup_targets(targets: &Option<Vec<CleanupTarget>>) -> Vec<CleanupTarget> {
-    targets.clone().unwrap_or_default()
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ResolvedPackSelection {
+    preset: Option<String>,
+    packs: Vec<String>,
+}
+
+fn selected_pack_names(
+    args: &PackArgs,
+    manifest: &BootstrapManifest,
+) -> Result<ResolvedPackSelection> {
+    let (requested_preset, requested) = if let Some(packs) = &args.packs {
+        (None, packs.clone())
+    } else if let Some(preset) = &args.preset {
+        let preset_definition = manifest
+            .presets
+            .iter()
+            .find(|candidate| candidate.name == *preset)
+            .with_context(|| format!("unknown preset: {}", preset))?;
+        (
+            Some(preset_definition.name.clone()),
+            preset_definition.packs.clone(),
+        )
+    } else {
+        let preset_definition = manifest
+            .presets
+            .iter()
+            .find(|candidate| candidate.name == manifest.bootstrap.default_preset)
+            .with_context(|| {
+                format!(
+                    "default preset {} is not declared",
+                    manifest.bootstrap.default_preset
+                )
+            })?;
+        (
+            Some(preset_definition.name.clone()),
+            preset_definition.packs.clone(),
+        )
+    };
+    let mut selected = IndexSet::new();
+
+    for pack in requested {
+        if !manifest
+            .packs
+            .iter()
+            .any(|candidate| candidate.name == pack)
+        {
+            bail!("unknown pack: {}", pack);
+        }
+        selected.insert(pack);
+    }
+
+    Ok(ResolvedPackSelection {
+        preset: requested_preset,
+        packs: selected.into_iter().collect(),
+    })
+}
+
+fn selected_harness_names(manifest: &BootstrapManifest, active_packs: &[String]) -> Vec<String> {
+    selected_pack_items(manifest, active_packs, |pack| pack.harnesses.as_slice())
+}
+
+fn selected_connector_names(manifest: &BootstrapManifest, active_packs: &[String]) -> Vec<String> {
+    selected_pack_items(manifest, active_packs, |pack| pack.connectors.as_slice())
+}
+
+fn selected_automation_names(manifest: &BootstrapManifest, active_packs: &[String]) -> Vec<String> {
+    manifest
+        .automations
+        .iter()
+        .filter(|automation| {
+            automation
+                .packs
+                .iter()
+                .any(|pack| active_packs.contains(pack))
+        })
+        .map(|automation| automation.name.clone())
+        .collect()
+}
+
+fn selected_distribution_targets(
+    manifest: &BootstrapManifest,
+    active_packs: &[String],
+) -> Vec<DistributionTarget> {
+    selected_pack_items(manifest, active_packs, |pack| {
+        pack.distribution_targets.as_slice()
+    })
+}
+
+fn effective_distribution_targets(
+    manifest: &BootstrapManifest,
+    active_packs: &[String],
+) -> Vec<DistributionTarget> {
+    selected_distribution_targets(manifest, active_packs)
+        .into_iter()
+        .filter(|target| distribution_target_enabled(manifest, active_packs, *target))
+        .collect()
+}
+
+fn has_distribution_target(targets: &[DistributionTarget], expected: DistributionTarget) -> bool {
+    targets.contains(&expected)
+}
+
+fn distribution_target_enabled(
+    manifest: &BootstrapManifest,
+    active_packs: &[String],
+    target: DistributionTarget,
+) -> bool {
+    match target {
+        DistributionTarget::CodexPlugin => {
+            layout::provider_surface_enabled(&selected_codex_surfaces(manifest, active_packs))
+        }
+        DistributionTarget::GeminiExtension => {
+            layout::provider_surface_enabled(&selected_gemini_surfaces(manifest, active_packs))
+        }
+        DistributionTarget::ClaudeSkills => {
+            layout::provider_surface_enabled(&selected_claude_surfaces(manifest, active_packs))
+        }
+    }
+}
+
+fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
+    let mut errors = Vec::new();
+    let mut harness_names = IndexSet::new();
+    let mut pack_names = IndexSet::new();
+    let mut preset_names = IndexSet::new();
+    let mut connector_names = IndexSet::new();
+
+    for harness in &manifest.harnesses {
+        if !harness_names.insert(harness.name.clone()) {
+            errors.push(format!("duplicate harness: {}", harness.name));
+        }
+    }
+
+    for pack in &manifest.packs {
+        if !pack_names.insert(pack.name.clone()) {
+            errors.push(format!("duplicate pack: {}", pack.name));
+        }
+        if pack.harnesses.is_empty() {
+            errors.push(format!("pack {} has no harnesses", pack.name));
+        }
+        if pack.distribution_targets.is_empty() {
+            errors.push(format!("pack {} has no distribution_targets", pack.name));
+        }
+        if pack.apps.is_empty() {
+            errors.push(format!("pack {} has no apps", pack.name));
+        }
+        if pack.scope.name() == "company" && pack.connectors.is_empty() {
+            errors.push(format!("company pack {} has no connectors", pack.name));
+        }
+        for harness in &pack.harnesses {
+            if !harness_names.contains(harness) {
+                errors.push(format!(
+                    "pack {} references unknown harness {}",
+                    pack.name, harness
+                ));
+            }
+        }
+    }
+
+    if !manifest
+        .presets
+        .iter()
+        .any(|preset| preset.name == manifest.bootstrap.default_preset)
+    {
+        errors.push(format!(
+            "default preset {} is not declared",
+            manifest.bootstrap.default_preset
+        ));
+    }
+
+    for preset in &manifest.presets {
+        if !preset_names.insert(preset.name.clone()) {
+            errors.push(format!("duplicate preset: {}", preset.name));
+        }
+        if preset.packs.is_empty() {
+            errors.push(format!("preset {} has no packs", preset.name));
+        }
+        for pack in &preset.packs {
+            if !pack_names.contains(pack) {
+                errors.push(format!(
+                    "preset {} references unknown pack {}",
+                    preset.name, pack
+                ));
+            }
+        }
+    }
+
+    for connector in &manifest.connectors {
+        if !connector_names.insert(connector.name.clone()) {
+            errors.push(format!("duplicate connector: {}", connector.name));
+        }
+    }
+
+    for pack in &manifest.packs {
+        for app in &pack.apps {
+            if !connector_names.contains(app) {
+                errors.push(format!("pack {} references unknown app {}", pack.name, app));
+            } else if !manifest
+                .connectors
+                .iter()
+                .any(|connector| connector.name == *app && connector.tool_source.name() == "app")
+            {
+                errors.push(format!(
+                    "pack {} references non-app connector {} as app",
+                    pack.name, app
+                ));
+            }
+        }
+        for connector in &pack.connectors {
+            if !connector_names.contains(connector) {
+                errors.push(format!(
+                    "pack {} references unknown connector {}",
+                    pack.name, connector
+                ));
+            }
+        }
+        for mcp in &pack.mcp_servers {
+            let declared = manifest.mcp.always_on.contains(mcp)
+                || manifest
+                    .mcp
+                    .env_gated
+                    .iter()
+                    .any(|candidate| candidate.name == *mcp);
+            if !declared {
+                errors.push(format!(
+                    "pack {} references undeclared mcp {}",
+                    pack.name,
+                    mcp.name()
+                ));
+            }
+        }
+    }
+
+    for automation in &manifest.automations {
+        if automation.packs.is_empty() {
+            errors.push(format!("automation {} has no packs", automation.name));
+        }
+        if automation.connectors.is_empty() {
+            errors.push(format!("automation {} has no connectors", automation.name));
+        }
+        for pack in &automation.packs {
+            if !pack_names.contains(pack) {
+                errors.push(format!(
+                    "automation {} references unknown pack {}",
+                    automation.name, pack
+                ));
+            }
+        }
+        for connector in &automation.connectors {
+            if !connector_names.contains(connector) {
+                errors.push(format!(
+                    "automation {} references unknown connector {}",
+                    automation.name, connector
+                ));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        bail!("invalid bootstrap manifest:\n- {}", errors.join("\n- "))
+    }
 }
 
 fn is_rtk_enabled(without_rtk: bool, manifest: &BootstrapManifest) -> bool {
     manifest.external.rtk.enabled && !without_rtk
-}
-
-fn enabled_mcp(manifest: &BootstrapManifest) -> Vec<BaselineMcp> {
-    resolve_enabled_mcp_with(manifest, env_is_set)
-}
-
-fn resolve_enabled_mcp_with<F>(manifest: &BootstrapManifest, is_enabled: F) -> Vec<BaselineMcp>
-where
-    F: Fn(&str) -> bool,
-{
-    let mut enabled = manifest.mcp.always_on.clone();
-    enabled.extend(
-        manifest
-            .mcp
-            .env_gated
-            .iter()
-            .filter(|gated| is_enabled(&gated.env))
-            .map(|gated| gated.name),
-    );
-    enabled
 }
 
 #[derive(Clone)]
@@ -823,15 +1496,86 @@ where
 fn enabled_mcp_from_gates(
     manifest: &BootstrapManifest,
     env_gates: &[ResolvedEnvGate],
+    requested: &[BaselineMcp],
 ) -> Vec<BaselineMcp> {
-    let mut enabled = manifest.mcp.always_on.clone();
+    let requested_set = if requested.is_empty() {
+        all_manifest_mcp(manifest)
+    } else {
+        requested.to_vec()
+    };
+    let mut enabled = manifest
+        .mcp
+        .always_on
+        .iter()
+        .copied()
+        .filter(|mcp| requested_set.contains(mcp))
+        .collect::<Vec<_>>();
     enabled.extend(
         env_gates
             .iter()
-            .filter(|gated| gated.enabled)
+            .filter(|gated| requested_set.contains(&gated.name) && gated.enabled)
             .map(|gated| gated.name),
     );
     enabled
+}
+
+fn selected_pack_mcp_names(
+    manifest: &BootstrapManifest,
+    active_packs: &[String],
+) -> Vec<BaselineMcp> {
+    selected_pack_items(manifest, active_packs, |pack| pack.mcp_servers.as_slice())
+}
+
+fn selected_codex_surfaces(manifest: &BootstrapManifest, active_packs: &[String]) -> Vec<String> {
+    selected_pack_items(manifest, active_packs, |pack| {
+        pack.codex_surfaces.as_slice()
+    })
+}
+
+fn selected_gemini_surfaces(manifest: &BootstrapManifest, active_packs: &[String]) -> Vec<String> {
+    selected_pack_items(manifest, active_packs, |pack| {
+        pack.gemini_surfaces.as_slice()
+    })
+}
+
+fn selected_claude_surfaces(manifest: &BootstrapManifest, active_packs: &[String]) -> Vec<String> {
+    selected_pack_items(manifest, active_packs, |pack| {
+        pack.claude_surfaces.as_slice()
+    })
+}
+
+fn selected_pack_items<T, F>(
+    manifest: &BootstrapManifest,
+    active_packs: &[String],
+    items: F,
+) -> Vec<T>
+where
+    T: Clone + Eq + Hash,
+    F: Fn(&manifest::PackDefinition) -> &[T],
+{
+    let mut selected = IndexSet::new();
+
+    for pack in &manifest.packs {
+        if !active_packs.contains(&pack.name) {
+            continue;
+        }
+        for item in items(pack) {
+            selected.insert(item.clone());
+        }
+    }
+
+    selected.into_iter().collect()
+}
+
+fn all_manifest_mcp(manifest: &BootstrapManifest) -> Vec<BaselineMcp> {
+    let mut selected = IndexSet::new();
+    for mcp in &manifest.mcp.always_on {
+        selected.insert(*mcp);
+    }
+    for gated in &manifest.mcp.env_gated {
+        selected.insert(gated.name);
+    }
+    selected.into_iter().collect()
 }
 
 fn prompt_secret_with_dialoguer(theme: &ColorfulTheme, label: &str) -> Result<Option<String>> {
@@ -1062,6 +1806,41 @@ fn provider_names(providers: &[Provider]) -> String {
         .join(",")
 }
 
+fn resolve_plan(manifest: &BootstrapManifest, pack_args: &PackArgs) -> Result<ResolvedPlan> {
+    let pack_selection = selected_pack_names(pack_args, manifest)?;
+    let env_gates = resolved_env_gates(manifest, env_is_set);
+    Ok(build_resolved_plan(manifest, pack_selection, env_gates))
+}
+
+fn build_resolved_plan(
+    manifest: &BootstrapManifest,
+    pack_selection: ResolvedPackSelection,
+    env_gates: Vec<ResolvedEnvGate>,
+) -> ResolvedPlan {
+    let selection = ActiveSelection {
+        preset: pack_selection.preset,
+        harnesses: selected_harness_names(manifest, &pack_selection.packs),
+        packs: pack_selection.packs,
+    };
+    let requested_mcp = selected_pack_mcp_names(manifest, &selection.packs);
+    let enabled_mcp = enabled_mcp_from_gates(manifest, &env_gates, &requested_mcp);
+    let distribution_state = ResolvedDistributionState::resolve(manifest, &selection.packs);
+    let surfaces = ProviderSurfaces {
+        codex: selected_codex_surfaces(manifest, &selection.packs),
+        gemini: selected_gemini_surfaces(manifest, &selection.packs),
+        claude: selected_claude_surfaces(manifest, &selection.packs),
+    };
+
+    ResolvedPlan {
+        selection,
+        env_gates,
+        requested_mcp,
+        enabled_mcp,
+        distribution_state,
+        surfaces,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::cli::ApplyMode;
@@ -1071,7 +1850,10 @@ mod tests {
         prune_rtk_claude_hooks, prune_rtk_gemini_hooks, remove_baseline_mcp_servers,
     };
     use crate::manifest::{
-        BaselineMcp, BootstrapManifest, BootstrapSection, EnvGatedMcp, ExternalSection, McpSection,
+        AutomationCadence, AutomationDefinition, BaselineMcp, BootstrapManifest, BootstrapSection,
+        ConnectorAccess, ConnectorApproval, ConnectorCategory, ConnectorDefinition,
+        ConnectorToolSource, DistributionTarget, EnvGatedMcp, ExternalSection, HarnessCategory,
+        HarnessDefinition, McpSection, PackDefinition, PackLane, PackScope, PresetDefinition,
         RtkSection,
     };
     use crate::providers::{claude, codex, gemini};
@@ -1089,6 +1871,7 @@ mod tests {
             bootstrap: BootstrapSection {
                 providers: vec![super::Provider::Codex, super::Provider::Gemini],
                 default_mode: ApplyMode::Merge,
+                default_preset: "normal".to_string(),
             },
             external: ExternalSection {
                 rtk: RtkSection { enabled: true },
@@ -1106,7 +1889,447 @@ mod tests {
                     },
                 ],
             },
+            harnesses: vec![
+                HarnessDefinition {
+                    name: "ralph-loop".to_string(),
+                    category: HarnessCategory::Core,
+                    default_enabled: true,
+                    description: "Shared control loop for plan, execute, review, and verify."
+                        .to_string(),
+                },
+                HarnessDefinition {
+                    name: "delivery".to_string(),
+                    category: HarnessCategory::Development,
+                    default_enabled: true,
+                    description: "Software delivery harness from planning to ship.".to_string(),
+                },
+                HarnessDefinition {
+                    name: "ralph-plan".to_string(),
+                    category: HarnessCategory::Core,
+                    default_enabled: true,
+                    description: "Plan contract with owners, evidence, and next slice.".to_string(),
+                },
+                HarnessDefinition {
+                    name: "review-gate".to_string(),
+                    category: HarnessCategory::Quality,
+                    default_enabled: true,
+                    description: "Review, QA, and verification gate.".to_string(),
+                },
+                HarnessDefinition {
+                    name: "founder-loop".to_string(),
+                    category: HarnessCategory::Company,
+                    default_enabled: false,
+                    description: "Founder and product direction review loop.".to_string(),
+                },
+                HarnessDefinition {
+                    name: "operating-review".to_string(),
+                    category: HarnessCategory::Company,
+                    default_enabled: false,
+                    description: "Company operating review loop.".to_string(),
+                },
+            ],
+            packs: vec![
+                PackDefinition {
+                    name: "delivery-pack".to_string(),
+                    scope: PackScope::Development,
+                    lane: PackLane::Core,
+                    harnesses: vec![
+                        "ralph-loop".to_string(),
+                        "ralph-plan".to_string(),
+                        "delivery".to_string(),
+                        "review-gate".to_string(),
+                    ],
+                    apps: vec!["github".to_string(), "linear".to_string()],
+                    mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
+                    connectors: vec!["github".to_string(), "linear".to_string()],
+                    codex_surfaces: vec!["llm-dev-kit".to_string(), "delivery-skills".to_string()],
+                    gemini_surfaces: vec![
+                        "llm-bootstrap-dev".to_string(),
+                        "delivery-commands".to_string(),
+                    ],
+                    claude_surfaces: vec![
+                        "claude-skills".to_string(),
+                        "delivery-skills".to_string(),
+                    ],
+                    distribution_targets: vec![
+                        DistributionTarget::CodexPlugin,
+                        DistributionTarget::GeminiExtension,
+                        DistributionTarget::ClaudeSkills,
+                    ],
+                    description: "Core software delivery pack.".to_string(),
+                },
+                PackDefinition {
+                    name: "founder-pack".to_string(),
+                    scope: PackScope::Company,
+                    lane: PackLane::Optional,
+                    harnesses: vec![
+                        "ralph-plan".to_string(),
+                        "founder-loop".to_string(),
+                        "operating-review".to_string(),
+                    ],
+                    apps: vec![
+                        "linear".to_string(),
+                        "gmail".to_string(),
+                        "calendar".to_string(),
+                        "drive".to_string(),
+                        "figma".to_string(),
+                        "stitch".to_string(),
+                    ],
+                    mcp_servers: vec![BaselineMcp::Exa],
+                    connectors: vec![
+                        "linear".to_string(),
+                        "gmail".to_string(),
+                        "calendar".to_string(),
+                        "drive".to_string(),
+                        "figma".to_string(),
+                        "stitch".to_string(),
+                    ],
+                    codex_surfaces: vec!["llm-dev-kit".to_string(), "company-skills".to_string()],
+                    gemini_surfaces: vec![
+                        "llm-bootstrap-dev".to_string(),
+                        "company-commands".to_string(),
+                    ],
+                    claude_surfaces: vec![
+                        "claude-skills".to_string(),
+                        "company-skills".to_string(),
+                    ],
+                    distribution_targets: vec![
+                        DistributionTarget::CodexPlugin,
+                        DistributionTarget::GeminiExtension,
+                        DistributionTarget::ClaudeSkills,
+                    ],
+                    description: "Founder and company operating pack.".to_string(),
+                },
+            ],
+            presets: vec![
+                PresetDefinition {
+                    name: "light".to_string(),
+                    packs: vec!["delivery-pack".to_string()],
+                    description: "Lean development baseline.".to_string(),
+                },
+                PresetDefinition {
+                    name: "normal".to_string(),
+                    packs: vec!["delivery-pack".to_string()],
+                    description: "Default development baseline.".to_string(),
+                },
+                PresetDefinition {
+                    name: "full".to_string(),
+                    packs: vec!["delivery-pack".to_string(), "founder-pack".to_string()],
+                    description: "Development and company packs.".to_string(),
+                },
+            ],
+            connectors: vec![
+                ConnectorDefinition {
+                    name: "github".to_string(),
+                    category: ConnectorCategory::Delivery,
+                    tool_source: ConnectorToolSource::App,
+                    access: ConnectorAccess::ReadWrite,
+                    approval: ConnectorApproval::OnWrite,
+                    automation_allowed: true,
+                    description: "Delivery context.".to_string(),
+                },
+                ConnectorDefinition {
+                    name: "linear".to_string(),
+                    category: ConnectorCategory::Delivery,
+                    tool_source: ConnectorToolSource::App,
+                    access: ConnectorAccess::ReadWrite,
+                    approval: ConnectorApproval::OnWrite,
+                    automation_allowed: true,
+                    description: "Project and roadmap context.".to_string(),
+                },
+                ConnectorDefinition {
+                    name: "gmail".to_string(),
+                    category: ConnectorCategory::Communication,
+                    tool_source: ConnectorToolSource::App,
+                    access: ConnectorAccess::ReadOnly,
+                    approval: ConnectorApproval::OnWrite,
+                    automation_allowed: true,
+                    description: "Inbox context.".to_string(),
+                },
+                ConnectorDefinition {
+                    name: "calendar".to_string(),
+                    category: ConnectorCategory::Communication,
+                    tool_source: ConnectorToolSource::App,
+                    access: ConnectorAccess::ReadOnly,
+                    approval: ConnectorApproval::OnWrite,
+                    automation_allowed: true,
+                    description: "Calendar context.".to_string(),
+                },
+                ConnectorDefinition {
+                    name: "drive".to_string(),
+                    category: ConnectorCategory::Knowledge,
+                    tool_source: ConnectorToolSource::App,
+                    access: ConnectorAccess::ReadOnly,
+                    approval: ConnectorApproval::OnWrite,
+                    automation_allowed: true,
+                    description: "Document context.".to_string(),
+                },
+                ConnectorDefinition {
+                    name: "figma".to_string(),
+                    category: ConnectorCategory::Design,
+                    tool_source: ConnectorToolSource::App,
+                    access: ConnectorAccess::ReadOnly,
+                    approval: ConnectorApproval::OnWrite,
+                    automation_allowed: false,
+                    description: "Design file context.".to_string(),
+                },
+                ConnectorDefinition {
+                    name: "stitch".to_string(),
+                    category: ConnectorCategory::Design,
+                    tool_source: ConnectorToolSource::App,
+                    access: ConnectorAccess::ReadOnly,
+                    approval: ConnectorApproval::OnWrite,
+                    automation_allowed: false,
+                    description: "Design exploration context.".to_string(),
+                },
+            ],
+            automations: vec![
+                AutomationDefinition {
+                    name: "daily-founder-brief".to_string(),
+                    cadence: AutomationCadence::Daily,
+                    packs: vec!["founder-pack".to_string()],
+                    connectors: vec![
+                        "linear".to_string(),
+                        "gmail".to_string(),
+                        "calendar".to_string(),
+                        "drive".to_string(),
+                    ],
+                    artifact: "Founder Brief".to_string(),
+                    description: "Daily founder brief.".to_string(),
+                },
+                AutomationDefinition {
+                    name: "weekly-operating-review".to_string(),
+                    cadence: AutomationCadence::Weekly,
+                    packs: vec!["founder-pack".to_string()],
+                    connectors: vec![
+                        "linear".to_string(),
+                        "gmail".to_string(),
+                        "calendar".to_string(),
+                        "drive".to_string(),
+                    ],
+                    artifact: "Operating Review".to_string(),
+                    description: "Weekly operating review.".to_string(),
+                },
+            ],
         }
+    }
+
+    fn test_active_harnesses() -> Vec<String> {
+        super::selected_harness_names(&test_manifest(), &["delivery-pack".to_string()])
+    }
+
+    fn test_active_surfaces() -> Vec<String> {
+        vec![
+            "delivery-skills".to_string(),
+            "delivery-commands".to_string(),
+        ]
+    }
+
+    #[test]
+    fn doctor_catalog_report_exposes_harnesses_and_packs() {
+        let manifest = test_manifest();
+        let active_packs = vec!["delivery-pack".to_string()];
+        let active_harnesses = test_active_harnesses();
+        let selection = super::ActiveSelection {
+            preset: Some("normal".to_string()),
+            packs: active_packs.clone(),
+            harnesses: active_harnesses.clone(),
+        };
+        let requested_mcp = super::selected_pack_mcp_names(&manifest, &active_packs);
+        let distribution_state =
+            super::ResolvedDistributionState::resolve(&manifest, &active_packs);
+        let report = super::doctor_catalog_report(
+            &manifest,
+            &selection,
+            &requested_mcp,
+            &requested_mcp,
+            &distribution_state,
+        );
+
+        assert_eq!(report.harnesses.len(), 6);
+        assert_eq!(report.packs.len(), 2);
+        assert_eq!(report.default_preset, "normal".to_string());
+        assert_eq!(report.active_preset, Some("normal".to_string()));
+        assert_eq!(report.active_packs, vec!["delivery-pack".to_string()]);
+        assert_eq!(
+            report.requested_mcp_servers,
+            vec!["chrome-devtools".to_string(), "context7".to_string()]
+        );
+        assert_eq!(
+            report.active_harnesses,
+            vec![
+                "ralph-loop".to_string(),
+                "ralph-plan".to_string(),
+                "delivery".to_string(),
+                "review-gate".to_string()
+            ]
+        );
+        assert_eq!(
+            report.active_connectors,
+            vec!["github".to_string(), "linear".to_string()]
+        );
+        assert!(report.active_automations.is_empty());
+        assert_eq!(
+            report.requested_distribution_targets,
+            vec![
+                "codex-plugin".to_string(),
+                "gemini-extension".to_string(),
+                "claude-skills".to_string()
+            ]
+        );
+        assert_eq!(
+            report.active_distribution_targets,
+            vec![
+                "codex-plugin".to_string(),
+                "gemini-extension".to_string(),
+                "claude-skills".to_string()
+            ]
+        );
+        assert_eq!(report.harnesses[0].name, "ralph-loop");
+        assert_eq!(report.harnesses[0].category, "core");
+        assert!(report.harnesses[0].default_enabled);
+        assert_eq!(report.packs[0].name, "delivery-pack");
+        assert_eq!(
+            report.packs[0].apps,
+            vec!["github".to_string(), "linear".to_string()]
+        );
+        assert_eq!(
+            report.packs[0].mcp_servers,
+            vec!["chrome-devtools".to_string(), "context7".to_string()]
+        );
+        assert_eq!(report.packs[0].scope, "development");
+        assert_eq!(report.packs[0].lane, "core");
+        assert!(report.packs[0].selected);
+        assert_eq!(report.connectors.len(), 7);
+        assert_eq!(report.automations.len(), 2);
+    }
+
+    #[test]
+    fn doctor_catalog_report_separates_requested_and_effective_targets() {
+        let manifest = test_manifest();
+        let active_packs = vec!["founder-pack".to_string()];
+        let active_harnesses = super::selected_harness_names(&manifest, &active_packs);
+        let selection = super::ActiveSelection {
+            preset: None,
+            packs: active_packs.clone(),
+            harnesses: active_harnesses.clone(),
+        };
+        let requested_mcp = super::selected_pack_mcp_names(&manifest, &active_packs);
+        let active_mcp = super::enabled_mcp_from_gates(
+            &manifest,
+            &[super::ResolvedEnvGate {
+                name: BaselineMcp::Exa,
+                env: "EXA_API_KEY".to_string(),
+                enabled: true,
+            }],
+            &requested_mcp,
+        );
+        let distribution_state =
+            super::ResolvedDistributionState::resolve(&manifest, &active_packs);
+        let report = super::doctor_catalog_report(
+            &manifest,
+            &selection,
+            &requested_mcp,
+            &active_mcp,
+            &distribution_state,
+        );
+
+        assert_eq!(
+            report.requested_distribution_targets,
+            vec![
+                "codex-plugin".to_string(),
+                "gemini-extension".to_string(),
+                "claude-skills".to_string()
+            ]
+        );
+        assert_eq!(report.requested_mcp_servers, vec!["exa".to_string()]);
+        assert_eq!(
+            report.active_distribution_targets,
+            vec![
+                "codex-plugin".to_string(),
+                "gemini-extension".to_string(),
+                "claude-skills".to_string()
+            ]
+        );
+        assert_eq!(
+            report.active_connectors,
+            vec![
+                "linear".to_string(),
+                "gmail".to_string(),
+                "calendar".to_string(),
+                "drive".to_string(),
+                "figma".to_string(),
+                "stitch".to_string()
+            ]
+        );
+        assert_eq!(
+            report.active_automations,
+            vec![
+                "daily-founder-brief".to_string(),
+                "weekly-operating-review".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn bootstrap_toml_parses_harnesses_and_packs() {
+        let path = crate::runtime::repo_root().join("bootstrap.toml");
+        let raw = fs::read_to_string(path).unwrap();
+        let manifest: BootstrapManifest = toml::from_str(&raw).unwrap();
+
+        assert!(manifest.bootstrap.default_preset == "normal");
+        assert!(
+            manifest
+                .harnesses
+                .iter()
+                .any(|harness| harness.name == "ralph-plan" && harness.default_enabled)
+        );
+        assert!(manifest.packs.iter().any(|pack| {
+            pack.name == "delivery-pack"
+                && pack.scope == PackScope::Development
+                && pack.apps.contains(&"linear".to_string())
+                && pack.mcp_servers.contains(&BaselineMcp::Context7)
+                && pack
+                    .distribution_targets
+                    .contains(&DistributionTarget::CodexPlugin)
+        }));
+        assert!(
+            manifest
+                .packs
+                .iter()
+                .any(|pack| pack.name == "founder-pack" && pack.scope == PackScope::Company)
+        );
+        assert!(
+            manifest
+                .presets
+                .iter()
+                .any(|preset| preset.name == "full"
+                    && preset.packs.contains(&"ops-pack".to_string()))
+        );
+        assert!(
+            manifest
+                .connectors
+                .iter()
+                .any(|connector| connector.name == "gmail")
+        );
+        assert!(
+            manifest
+                .connectors
+                .iter()
+                .any(|connector| connector.name == "linear")
+        );
+        assert!(
+            manifest
+                .connectors
+                .iter()
+                .any(|connector| connector.name == "figma")
+        );
+        assert!(
+            manifest
+                .automations
+                .iter()
+                .any(|automation| automation.name == "weekly-operating-review")
+        );
     }
 
     fn temp_home() -> PathBuf {
@@ -1185,8 +2408,9 @@ mod tests {
     }
 
     #[test]
-    fn codex_plugin_blocks_are_always_enabled() {
-        assert!(codex::plugin_blocks().contains("llm-dev-kit@llm-bootstrap"));
+    fn codex_plugin_blocks_follow_distribution_target_selection() {
+        assert!(codex::plugin_blocks(true).contains("llm-dev-kit@llm-bootstrap"));
+        assert!(codex::plugin_blocks(false).is_empty());
     }
 
     #[test]
@@ -1209,6 +2433,162 @@ mod tests {
         assert_eq!(
             providers,
             vec![super::Provider::Codex, super::Provider::Gemini]
+        );
+    }
+
+    #[test]
+    fn selected_pack_names_use_manifest_defaults() {
+        let selection = super::selected_pack_names(
+            &super::PackArgs {
+                preset: None,
+                packs: None,
+            },
+            &test_manifest(),
+        )
+        .unwrap();
+        assert_eq!(selection.preset, Some("normal".to_string()));
+        assert_eq!(selection.packs, vec!["delivery-pack".to_string()]);
+    }
+
+    #[test]
+    fn selected_pack_names_reject_unknown_values() {
+        let err = super::selected_pack_names(
+            &super::PackArgs {
+                preset: None,
+                packs: Some(vec!["missing-pack".to_string()]),
+            },
+            &test_manifest(),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("unknown pack"));
+    }
+
+    #[test]
+    fn selected_pack_names_resolve_named_preset() {
+        let selection = super::selected_pack_names(
+            &super::PackArgs {
+                preset: Some("full".to_string()),
+                packs: None,
+            },
+            &test_manifest(),
+        )
+        .unwrap();
+        assert_eq!(selection.preset, Some("full".to_string()));
+        assert_eq!(
+            selection.packs,
+            vec!["delivery-pack".to_string(), "founder-pack".to_string()]
+        );
+    }
+
+    #[test]
+    fn selected_distribution_targets_are_deduplicated_from_active_packs() {
+        let targets = super::selected_distribution_targets(
+            &test_manifest(),
+            &["delivery-pack".to_string(), "founder-pack".to_string()],
+        );
+        assert_eq!(
+            targets,
+            vec![
+                DistributionTarget::CodexPlugin,
+                DistributionTarget::GeminiExtension,
+                DistributionTarget::ClaudeSkills
+            ]
+        );
+    }
+
+    #[test]
+    fn selected_pack_mcp_names_follow_active_packs() {
+        let delivery =
+            super::selected_pack_mcp_names(&test_manifest(), &["delivery-pack".to_string()]);
+        let founder =
+            super::selected_pack_mcp_names(&test_manifest(), &["founder-pack".to_string()]);
+
+        assert_eq!(
+            delivery,
+            vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7]
+        );
+        assert_eq!(founder, vec![BaselineMcp::Exa]);
+    }
+
+    #[test]
+    fn enabled_mcp_from_gates_respects_requested_pack_mcp() {
+        let env_gates = vec![
+            super::ResolvedEnvGate {
+                name: BaselineMcp::Context7,
+                env: "CONTEXT7_API_KEY".to_string(),
+                enabled: true,
+            },
+            super::ResolvedEnvGate {
+                name: BaselineMcp::Exa,
+                env: "EXA_API_KEY".to_string(),
+                enabled: true,
+            },
+        ];
+
+        let delivery = super::enabled_mcp_from_gates(
+            &test_manifest(),
+            &env_gates,
+            &[BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
+        );
+        let company =
+            super::enabled_mcp_from_gates(&test_manifest(), &env_gates, &[BaselineMcp::Exa]);
+
+        assert_eq!(
+            delivery,
+            vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7]
+        );
+        assert_eq!(company, vec![BaselineMcp::Exa]);
+    }
+
+    #[test]
+    fn effective_distribution_targets_drop_dev_surfaces_for_company_only_harnesses() {
+        let active_packs = vec!["founder-pack".to_string()];
+        let targets = super::effective_distribution_targets(&test_manifest(), &active_packs);
+        assert_eq!(
+            targets,
+            vec![
+                DistributionTarget::CodexPlugin,
+                DistributionTarget::GeminiExtension,
+                DistributionTarget::ClaudeSkills
+            ]
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_unknown_pack_harness() {
+        let mut manifest = test_manifest();
+        manifest.packs[0].harnesses.push("not-real".to_string());
+
+        let err = super::validate_manifest(&manifest).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("references unknown harness not-real")
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_missing_default_preset() {
+        let mut manifest = test_manifest();
+        manifest.bootstrap.default_preset = "missing".to_string();
+
+        let err = super::validate_manifest(&manifest).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("default preset missing is not declared")
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_unknown_pack_connector() {
+        let mut manifest = test_manifest();
+        manifest.packs[0]
+            .connectors
+            .push("missing-connector".to_string());
+
+        let err = super::validate_manifest(&manifest).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("pack delivery-pack references unknown connector missing-connector")
         );
     }
 
@@ -1351,7 +2731,13 @@ mod tests {
     #[test]
     fn enabled_mcp_turns_on_env_gated_entries_only_when_keys_exist() {
         let manifest = test_manifest();
-        let enabled = super::resolve_enabled_mcp_with(&manifest, |name| name == "EXA_API_KEY");
+        let requested = vec![
+            BaselineMcp::ChromeDevtools,
+            BaselineMcp::Context7,
+            BaselineMcp::Exa,
+        ];
+        let gates = super::resolved_env_gates(&manifest, |name| name == "EXA_API_KEY");
+        let enabled = super::enabled_mcp_from_gates(&manifest, &gates, &requested);
 
         assert!(enabled.contains(&BaselineMcp::ChromeDevtools));
         assert!(enabled.contains(&BaselineMcp::Exa));
@@ -1560,10 +2946,24 @@ mod tests {
         let manifest = test_manifest();
 
         let enabled = vec![BaselineMcp::ChromeDevtools];
-        codex::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
+        codex::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
         let codex_home = home.join(".codex");
         assert!(codex_home.join("config.toml").exists());
         assert!(codex_home.join("AGENTS.md").exists());
+        assert!(
+            codex_home
+                .join("plugins/llm-dev-kit/.codex-plugin/plugin.json")
+                .exists()
+        );
         assert!(!codex_home.join("RTK.md").exists());
 
         codex::uninstall(&home, false).unwrap();
@@ -1603,13 +3003,8 @@ mod tests {
     fn codex_restore_recovers_latest_backup() {
         let home = temp_home();
         let codex_home = home.join(".codex");
-        fs::create_dir_all(codex_home.join("vendor_imports/skills")).unwrap();
+        fs::create_dir_all(&codex_home).unwrap();
         fs::write(codex_home.join("AGENTS.md"), "old codex agents").unwrap();
-        fs::write(
-            codex_home.join("vendor_imports/skills/README.md"),
-            "legacy skill cache",
-        )
-        .unwrap();
 
         codex::install(
             &home,
@@ -1617,7 +3012,8 @@ mod tests {
             &test_manifest(),
             &[BaselineMcp::ChromeDevtools],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
@@ -1625,7 +3021,6 @@ mod tests {
             fs::read_to_string(codex_home.join("AGENTS.md")).unwrap(),
             "old codex agents"
         );
-        assert!(!codex_home.join("vendor_imports/skills/README.md").exists());
 
         codex::restore(&home, None).unwrap();
 
@@ -1633,30 +3028,86 @@ mod tests {
             fs::read_to_string(codex_home.join("AGENTS.md")).unwrap(),
             "old codex agents"
         );
-        assert!(codex_home.join("vendor_imports/skills/README.md").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
 
     #[test]
-    fn codex_replace_removes_known_legacy_paths() {
+    fn codex_install_skips_plugin_assets_when_distribution_target_is_disabled() {
         let home = temp_home();
         let manifest = test_manifest();
-        let legacy_root = home.join(".codex/vendor_imports/skills");
-        fs::create_dir_all(&legacy_root).unwrap();
-        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
 
         codex::install(
             &home,
-            ApplyMode::Replace,
+            ApplyMode::Merge,
             &manifest,
-            &[BaselineMcp::ChromeDevtools],
+            &enabled,
             false,
             false,
+            &test_active_surfaces(),
         )
         .unwrap();
 
-        assert!(!legacy_root.exists());
+        let codex_home = home.join(".codex");
+        let config = fs::read_to_string(codex_home.join("config.toml")).unwrap();
+        assert!(!config.contains("llm-dev-kit@llm-bootstrap"));
+        assert!(!codex_home.join(".agents/plugins/marketplace.json").exists());
+        assert!(!codex_home.join("plugins/llm-dev-kit").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn codex_install_slices_plugin_skills_by_active_surfaces() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+        let incident_only = vec!["incident-skills".to_string()];
+
+        codex::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &incident_only,
+        )
+        .unwrap();
+
+        let codex_home = home.join(".codex");
+        assert!(
+            codex_home
+                .join("plugins/llm-dev-kit/.codex-plugin/plugin.json")
+                .exists()
+        );
+        assert!(
+            codex_home
+                .join("plugins/llm-dev-kit/skills/investigate/SKILL.md")
+                .exists()
+        );
+        assert!(
+            codex_home
+                .join("plugins/llm-dev-kit/skills/repo-radar/SKILL.md")
+                .exists()
+        );
+        assert!(
+            !codex_home
+                .join("plugins/llm-dev-kit/skills/autopilot/SKILL.md")
+                .exists()
+        );
+        assert!(
+            !codex_home
+                .join("plugins/llm-dev-kit/skills/delivery-loop/SKILL.md")
+                .exists()
+        );
+        assert!(
+            !codex_home
+                .join("plugins/llm-dev-kit/skills/qa-browser/SKILL.md")
+                .exists()
+        );
+
         fs::remove_dir_all(home).unwrap();
     }
 
@@ -1673,7 +3124,16 @@ mod tests {
         .unwrap();
 
         let enabled = vec![BaselineMcp::ChromeDevtools];
-        gemini::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
         let installed = fs::read_to_string(gemini_home.join("settings.json")).unwrap();
         assert!(installed.contains("/tmp/custom-run-shell.sh"));
         assert!(gemini_home.join("GEMINI.md").exists());
@@ -1700,6 +3160,48 @@ mod tests {
     }
 
     #[test]
+    fn gemini_uninstall_preserves_other_extension_enablement_and_removes_bundle_docs() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let gemini_home = home.join(".gemini");
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+        fs::write(
+            gemini_home.join("llm-bootstrap-state.json"),
+            "{\n  \"managed_mcp\": [\"chrome-devtools\"]\n}\n",
+        )
+        .unwrap();
+        fs::write(
+            gemini_home.join("extensions/extension-enablement.json"),
+            "{\n  \"llm-bootstrap-dev\": {\"overrides\": [\"/tmp/*\"]},\n  \"other-extension\": {\"overrides\": [\"/opt/*\"]}\n}\n",
+        )
+        .unwrap();
+
+        gemini::uninstall(&home, &manifest, false).unwrap();
+
+        let enablement: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(gemini_home.join("extensions/extension-enablement.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(enablement.get("llm-bootstrap-dev").is_none());
+        assert!(enablement.get("other-extension").is_some());
+        assert!(!gemini_home.join("WORKFLOW.md").exists());
+        assert!(!gemini_home.join("SHIP_CHECKLIST.md").exists());
+        assert!(!gemini_home.join("llm-bootstrap-state.json").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn gemini_merge_preserves_unmanaged_mcp_servers() {
         let home = temp_home();
         let manifest = test_manifest();
@@ -1717,7 +3219,8 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
@@ -1749,7 +3252,8 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
@@ -1759,33 +3263,6 @@ mod tests {
         assert!(after["mcpServers"].get("legacy-memory").is_none());
         assert!(after["mcpServers"].get("manual-tool").is_none());
         assert!(after["mcpServers"].get("chrome-devtools").is_some());
-
-        fs::remove_dir_all(home).unwrap();
-    }
-
-    #[test]
-    fn gemini_merge_cleans_up_legacy_markdown_commands() {
-        let home = temp_home();
-        let manifest = test_manifest();
-        let commands_dir = home.join(".gemini/extensions/llm-bootstrap-dev/commands");
-        fs::create_dir_all(&commands_dir).unwrap();
-        fs::write(commands_dir.join("doctor.md"), "# old").unwrap();
-        fs::write(commands_dir.join("intent.md"), "# old").unwrap();
-
-        gemini::install(
-            &home,
-            ApplyMode::Merge,
-            &manifest,
-            &[BaselineMcp::ChromeDevtools],
-            false,
-            false,
-        )
-        .unwrap();
-
-        assert!(!commands_dir.join("doctor.md").exists());
-        assert!(!commands_dir.join("intent.md").exists());
-        assert!(commands_dir.join("doctor.toml").exists());
-        assert!(commands_dir.join("intent.toml").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -1801,7 +3278,8 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
@@ -1814,63 +3292,14 @@ mod tests {
     }
 
     #[test]
-    fn gemini_preserves_legacy_extension_without_cleanup_opt_in() {
-        let home = temp_home();
-        let manifest = test_manifest();
-        let legacy_root = home.join(".gemini/extensions/oh-my-gemini-cli");
-        fs::create_dir_all(&legacy_root).unwrap();
-        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
-
-        gemini::install(
-            &home,
-            ApplyMode::Merge,
-            &manifest,
-            &[BaselineMcp::ChromeDevtools],
-            false,
-            false,
-        )
-        .unwrap();
-
-        assert!(legacy_root.join("README.md").exists());
-        fs::remove_dir_all(home).unwrap();
-    }
-
-    #[test]
-    fn gemini_cleanup_legacy_opt_in_removes_old_extension() {
-        let home = temp_home();
-        let manifest = test_manifest();
-        let legacy_root = home.join(".gemini/extensions/oh-my-gemini-cli");
-        fs::create_dir_all(&legacy_root).unwrap();
-        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
-
-        gemini::install(
-            &home,
-            ApplyMode::Merge,
-            &manifest,
-            &[BaselineMcp::ChromeDevtools],
-            false,
-            true,
-        )
-        .unwrap();
-
-        assert!(!legacy_root.exists());
-        fs::remove_dir_all(home).unwrap();
-    }
-
-    #[test]
     fn gemini_restore_recovers_latest_backup() {
         let home = temp_home();
         let manifest = test_manifest();
         let gemini_home = home.join(".gemini");
-        fs::create_dir_all(gemini_home.join("extensions/oh-my-gemini-cli")).unwrap();
+        fs::create_dir_all(&gemini_home).unwrap();
         fs::write(
             gemini_home.join("settings.json"),
             "{\n  \"mcpServers\": {\"manual-tool\": {\"command\": \"manual-tool\"}},\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
-        )
-        .unwrap();
-        fs::write(
-            gemini_home.join("extensions/oh-my-gemini-cli/README.md"),
-            "legacy gemini extension",
         )
         .unwrap();
 
@@ -1880,7 +3309,8 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
@@ -1888,11 +3318,6 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
                 .unwrap();
         assert!(after_replace["mcpServers"].get("manual-tool").is_none());
-        assert!(
-            !gemini_home
-                .join("extensions/oh-my-gemini-cli/README.md")
-                .exists()
-        );
 
         gemini::restore(&home, None).unwrap();
 
@@ -1900,34 +3325,44 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
                 .unwrap();
         assert!(restored["mcpServers"].get("manual-tool").is_some());
-        assert!(
-            gemini_home
-                .join("extensions/oh-my-gemini-cli/README.md")
-                .exists()
-        );
 
         fs::remove_dir_all(home).unwrap();
     }
 
     #[test]
-    fn gemini_replace_removes_old_extension() {
+    fn gemini_install_skips_extension_assets_when_distribution_target_is_disabled() {
         let home = temp_home();
         let manifest = test_manifest();
-        let legacy_root = home.join(".gemini/extensions/oh-my-gemini-cli");
-        fs::create_dir_all(&legacy_root).unwrap();
-        fs::write(legacy_root.join("README.md"), "legacy").unwrap();
 
         gemini::install(
             &home,
-            ApplyMode::Replace,
+            ApplyMode::Merge,
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
             false,
+            &test_active_surfaces(),
         )
         .unwrap();
 
-        assert!(!legacy_root.exists());
+        let gemini_home = home.join(".gemini");
+        assert!(gemini_home.join("GEMINI.md").exists());
+        assert!(
+            !gemini_home
+                .join("extensions/llm-bootstrap-dev/gemini-extension.json")
+                .exists()
+        );
+        assert!(
+            !gemini_home
+                .join("extensions/llm-bootstrap-dev/commands/autopilot.toml")
+                .exists()
+        );
+        let enablement = gemini_home.join("extensions/extension-enablement.json");
+        if enablement.exists() {
+            let raw = fs::read_to_string(enablement).unwrap();
+            assert!(!raw.contains("llm-bootstrap-dev"));
+        }
+
         fs::remove_dir_all(home).unwrap();
     }
 
@@ -1941,7 +3376,16 @@ mod tests {
         let manifest = test_manifest();
         let enabled = vec![BaselineMcp::ChromeDevtools];
 
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
         let claude_home = home.join(".claude");
         assert!(claude_home.join("CLAUDE.md").exists());
         assert!(claude_home.join("scripts/chrome-devtools-mcp.sh").exists());
@@ -1962,6 +3406,42 @@ mod tests {
     }
 
     #[test]
+    fn claude_uninstall_removes_bundle_docs_agents_and_state() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+
+        let claude_home = home.join(".claude");
+        assert!(claude_home.join("WORKFLOW.md").exists());
+        assert!(claude_home.join("AUTOPILOT.md").exists());
+        assert!(claude_home.join("agents/planner.md").exists());
+        assert!(claude_home.join("llm-bootstrap-state.json").exists());
+
+        claude::uninstall(&home, &[BaselineMcp::ChromeDevtools], false).unwrap();
+
+        assert!(!claude_home.join("WORKFLOW.md").exists());
+        assert!(!claude_home.join("AUTOPILOT.md").exists());
+        assert!(!claude_home.join("agents/planner.md").exists());
+        assert!(!claude_home.join("llm-bootstrap-state.json").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn claude_merge_removes_now_disabled_managed_mcp() {
         if !crate::runtime::command_exists("claude") {
             return;
@@ -1976,7 +3456,8 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
@@ -1986,7 +3467,8 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
@@ -2008,7 +3490,16 @@ mod tests {
         let manifest = test_manifest();
         let enabled = vec![BaselineMcp::ChromeDevtools];
 
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
         std::process::Command::new("claude")
             .env("HOME", &home)
             .args([
@@ -2050,7 +3541,16 @@ mod tests {
         )
         .unwrap();
 
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
         assert!(home.join(".claude/skills/autopilot/SKILL.md").exists());
         assert!(unmanaged_skill.join("SKILL.md").exists());
 
@@ -2087,69 +3587,21 @@ mod tests {
             .status()
             .unwrap();
 
-        claude::install(&home, ApplyMode::Replace, &manifest, &enabled, false, false).unwrap();
+        claude::install(
+            &home,
+            ApplyMode::Replace,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
 
         let mcp = claude::claude_user_mcp(&home).unwrap();
         assert!(mcp["mcpServers"].get("manual-tool").is_none());
         assert!(mcp["mcpServers"].get("chrome-devtools").is_some());
 
-        fs::remove_dir_all(home).unwrap();
-    }
-
-    #[test]
-    fn claude_preserves_legacy_omc_state_without_cleanup_opt_in() {
-        if !crate::runtime::command_exists("claude") {
-            return;
-        }
-
-        let home = temp_home();
-        let manifest = test_manifest();
-        let enabled = vec![BaselineMcp::ChromeDevtools];
-        let legacy_root = home.join(".claude/.omc");
-        fs::create_dir_all(&legacy_root).unwrap();
-        fs::write(legacy_root.join("state.json"), "{}").unwrap();
-
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, false).unwrap();
-
-        assert!(legacy_root.join("state.json").exists());
-        fs::remove_dir_all(home).unwrap();
-    }
-
-    #[test]
-    fn claude_cleanup_legacy_opt_in_removes_known_omc_state() {
-        if !crate::runtime::command_exists("claude") {
-            return;
-        }
-
-        let home = temp_home();
-        let manifest = test_manifest();
-        let enabled = vec![BaselineMcp::ChromeDevtools];
-        let legacy_root = home.join(".claude/.omc");
-        fs::create_dir_all(&legacy_root).unwrap();
-        fs::write(legacy_root.join("state.json"), "{}").unwrap();
-
-        claude::install(&home, ApplyMode::Merge, &manifest, &enabled, false, true).unwrap();
-
-        assert!(!legacy_root.exists());
-        fs::remove_dir_all(home).unwrap();
-    }
-
-    #[test]
-    fn claude_replace_removes_known_omc_state() {
-        if !crate::runtime::command_exists("claude") {
-            return;
-        }
-
-        let home = temp_home();
-        let manifest = test_manifest();
-        let enabled = vec![BaselineMcp::ChromeDevtools];
-        let legacy_root = home.join(".claude/.omc");
-        fs::create_dir_all(&legacy_root).unwrap();
-        fs::write(legacy_root.join("state.json"), "{}").unwrap();
-
-        claude::install(&home, ApplyMode::Replace, &manifest, &enabled, false, false).unwrap();
-
-        assert!(!legacy_root.exists());
         fs::remove_dir_all(home).unwrap();
     }
 
@@ -2161,8 +3613,6 @@ mod tests {
 
         let home = temp_home();
         let manifest = test_manifest();
-        fs::create_dir_all(home.join(".claude/.omc")).unwrap();
-        fs::write(home.join(".claude/.omc/state.json"), "{}").unwrap();
         fs::write(
             home.join(".claude.json"),
             "{\n  \"mcpServers\": {\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  }\n}\n",
@@ -2175,19 +3625,46 @@ mod tests {
             &manifest,
             &[BaselineMcp::ChromeDevtools],
             false,
-            false,
+            true,
+            &test_active_surfaces(),
         )
         .unwrap();
 
         let replaced = claude::claude_user_mcp(&home).unwrap();
         assert!(replaced["mcpServers"].get("manual-tool").is_none());
-        assert!(!home.join(".claude/.omc/state.json").exists());
 
         claude::restore(&home, None).unwrap();
 
         let restored = claude::claude_user_mcp(&home).unwrap();
         assert!(restored["mcpServers"].get("manual-tool").is_some());
-        assert!(home.join(".claude/.omc/state.json").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_install_skips_managed_skills_when_distribution_target_is_disabled() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            false,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+
+        let claude_home = home.join(".claude");
+        assert!(claude_home.join("CLAUDE.md").exists());
+        assert!(!claude_home.join("skills/autopilot").exists());
+        assert!(!claude_home.join("skills/review").exists());
 
         fs::remove_dir_all(home).unwrap();
     }

@@ -26,25 +26,11 @@ pub(crate) enum ApplyMode {
     Replace,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum CleanupTarget {
-    Legacy,
-}
-
 impl ApplyMode {
     pub(crate) fn name(self) -> &'static str {
         match self {
             ApplyMode::Merge => "merge",
             ApplyMode::Replace => "replace",
-        }
-    }
-}
-
-impl CleanupTarget {
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            CleanupTarget::Legacy => "legacy",
         }
     }
 }
@@ -61,7 +47,6 @@ impl Provider {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
-    #[command(visible_alias = "apply")]
     Install(InstallArgs),
     Restore(RestoreArgs),
     Backups(BackupsArgs),
@@ -81,9 +66,27 @@ pub(crate) struct ProviderArgs {
 }
 
 #[derive(clap::Args, Clone)]
+pub(crate) struct PackArgs {
+    #[arg(
+        long,
+        conflicts_with = "packs",
+        help = "Preset alias such as light, normal, full, or company"
+    )]
+    pub(crate) preset: Option<String>,
+    #[arg(
+        long,
+        value_delimiter = ',',
+        help = "Explicit pack list. Defaults to bootstrap.default_preset"
+    )]
+    pub(crate) packs: Option<Vec<String>>,
+}
+
+#[derive(clap::Args, Clone)]
 pub(crate) struct InstallArgs {
     #[command(flatten)]
     pub(crate) provider_args: ProviderArgs,
+    #[command(flatten)]
+    pub(crate) pack_args: PackArgs,
     #[arg(
         long,
         value_enum,
@@ -95,13 +98,6 @@ pub(crate) struct InstallArgs {
         help = "Skip RTK official init even if enabled in bootstrap.toml"
     )]
     pub(crate) without_rtk: bool,
-    #[arg(
-        long,
-        value_enum,
-        value_delimiter = ',',
-        help = "Optional cleanup passes to run before install"
-    )]
-    pub(crate) cleanup: Option<Vec<CleanupTarget>>,
     #[arg(long, help = "Show the planned install without writing files")]
     pub(crate) dry_run: bool,
 }
@@ -142,6 +138,8 @@ pub(crate) struct BackupsArgs {
 pub(crate) struct DoctorArgs {
     #[command(flatten)]
     pub(crate) provider_args: ProviderArgs,
+    #[command(flatten)]
+    pub(crate) pack_args: PackArgs,
     #[arg(long, help = "Skip RTK checks even if enabled in bootstrap.toml")]
     pub(crate) without_rtk: bool,
     #[arg(long, help = "Emit doctor results as JSON")]

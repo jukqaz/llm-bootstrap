@@ -1,0 +1,35 @@
+id = "mini_swe_agent"
+name = "mini-swe-agent"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["benchmark", "minimal-runtime", "sandboxing"]
+weight = "optional"
+summary = "Strong reference for the recent trend that simpler bash-first agents can outperform heavier scaffolds."
+
+urls = [
+  "https://github.com/SWE-agent/mini-swe-agent"
+]
+
+capabilities = [
+  "minimal bash-first coding agent",
+  "benchmarkable baseline",
+  "easy sandboxing and deployment"
+]
+
+adoptable_parts = [
+  "prefer simpler agent loops where possible",
+  "keep scaffolding small when model capability already covers the job",
+  "treat bash and isolation as first-class primitives"
+]
+
+do_not_copy = [
+  "benchmark-specific assumptions as the only runtime model",
+  "removing useful provider-native surfaces just to chase minimalism"
+]
+
+[[evidence]]
+label = "mini-swe-agent README"
+url = "https://github.com/SWE-agent/mini-swe-agent"
+note = "The project argues that a very small bash-only agent can remain highly competitive and easier to sandbox and debug."
+

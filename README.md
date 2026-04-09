@@ -7,9 +7,9 @@ provider auth tokens or project-level files. It applies a small, reproducible
 baseline for MCP wiring, workflow docs, native skills or commands, and RTK
 integration.
 
-## Install now
+## Install
 
-Current release: `v0.1.6`
+Current release: `v0.1.7`
 
 Default path: run the wizard first.
 
@@ -31,12 +31,25 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 English:
 - [README.md](README.md)
 - [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
-- [docs/legacy-migration.md](docs/legacy-migration.md)
+- [docs/direction-review.md](docs/direction-review.md)
+- [docs/business-ops-blueprint.md](docs/business-ops-blueprint.md)
+- [docs/dev-company-operating-model.md](docs/dev-company-operating-model.md)
+- [docs/external-tool-landscape.md](docs/external-tool-landscape.md)
+- [docs/official-best-practices.md](docs/official-best-practices.md)
+- [docs/recent-signal-scan.md](docs/recent-signal-scan.md)
+- [docs/provider-surface-strategy.md](docs/provider-surface-strategy.md)
 
 Korean:
 - [README.ko.md](README.ko.md)
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
-- [docs/legacy-migration.ko.md](docs/legacy-migration.ko.md)
+- [docs/direction-review.ko.md](docs/direction-review.ko.md)
+- [docs/business-ops-blueprint.ko.md](docs/business-ops-blueprint.ko.md)
+- [docs/external-tool-landscape.ko.md](docs/external-tool-landscape.ko.md)
+- [docs/provider-surface-strategy.ko.md](docs/provider-surface-strategy.ko.md)
+
+Reference data:
+- [catalog/sources/README.md](catalog/sources/README.md)
+- [catalog/sources/index.toml](catalog/sources/index.toml)
 
 ## Scope
 
@@ -78,7 +91,9 @@ The default baseline is intentionally small.
   - native custom commands
   - workflow docs and lightweight agent pack
 - Claude Code:
-  - user-scope docs, skills, and lightweight agent pack
+  - official MCP registration
+  - lightweight subagent docs
+  - workflow skill pack
 
 This repository does not ship project-specific MCP such as payment, internal,
 or app-specific tools. In `merge` mode, unmanaged MCP already present in a
@@ -88,7 +103,7 @@ user's local home stays intact.
 
 - backups are created before `install`, `replace`, `restore`, and `uninstall`
 - `merge` preserves unmanaged assets
-- `replace` resets managed assets and removes known legacy traces
+- `replace` resets managed assets
 - `restore` replays a selected backup after creating a fresh backup first
 - env-gated MCP stay disabled until the required env is available
 
@@ -139,7 +154,7 @@ Disable RTK for any command with:
 cargo run -- install --without-rtk
 ```
 
-## Install
+## Install usage
 
 Fastest path on macOS or Linux:
 
@@ -169,7 +184,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.6 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.7 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
@@ -188,7 +203,97 @@ cargo run -- install --providers gemini
 cargo run -- install --providers claude
 cargo run -- install --providers codex,gemini
 cargo run -- install --providers codex,gemini,claude
+cargo run -- install --providers codex,gemini --preset light
+cargo run -- install --providers codex,gemini,claude --preset full
 ```
+
+`doctor --json` now exposes both the requested preset state and the last
+installed home state through `installed_preset`, `installed_packs`, and
+`state_mismatch`. That makes preset drift visible before you reinstall.
+
+## Preset menus
+
+Like the `oh-my` style set menus, `llm-bootstrap` now exposes user-facing
+presets. The internal source of truth remains `pack`, and presets are only
+aliases over pack groups.
+
+- `light`
+  - `delivery-pack`
+- `normal`
+  - `delivery-pack`, `incident-pack`
+- `full`
+  - `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
+- `company`
+  - `founder-pack`, `ops-pack`
+
+`company` and `full` now render actual company-operation assets into the
+provider-native surfaces, not just metadata.
+
+- `RALPH_PLAN.md`
+- `FOUNDER_LOOP.md`
+- `OPERATING_REVIEW.md`
+- `CONNECTORS.md`
+- `AUTOMATIONS.md`
+- Codex skills, Gemini commands, and Claude skills for the company lanes
+
+Examples:
+
+```bash
+cargo run -- install --providers codex,gemini --preset normal
+cargo run -- install --providers codex,gemini,claude --preset full
+cargo run -- doctor --providers codex,gemini --preset company --json
+```
+
+If you need exact control, continue to use `--packs delivery-pack,incident-pack`.
+Do not combine `--preset` and `--packs`.
+
+### Preset capability mapping
+
+Each preset now resolves as a concrete `pack -> apps -> MCP -> provider surface`
+composition, not just a document bundle.
+
+- `light`
+  - packs: `delivery-pack`
+  - apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - surfaces:
+    - Codex: `llm-dev-kit`, `delivery-skills`
+    - Gemini: `llm-bootstrap-dev`, `delivery-commands`
+    - Claude: `claude-skills`, `delivery-skills`
+- `normal`
+  - packs: `delivery-pack`, `incident-pack`
+  - apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - surfaces:
+    - Codex: `delivery-skills`, `incident-skills`
+    - Gemini: `delivery-commands`, `incident-commands`
+    - Claude: `delivery-skills`, `incident-skills`
+- `full`
+  - packs: `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
+  - apps: `github`, `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - MCP: `chrome-devtools`, `context7`, `exa`
+  - surfaces:
+    - Codex: development and company skills
+    - Gemini: development and company commands
+    - Claude: development and company skills
+- `company`
+  - packs: `founder-pack`, `ops-pack`
+  - apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - MCP: `exa`
+  - surfaces:
+    - Codex: company skills
+    - Gemini: company commands
+    - Claude: company skills
+
+`doctor --json` exposes the same pack mapping directly. At the current stage,
+apps and MCP are wired through pack metadata and doctor reporting, while
+provider surfaces remain the main slicing contract for install behavior.
+
+Known gaps:
+
+- connector health and auth checks are still metadata-first
+- recurring automation registration is documented, but not created automatically
+- uninstall and restore are provider-safe, but not fully pack-projected yet
 
 Mode examples:
 
@@ -198,7 +303,7 @@ cargo run -- install --providers gemini --mode merge --without-rtk
 cargo run -- install --providers codex,gemini --mode replace --dry-run
 ```
 
-Status and cleanup:
+Status and removal:
 
 ```bash
 cargo run -- doctor --providers codex,gemini,claude --json
@@ -237,29 +342,11 @@ Wizard env reuse order:
 `merge`
 - preserves unmanaged MCP
 - refreshes bootstrap-managed files
-- preserves previous unmanaged assets, including old oh-my or OMC traces
-
-If an older install leaves conflicting commands, skills, or extensions behind,
-delete those paths manually or use `replace`.
 
 `replace`
 - removes managed bootstrap files first
 - keeps only the current baseline MCP set
 - preserves known auth or session state where supported
-- also removes known legacy oh-my or OMC artifacts for the selected providers
-
-Optional legacy cleanup for `merge`:
-
-```bash
-cargo run -- install --providers codex,gemini,claude --cleanup legacy
-```
-
-This is off by default for `merge`. Use it when you explicitly want to remove
-known legacy artifacts from older oh-my or OMC style installs while keeping
-normal unmanaged assets intact.
-
-Migration guide:
-- [docs/legacy-migration.md](docs/legacy-migration.md)
 
 ## Backup and restore
 
@@ -291,7 +378,7 @@ cargo run -- restore --providers codex,gemini --backup llm-bootstrap-1712550000 
 ```
 
 The restore command first backs up the current state again, then restores the
-selected backup for bootstrap-managed files and known legacy cleanup targets.
+selected backup for bootstrap-managed files.
 
 ## Repository layout
 

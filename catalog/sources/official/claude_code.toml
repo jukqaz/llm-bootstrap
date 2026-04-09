@@ -1,0 +1,93 @@
+id = "claude_code"
+name = "Claude Code"
+source_type = "official"
+status = "active"
+provider_scope = ["claude"]
+categories = ["runtime", "provider-surface", "mcp", "workflow"]
+weight = "core"
+summary = "Primary source for subagent-first Claude integration with official MCP and hook flows."
+
+urls = [
+  "https://docs.anthropic.com/en/docs/claude-code/sub-agents",
+  "https://docs.anthropic.com/en/docs/claude-code/mcp",
+  "https://docs.anthropic.com/en/docs/claude-code/hooks-guide",
+  "https://docs.anthropic.com/en/docs/claude-code/hooks"
+]
+
+native_surfaces = [
+  "subagents",
+  "MCP",
+  "hooks",
+  "settings.json",
+  "scope hierarchy",
+  ".mcp.json"
+]
+
+capabilities = [
+  "task-specific subagents with separate context windows",
+  "official MCP registration and output management",
+  "deterministic hook execution",
+  "user or project scope configuration"
+]
+
+adoptable_parts = [
+  "treat subagents plus MCP plus hooks as the Claude base",
+  "keep workflow skills as a secondary packaging layer",
+  "stay on official Claude CLI registration paths for MCP"
+]
+
+do_not_copy = [
+  "Codex plugin packaging into Claude",
+  "heavy custom runtime layers that compete with Claude's native subagent and hook model"
+]
+
+[[evidence]]
+label = "Claude subagents"
+url = "https://docs.anthropic.com/en/docs/claude-code/sub-agents"
+note = "Anthropic documents subagents as task-specific assistants with separate context windows and tool permissions."
+
+[[evidence]]
+label = "Claude MCP guide"
+url = "https://docs.anthropic.com/en/docs/claude-code/mcp"
+note = "Anthropic documents official MCP connectivity and token-usage handling for large MCP outputs."
+
+[[evidence]]
+label = "Claude hooks guide"
+url = "https://docs.anthropic.com/en/docs/claude-code/hooks-guide"
+note = "Hooks are presented as deterministic lifecycle controls that execute outside normal prompting."
+
+[[evidence]]
+label = "Claude hooks reference"
+url = "https://docs.anthropic.com/en/docs/claude-code/hooks"
+note = "Hooks are configured through Claude settings files with explicit user and project scope precedence."
+
+[[recommended_article]]
+title = "Claude Code settings"
+url = "https://code.claude.com/docs/en/settings"
+focus = "settings and permissions"
+why_it_matters = "Defines hierarchical settings, permissions.deny, subagent locations, and plugin behavior."
+
+[[recommended_article]]
+title = "Create custom subagents"
+url = "https://code.claude.com/docs/en/sub-agents"
+focus = "subagent design"
+why_it_matters = "Explains focused subagent design, limited tool access, memory scope, and versioned subagent files."
+
+[[recommended_article]]
+title = "Hooks reference"
+url = "https://code.claude.com/docs/en/hooks"
+focus = "hooks safety and execution"
+why_it_matters = "Documents hook events, security best practices, and runtime behavior such as parallel execution and snapshots."
+
+[[recommended_article]]
+title = "Get started with Claude Code hooks"
+url = "https://docs.anthropic.com/en/docs/claude-code/hooks-guide"
+focus = "workflow automation"
+why_it_matters = "Provides practical hook examples for formatting, notifications, logging, and protection workflows."
+
+[[recommended_article]]
+title = "Connect Claude Code to tools via MCP"
+url = "https://docs.anthropic.com/en/docs/claude-code/mcp"
+focus = "official MCP usage"
+why_it_matters = "Defines scope handling, team-shared .mcp.json usage, approval flow, and MCP output token limits."
+

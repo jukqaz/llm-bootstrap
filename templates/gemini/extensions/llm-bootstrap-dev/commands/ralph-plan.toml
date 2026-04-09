@@ -1,0 +1,14 @@
+description = "Create the explicit Ralph Plan contract before execution."
+prompt = """
+Use this command when the next step needs an explicit plan artifact.
+
+Required output:
+- Goal
+- Requested outcome
+- Bounded scope
+- Owners
+- Connectors and evidence
+- Approval boundary
+- Verification rule
+- Next slice
+"""

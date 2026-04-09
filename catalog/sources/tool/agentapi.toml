@@ -1,0 +1,33 @@
+id = "agentapi"
+name = "AgentAPI"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["adapter", "orchestration", "interoperability"]
+weight = "optional"
+summary = "Useful interoperability layer when one system needs to control multiple coding agents through a single API."
+
+urls = [
+  "https://github.com/coder/agentapi"
+]
+
+capabilities = [
+  "unified HTTP API for multiple coding agents",
+  "backend for agent-over-agent control",
+  "cross-agent automation"
+]
+
+adoptable_parts = [
+  "universal adapter thinking for future advanced lanes",
+  "clear separation between agent runtime and control plane"
+]
+
+do_not_copy = [
+  "API control plane into bootstrap core before local renderer and harness catalogs are stable"
+]
+
+[[evidence]]
+label = "AgentAPI README"
+url = "https://github.com/coder/agentapi"
+note = "AgentAPI explicitly targets control of Claude Code, Goose, Aider, Gemini, Codex, and other coding agents from one HTTP API."
+

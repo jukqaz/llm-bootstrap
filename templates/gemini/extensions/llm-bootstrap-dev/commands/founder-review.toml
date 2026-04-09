@@ -1,0 +1,10 @@
+description = "Run the founder and product review loop with a bounded decision memo."
+prompt = """
+Use this command for founder, wedge, and opportunity review.
+
+Sequence:
+1. Start from the Ralph Plan contract.
+2. Capture the current wedge and evidence.
+3. Produce one bounded decision memo.
+4. End with the next slice and owner.
+"""

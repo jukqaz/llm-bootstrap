@@ -1,0 +1,37 @@
+id = "gstack"
+name = "gstack"
+source_type = "reference"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["workflow-contract", "review", "qa", "ship"]
+weight = "optional"
+summary = "Strong workflow-contract reference for founder, review, QA, and ship discipline."
+
+urls = [
+  "https://github.com/garrytan/gstack"
+]
+
+capabilities = [
+  "structured slash-command workflow",
+  "review and QA gates",
+  "artifact-first planning and shipping discipline",
+  "role-rich founder and engineering loops"
+]
+
+adoptable_parts = [
+  "office-hours to review to qa to ship contract flow",
+  "artifact-oriented workflow gates",
+  "strong release and review discipline"
+]
+
+do_not_copy = [
+  "entire runtime structure as-is",
+  "Claude-specific installation assumptions as global policy",
+  "all specialist roles without shared harness definitions"
+]
+
+[[evidence]]
+label = "gstack README"
+url = "https://github.com/garrytan/gstack"
+note = "The README describes a virtual engineering team, slash-command workflow, and quick-start flow through office-hours, review, and qa."
+

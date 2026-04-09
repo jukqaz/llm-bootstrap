@@ -1,0 +1,89 @@
+id = "gemini_cli"
+name = "Gemini CLI"
+source_type = "official"
+status = "active"
+provider_scope = ["gemini"]
+categories = ["runtime", "provider-surface", "mcp", "workflow"]
+weight = "core"
+summary = "Primary source for extension-first Gemini packaging and settings-based integration."
+
+urls = [
+  "https://geminicli.com/docs/",
+  "https://geminicli.com/docs/extensions/reference/",
+  "https://geminicli.com/docs/reference/commands"
+]
+
+native_surfaces = [
+  "extensions",
+  "settings.json",
+  "custom commands",
+  "GEMINI.md",
+  "hooks",
+  "MCP servers",
+  "subagents",
+  "agent skills"
+]
+
+capabilities = [
+  "extension-based packaging",
+  "settings merge",
+  "command lanes",
+  "hook integration",
+  "agent and MCP composition"
+]
+
+adoptable_parts = [
+  "use extension as the primary Gemini distribution unit",
+  "keep command and settings merge as first-class renderer outputs",
+  "translate shared harnesses into extension docs, commands, and agent files"
+]
+
+do_not_copy = [
+  "Codex plugin structure verbatim",
+  "provider-specific role pinning that Gemini does not document as a native surface"
+]
+
+[[evidence]]
+label = "Gemini CLI docs"
+url = "https://geminicli.com/docs/"
+note = "The docs highlight extensions, hooks, MCP servers, subagents, agent skills, and settings."
+
+[[evidence]]
+label = "Gemini extension reference"
+url = "https://geminicli.com/docs/extensions/reference/"
+note = "Extensions officially support commands, hooks, MCP, agents, themes, and settings interaction."
+
+[[evidence]]
+label = "Gemini command reference"
+url = "https://geminicli.com/docs/reference/commands"
+note = "Gemini reloads custom command definitions from user, project, MCP prompt, and extension sources."
+
+[[recommended_article]]
+title = "Hooks Best Practices"
+url = "https://geminicli.com/docs/hooks/best-practices/"
+focus = "hooks security and performance"
+why_it_matters = "Highlights synchronous hook cost, debugging discipline, and security/performance tradeoffs."
+
+[[recommended_article]]
+title = "Writing hooks for Gemini CLI"
+url = "https://geminicli.com/docs/hooks/writing-hooks/"
+focus = "workflow automation"
+why_it_matters = "Shows practical hook patterns such as context injection, tool filtering, and full workflow assistants."
+
+[[recommended_article]]
+title = "Gemini CLI extension best practices"
+url = "https://geminicli.com/docs/extensions/best-practices/"
+focus = "extension packaging"
+why_it_matters = "Reinforces concise GEMINI.md usage, minimal permissions, validation, and link-based iterative development."
+
+[[recommended_article]]
+title = "Plan Mode"
+url = "https://geminicli.com/docs/cli/plan-mode/"
+focus = "plan artifacts"
+why_it_matters = "Useful for structured design lanes and for preserving approved plans through hooks."
+
+[[recommended_article]]
+title = "Sandboxing in the Gemini CLI"
+url = "https://geminicli.com/docs/cli/sandbox/"
+focus = "sandbox policy"
+why_it_matters = "Defines native sandbox options and explicitly recommends the most restrictive workable profile."

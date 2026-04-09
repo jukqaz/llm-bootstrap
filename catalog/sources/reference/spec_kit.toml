@@ -1,0 +1,36 @@
+id = "spec_kit"
+name = "GitHub Spec Kit"
+source_type = "reference"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["workflow-contract", "spec-driven-development", "planning"]
+weight = "optional"
+summary = "Reference for turning specification, plan, tasks, and implementation into a repeatable agent workflow."
+
+urls = [
+  "https://github.com/github/spec-kit"
+]
+
+capabilities = [
+  "spec-driven development",
+  "constitution and principles",
+  "plan and task generation",
+  "multi-agent compatible templates"
+]
+
+adoptable_parts = [
+  "explicit spec to plan to tasks contract",
+  "project principles as durable instructions",
+  "AI-specific scaffolding for codex, gemini, and claude style tools"
+]
+
+do_not_copy = [
+  "project-repo level scaffolding into home bootstrap by default",
+  "full spec workflow for every install path"
+]
+
+[[evidence]]
+label = "Spec Kit README"
+url = "https://github.com/github/spec-kit"
+note = "Spec Kit formalizes a specification, plan, tasks, and implement workflow and supports multiple coding agents."
+

@@ -1,0 +1,34 @@
+id = "rtk"
+name = "RTK"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["token-efficiency", "output-compression", "developer-ux"]
+weight = "core"
+summary = "The most practical near-core tool for reducing noisy shell output before it reaches the model."
+
+urls = [
+  "https://github.com/rtk-ai/rtk"
+]
+
+capabilities = [
+  "shell output compression",
+  "single binary install",
+  "Codex and Gemini initialization paths",
+  "lower token burn on git, search, test, and build commands"
+]
+
+adoptable_parts = [
+  "keep RTK as a default or near-core lane",
+  "treat output compression as first-line token control"
+]
+
+do_not_copy = [
+  "provider-specific wrappers when official init already exists"
+]
+
+[[evidence]]
+label = "RTK README"
+url = "https://github.com/rtk-ai/rtk"
+note = "RTK is presented as a CLI proxy that reduces LLM token consumption on common development commands."
+

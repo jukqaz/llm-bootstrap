@@ -1,0 +1,38 @@
+id = "mcpm"
+name = "MCPM"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["mcp-management", "profile-management", "registry"]
+weight = "advanced"
+summary = "Reference for shared MCP profiles, registry discovery, and client-specific integration without duplicating server installs."
+
+urls = [
+  "https://github.com/pathintegral-institute/mcpm.sh",
+  "https://mcpm.sh/registry"
+]
+
+capabilities = [
+  "global MCP server installation",
+  "profile-based grouping",
+  "registry search",
+  "client integration management",
+  "non-interactive automation support"
+]
+
+adoptable_parts = [
+  "profile thinking for optional MCP lanes",
+  "separate server inventory from client integration",
+  "client-aware doctor and install decisions"
+]
+
+do_not_copy = [
+  "full MCP package-manager behavior into bootstrap core",
+  "extra global state unless the optional advanced lane truly needs it"
+]
+
+[[evidence]]
+label = "MCPM README"
+url = "https://github.com/pathintegral-institute/mcpm.sh"
+note = "MCPM documents global server management, virtual profiles, registry search, client integration, and automation-oriented CLI usage."
+

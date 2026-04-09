@@ -1,0 +1,35 @@
+id = "repomix"
+name = "Repomix"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["context-packing", "repo-ingest", "mcp", "token-efficiency"]
+weight = "optional"
+summary = "Best-fit optional tool for large repository packing, compression, and MCP-assisted codebase transfer."
+
+urls = [
+  "https://github.com/yamadashy/repomix"
+]
+
+capabilities = [
+  "repository packing",
+  "smart compression with Tree-sitter",
+  "remote repo ingest",
+  "MCP server mode"
+]
+
+adoptable_parts = [
+  "optional context-pack lane for large repositories",
+  "packing and compression before wide fanout",
+  "MCP-based repo summarization workflow"
+]
+
+do_not_copy = [
+  "always-on repo packing in the default bootstrap baseline"
+]
+
+[[evidence]]
+label = "Repomix README"
+url = "https://github.com/yamadashy/repomix"
+note = "Repomix describes repository packing for AI use and documents both --compress and --mcp support."
+

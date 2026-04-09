@@ -1,14 +1,17 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
-    backup_relative, copy_render_dir, copy_render_file_with_extras, copy_selected_scripts,
-    create_backup_root, remove_if_exists, resolve_backup_root, restore_relative,
+    backup_relative, copy_render_file_with_extras, copy_render_relative_entries,
+    copy_selected_scripts, create_backup_root, remove_if_exists, resolve_backup_root,
+    restore_relative,
 };
 use crate::json_ops::{
     cleanup_extension_enablement, cleanup_gemini_settings, merge_json,
     preserved_gemini_runtime_state, prune_rtk_gemini_hooks, read_json_or_empty, write_json_pretty,
 };
 use crate::layout::{
-    GEMINI_LEGACY_CLEANUP_PATHS, GEMINI_LEGACY_PATHS, gemini_managed_paths, gemini_uninstall_paths,
+    all_gemini_bundle_doc_paths, all_gemini_extension_asset_paths, gemini_bundle_doc_paths,
+    gemini_extension_asset_paths, gemini_extension_enablement_path, gemini_managed_paths,
+    gemini_uninstall_paths,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
@@ -21,28 +24,24 @@ pub(crate) fn doctor_checks(
     home: &Path,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
+    extension_enabled: bool,
+    active_surfaces: &[String],
 ) -> Vec<PathBuf> {
     let root = home.join(".gemini");
-    let mut checks = vec![
-        root.join("GEMINI.md"),
-        root.join("WORKFLOW.md"),
-        root.join("SHIP_CHECKLIST.md"),
-        root.join("settings.json"),
-        root.join("extensions/llm-bootstrap-dev/gemini-extension.json"),
-        root.join("extensions/llm-bootstrap-dev/OFFICE_HOURS.md"),
-        root.join("extensions/llm-bootstrap-dev/AUTOPILOT.md"),
-        root.join("extensions/llm-bootstrap-dev/RETRO.md"),
-        root.join("extensions/llm-bootstrap-dev/commands/intent.toml"),
-        root.join("extensions/llm-bootstrap-dev/commands/doctor.toml"),
-        root.join("extensions/llm-bootstrap-dev/commands/autopilot.toml"),
-        root.join("extensions/llm-bootstrap-dev/commands/review.toml"),
-        root.join("extensions/llm-bootstrap-dev/commands/ship.toml"),
-        root.join("extensions/llm-bootstrap-dev/agents/triage.md"),
-        root.join("extensions/llm-bootstrap-dev/agents/docs-researcher.md"),
-        root.join("extensions/extension-enablement.json"),
-        root.join("extensions/llm-bootstrap-dev/agents/qa.md"),
-        root.join("extensions/llm-bootstrap-dev/agents/verifier.md"),
-    ];
+    let mut checks = vec![root.join("GEMINI.md"), root.join("settings.json")];
+    checks.extend(
+        gemini_bundle_doc_paths(active_surfaces)
+            .into_iter()
+            .map(|relative| root.join(relative)),
+    );
+    if extension_enabled {
+        checks.extend(
+            gemini_extension_asset_paths(active_surfaces)
+                .into_iter()
+                .map(|relative| root.join(relative)),
+        );
+        checks.push(root.join(gemini_extension_enablement_path()));
+    }
     if rtk_enabled {
         checks.push(root.join("hooks/rtk-hook-gemini.sh"));
     }
@@ -55,19 +54,19 @@ pub(crate) fn doctor_checks(
     checks
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn install(
     home: &Path,
     mode: ApplyMode,
     _manifest: &BootstrapManifest,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
-    cleanup_legacy: bool,
+    extension_enabled: bool,
+    active_surfaces: &[String],
 ) -> Result<()> {
     let root = home.join(".gemini");
     let template_root = repo_root().join("templates/gemini");
     let bundle_root = repo_root().join("bundles/full/gemini");
-    let cleanup_legacy = cleanup_legacy || mode == ApplyMode::Replace;
-
     fs::create_dir_all(&root)?;
     fs::create_dir_all(root.join("hooks"))?;
     fs::create_dir_all(root.join("scripts"))?;
@@ -78,11 +77,6 @@ pub(crate) fn install(
     for relative in gemini_managed_paths() {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
-    if cleanup_legacy {
-        for relative in GEMINI_LEGACY_CLEANUP_PATHS {
-            backup_relative(&root, &backup_root, Path::new(relative))?;
-        }
-    }
 
     if mode == ApplyMode::Replace {
         for relative in gemini_managed_paths() {
@@ -92,13 +86,6 @@ pub(crate) fn install(
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("extensions"))?;
     }
-    if cleanup_legacy {
-        for relative in GEMINI_LEGACY_CLEANUP_PATHS {
-            remove_if_exists(&root.join(relative))?;
-        }
-    }
-
-    cleanup_legacy_paths(&root)?;
 
     if rtk_enabled {
         run_rtk_init(home)?;
@@ -124,12 +111,28 @@ pub(crate) fn install(
         home,
         enabled_mcp,
     )?;
-    copy_render_dir(
-        &template_root.join("extensions/llm-bootstrap-dev"),
-        &root.join("extensions/llm-bootstrap-dev"),
+    for relative in all_gemini_bundle_doc_paths() {
+        remove_if_exists(&root.join(relative))?;
+    }
+    copy_render_relative_entries(
+        &bundle_root,
+        &root,
+        &gemini_bundle_doc_paths(active_surfaces),
         home,
     )?;
-    copy_render_dir(&bundle_root, &root, home)?;
+    for relative in all_gemini_extension_asset_paths() {
+        remove_if_exists(&root.join(relative))?;
+    }
+    if extension_enabled {
+        copy_render_relative_entries(
+            &template_root,
+            &root,
+            &gemini_extension_asset_paths(active_surfaces),
+            home,
+        )?;
+    } else {
+        remove_if_exists(&root.join("extensions/llm-bootstrap-dev"))?;
+    }
 
     let mut current_settings = match mode {
         ApplyMode::Merge => existing_settings.clone(),
@@ -142,15 +145,20 @@ pub(crate) fn install(
     current_settings["mcpServers"] = mcp_servers(home, &existing_settings, enabled_mcp, mode);
     write_json_pretty(&settings_path, &current_settings)?;
 
-    let mut enablement = match mode {
-        ApplyMode::Merge => existing_enablement,
-        ApplyMode::Replace => json!({}),
-    };
-    let override_path = format!("{}/{}", home.display(), "*");
-    enablement["llm-bootstrap-dev"] = json!({
-        "overrides": [override_path]
-    });
-    write_json_pretty(&enablement_path, &enablement)?;
+    if extension_enabled {
+        let mut enablement = match mode {
+            ApplyMode::Merge => existing_enablement,
+            ApplyMode::Replace => json!({}),
+        };
+        let override_path = format!("{}/{}", home.display(), "*");
+        enablement["llm-bootstrap-dev"] = json!({
+            "overrides": [override_path]
+        });
+        write_json_pretty(&enablement_path, &enablement)?;
+    } else {
+        remove_if_exists(&root.join("extensions/llm-bootstrap-dev"))?;
+        cleanup_extension_enablement(&enablement_path)?;
+    }
 
     let projects_registry_path = root.join("projects.json");
     if !projects_registry_path.exists() {
@@ -158,13 +166,6 @@ pub(crate) fn install(
     }
 
     println!("[gemini] installed {} ({})", root.display(), mode.name());
-    Ok(())
-}
-
-fn cleanup_legacy_paths(root: &Path) -> Result<()> {
-    for relative in GEMINI_LEGACY_PATHS {
-        remove_if_exists(&root.join(relative))?;
-    }
     Ok(())
 }
 
@@ -190,11 +191,11 @@ pub(crate) fn uninstall(
         run_rtk_uninstall(home)?;
     }
 
-    remove_if_exists(&root.join("GEMINI.md"))?;
-    remove_if_exists(&root.join("scripts"))?;
-    remove_if_exists(&root.join("extensions/llm-bootstrap-dev"))?;
-    if rtk_enabled {
-        remove_if_exists(&root.join("hooks/rtk-hook-gemini.sh"))?;
+    for relative in gemini_uninstall_paths(rtk_enabled) {
+        match relative {
+            "settings.json" | "extensions/extension-enablement.json" => {}
+            _ => remove_if_exists(&root.join(relative))?,
+        }
     }
 
     cleanup_gemini_settings(&root.join("settings.json"), manifest, rtk_enabled)?;
@@ -214,21 +215,12 @@ pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
     for relative in gemini_managed_paths() {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
-    for relative in GEMINI_LEGACY_CLEANUP_PATHS {
-        backup_relative(&root, &backup_root, Path::new(relative))?;
-    }
 
     for relative in gemini_managed_paths() {
         remove_if_exists(&root.join(relative))?;
     }
-    for relative in GEMINI_LEGACY_CLEANUP_PATHS {
-        remove_if_exists(&root.join(relative))?;
-    }
 
     for relative in gemini_managed_paths() {
-        restore_relative(&root, &source_backup, Path::new(relative))?;
-    }
-    for relative in GEMINI_LEGACY_CLEANUP_PATHS {
         restore_relative(&root, &source_backup, Path::new(relative))?;
     }
 

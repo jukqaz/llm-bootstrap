@@ -246,6 +246,24 @@ pub(crate) fn copy_render_dir(source: &Path, destination: &Path, home: &Path) ->
     Ok(())
 }
 
+pub(crate) fn copy_render_relative_entries(
+    source_root: &Path,
+    destination_root: &Path,
+    relatives: &[&str],
+    home: &Path,
+) -> Result<()> {
+    for relative in relatives {
+        let source = source_root.join(relative);
+        let destination = destination_root.join(relative);
+        if source.is_dir() {
+            copy_render_dir(&source, &destination, home)?;
+        } else {
+            copy_render_file(&source, &destination, is_executable_script(&source), home)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn copy_selected_scripts(
     source: &Path,
     destination: &Path,

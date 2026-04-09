@@ -1,0 +1,87 @@
+id = "openai_codex"
+name = "OpenAI Codex"
+source_type = "official"
+status = "active"
+provider_scope = ["codex"]
+categories = ["runtime", "provider-surface", "mcp", "workflow"]
+weight = "core"
+summary = "Primary source for Codex-native surfaces and shared MCP expectations."
+
+urls = [
+  "https://developers.openai.com/",
+  "https://developers.openai.com/learn/docs-mcp",
+  "https://openai.com/codex"
+]
+
+native_surfaces = [
+  "config.toml",
+  "AGENTS.md",
+  "hooks",
+  "MCP",
+  "plugins",
+  "skills",
+  "subagents"
+]
+
+capabilities = [
+  "multi-agent coding runtime",
+  "shared MCP configuration",
+  "skills and subagent distribution",
+  "workflow execution in CLI and IDE"
+]
+
+adoptable_parts = [
+  "treat config plus AGENTS plus MCP as the base Codex surface",
+  "render plugins, skills, and subagents as additive layers",
+  "keep Codex as the reference runtime for harness behavior"
+]
+
+do_not_copy = [
+  "Codex-specific surface assumptions into Gemini or Claude",
+  "plugin-only mental model for all provider capabilities"
+]
+
+[[evidence]]
+label = "OpenAI developer docs"
+url = "https://developers.openai.com/"
+note = "Codex docs navigation explicitly exposes subagents, workflows, and Codex usage."
+
+[[evidence]]
+label = "Docs MCP guide"
+url = "https://developers.openai.com/learn/docs-mcp"
+note = "Docs MCP is documented as usable from Codex CLI and the IDE extension through shared Codex configuration."
+
+[[evidence]]
+label = "OpenAI Codex product page"
+url = "https://openai.com/codex"
+note = "OpenAI positions Codex for multi-agent workflows and skills-driven coding work."
+
+[[recommended_article]]
+title = "Codex Prompting Guide"
+url = "https://developers.openai.com/cookbook/examples/gpt-5/codex_prompting_guide"
+focus = "coding-agent prompting"
+why_it_matters = "Explains the recommended Codex model, reasoning effort defaults, and compaction-aware coding usage."
+
+[[recommended_article]]
+title = "Safety in building agents"
+url = "https://developers.openai.com/api/docs/guides/agent-builder-safety"
+focus = "agent safety"
+why_it_matters = "Reinforces structured outputs, prompt-injection defenses, tool approvals, and eval-first guardrails."
+
+[[recommended_article]]
+title = "Reasoning best practices"
+url = "https://developers.openai.com/api/docs/guides/reasoning-best-practices"
+focus = "prompt design"
+why_it_matters = "Supports brief developer instructions, delimiter use, and avoiding chain-of-thought forcing."
+
+[[recommended_article]]
+title = "Production best practices"
+url = "https://developers.openai.com/api/docs/guides/production-best-practices"
+focus = "operations"
+why_it_matters = "Provides production guidance for organization, security, billing, and rollout planning."
+
+[[recommended_article]]
+title = "Docs MCP"
+url = "https://developers.openai.com/learn/docs-mcp"
+focus = "official MCP workflow"
+why_it_matters = "Shows how OpenAI expects developer docs retrieval to be configured once and reused across Codex surfaces."

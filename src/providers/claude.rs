@@ -1,15 +1,19 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
-    backup_relative, copy_render_dir, copy_render_file_with_extras, copy_selected_scripts,
-    create_backup_root, remove_if_exists, resolve_backup_root, restore_named_entry,
-    restore_relative,
+    backup_relative, copy_render_dir, copy_render_file_with_extras, copy_render_relative_entries,
+    copy_selected_scripts, create_backup_root, remove_if_exists, resolve_backup_root,
+    restore_named_entry, restore_relative,
 };
-use crate::json_ops::{cleanup_claude_settings, read_json_or_empty, write_json_pretty};
-use crate::layout::CLAUDE_LEGACY_CLEANUP_PATHS;
+use crate::json_ops::{cleanup_claude_settings, read_json_or_empty};
+use crate::layout::{
+    all_claude_harness_doc_paths, all_claude_skill_paths, claude_harness_doc_paths,
+    claude_skill_paths,
+};
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
+use crate::state::{managed_mcp_names, write_installed_state};
 use anyhow::{Context, Result, bail};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -17,6 +21,11 @@ const CLAUDE_MANAGED_PATHS: &[&str] = &[
     "CLAUDE.md",
     "agents",
     "scripts",
+    "RALPH_PLAN.md",
+    "FOUNDER_LOOP.md",
+    "OPERATING_REVIEW.md",
+    "CONNECTORS.md",
+    "AUTOMATIONS.md",
     "WORKFLOW.md",
     "SHIP_CHECKLIST.md",
     "OFFICE_HOURS.md",
@@ -34,7 +43,10 @@ const CLAUDE_MANAGED_PATHS: &[&str] = &[
 
 const CLAUDE_MANAGED_SKILL_PATHS: &[&str] = &[
     "skills/autopilot",
+    "skills/ralph-plan",
+    "skills/founder-loop",
     "skills/investigate",
+    "skills/operating-review",
     "skills/review",
     "skills/qa",
     "skills/ship",
@@ -46,6 +58,8 @@ pub(crate) fn doctor_checks(
     home: &Path,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
+    skills_enabled: bool,
+    active_surfaces: &[String],
 ) -> Vec<PathBuf> {
     let root = home.join(".claude");
     let mut checks = vec![
@@ -55,23 +69,19 @@ pub(crate) fn doctor_checks(
         root.join("agents/executor.md"),
         root.join("agents/triage.md"),
         root.join("agents/verifier.md"),
-        root.join("WORKFLOW.md"),
-        root.join("SHIP_CHECKLIST.md"),
-        root.join("OFFICE_HOURS.md"),
-        root.join("INVESTIGATE.md"),
-        root.join("AUTOPILOT.md"),
-        root.join("RETRO.md"),
-        root.join("REVIEW.md"),
-        root.join("QA.md"),
-        root.join("SHIP.md"),
-        root.join("skills/autopilot/SKILL.md"),
-        root.join("skills/investigate/SKILL.md"),
-        root.join("skills/review/SKILL.md"),
-        root.join("skills/qa/SKILL.md"),
-        root.join("skills/ship/SKILL.md"),
-        root.join("skills/retro/SKILL.md"),
-        root.join("skills/office-hours/SKILL.md"),
     ];
+    checks.extend(
+        claude_harness_doc_paths(active_surfaces)
+            .into_iter()
+            .map(|relative| root.join(relative)),
+    );
+    if skills_enabled {
+        checks.extend(
+            claude_skill_paths(active_surfaces)
+                .into_iter()
+                .map(|relative| root.join(relative).join("SKILL.md")),
+        );
+    }
 
     if rtk_enabled {
         checks.push(root.join("settings.json"));
@@ -88,16 +98,17 @@ pub(crate) fn doctor_checks(
     checks
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn install(
     home: &Path,
     mode: ApplyMode,
     _manifest: &BootstrapManifest,
     enabled_mcp: &[BaselineMcp],
     rtk_enabled: bool,
-    cleanup_legacy: bool,
+    skills_enabled: bool,
+    active_surfaces: &[String],
 ) -> Result<()> {
     ensure_claude_cli()?;
-    let cleanup_legacy = cleanup_legacy || mode == ApplyMode::Replace;
 
     let root = home.join(".claude");
     let template_root = repo_root().join("templates/claude");
@@ -113,11 +124,6 @@ pub(crate) fn install(
     for relative in CLAUDE_MANAGED_SKILL_PATHS {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
-    if cleanup_legacy {
-        for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
-            backup_relative(&root, &backup_root, Path::new(relative))?;
-        }
-    }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
 
     if mode == ApplyMode::Replace {
@@ -130,11 +136,6 @@ pub(crate) fn install(
         remove_all_registered_mcp(home)?;
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("hooks"))?;
-    }
-    if cleanup_legacy {
-        for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
-            remove_if_exists(&root.join(relative))?;
-        }
     }
 
     if rtk_enabled {
@@ -153,76 +154,36 @@ pub(crate) fn install(
         &rtk_tokens(rtk_enabled),
     )?;
     copy_render_dir(&template_root.join("agents"), &root.join("agents"), home)?;
-    copy_render_dir(&template_root.join("skills"), &root.join("skills"), home)?;
     copy_selected_scripts(
         &template_root.join("scripts"),
         &root.join("scripts"),
         home,
         enabled_mcp,
     )?;
-    copy_render_file_with_extras(
-        &template_root.join("WORKFLOW.md"),
-        &root.join("WORKFLOW.md"),
-        false,
+    for relative in all_claude_harness_doc_paths() {
+        remove_if_exists(&root.join(relative))?;
+    }
+    copy_render_relative_entries(
+        &template_root,
+        &root,
+        &claude_harness_doc_paths(active_surfaces),
         home,
-        &[],
     )?;
-    copy_render_file_with_extras(
-        &template_root.join("SHIP_CHECKLIST.md"),
-        &root.join("SHIP_CHECKLIST.md"),
-        false,
-        home,
-        &[],
-    )?;
-    copy_render_file_with_extras(
-        &template_root.join("OFFICE_HOURS.md"),
-        &root.join("OFFICE_HOURS.md"),
-        false,
-        home,
-        &[],
-    )?;
-    copy_render_file_with_extras(
-        &template_root.join("INVESTIGATE.md"),
-        &root.join("INVESTIGATE.md"),
-        false,
-        home,
-        &[],
-    )?;
-    copy_render_file_with_extras(
-        &template_root.join("AUTOPILOT.md"),
-        &root.join("AUTOPILOT.md"),
-        false,
-        home,
-        &[],
-    )?;
-    copy_render_file_with_extras(
-        &template_root.join("RETRO.md"),
-        &root.join("RETRO.md"),
-        false,
-        home,
-        &[],
-    )?;
-    copy_render_file_with_extras(
-        &template_root.join("REVIEW.md"),
-        &root.join("REVIEW.md"),
-        false,
-        home,
-        &[],
-    )?;
-    copy_render_file_with_extras(
-        &template_root.join("QA.md"),
-        &root.join("QA.md"),
-        false,
-        home,
-        &[],
-    )?;
-    copy_render_file_with_extras(
-        &template_root.join("SHIP.md"),
-        &root.join("SHIP.md"),
-        false,
-        home,
-        &[],
-    )?;
+    if skills_enabled {
+        for relative in all_claude_skill_paths() {
+            remove_if_exists(&root.join(relative))?;
+        }
+        copy_render_relative_entries(
+            &template_root,
+            &root,
+            &claude_skill_paths(active_surfaces),
+            home,
+        )?;
+    } else {
+        for relative in CLAUDE_MANAGED_SKILL_PATHS {
+            remove_if_exists(&root.join(relative))?;
+        }
+    }
 
     sync_baseline_mcp(home, &root, enabled_mcp)?;
 
@@ -255,23 +216,24 @@ pub(crate) fn uninstall(
     }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
 
-    remove_managed_mcp(home, &managed_mcp(&root)?)?;
+    remove_managed_mcp(home, &managed_mcp_names(&root)?)?;
 
     if rtk_enabled {
         run_rtk_uninstall(home)?;
     }
 
-    remove_if_exists(&root.join("CLAUDE.md"))?;
-    remove_if_exists(&root.join("scripts"))?;
+    for relative in CLAUDE_MANAGED_PATHS {
+        if *relative == "settings.json" {
+            continue;
+        }
+        remove_if_exists(&root.join(relative))?;
+    }
     for relative in CLAUDE_MANAGED_SKILL_PATHS {
         remove_if_exists(&root.join(relative))?;
     }
     if rtk_enabled {
-        remove_if_exists(&root.join("RTK.md"))?;
-        remove_if_exists(&root.join("hooks/rtk-rewrite.sh"))?;
         cleanup_claude_settings(&root.join("settings.json"), true)?;
     }
-    remove_if_exists(&root.join("llm-bootstrap-state.json"))?;
 
     println!("[claude] uninstalled {}", root.display());
     Ok(())
@@ -292,9 +254,6 @@ pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
     for relative in CLAUDE_MANAGED_SKILL_PATHS {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
-    for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
-        backup_relative(&root, &backup_root, Path::new(relative))?;
-    }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
 
     for relative in CLAUDE_MANAGED_PATHS {
@@ -303,18 +262,12 @@ pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
     for relative in CLAUDE_MANAGED_SKILL_PATHS {
         remove_if_exists(&root.join(relative))?;
     }
-    for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
-        remove_if_exists(&root.join(relative))?;
-    }
     remove_if_exists(&home.join(".claude.json"))?;
 
     for relative in CLAUDE_MANAGED_PATHS {
         restore_relative(&root, &source_backup, Path::new(relative))?;
     }
     for relative in CLAUDE_MANAGED_SKILL_PATHS {
-        restore_relative(&root, &source_backup, Path::new(relative))?;
-    }
-    for relative in CLAUDE_LEGACY_CLEANUP_PATHS {
         restore_relative(&root, &source_backup, Path::new(relative))?;
     }
     restore_named_entry(&source_backup, "claude.json", &home.join(".claude.json"))?;
@@ -359,7 +312,7 @@ fn run_rtk_uninstall(home: &Path) -> Result<()> {
 }
 
 fn sync_baseline_mcp(home: &Path, root: &Path, enabled_mcp: &[BaselineMcp]) -> Result<()> {
-    let previous = managed_mcp(root)?;
+    let previous = managed_mcp_names(root)?;
     for name in previous
         .iter()
         .filter(|name| !enabled_mcp.iter().any(|mcp| mcp.name() == name.as_str()))
@@ -381,7 +334,7 @@ fn sync_baseline_mcp(home: &Path, root: &Path, enabled_mcp: &[BaselineMcp]) -> R
             &format!("adding Claude MCP {}", mcp.name()),
         )?;
     }
-    write_managed_mcp(root, enabled_mcp)?;
+    write_installed_state(root, enabled_mcp, &[], &[], None)?;
     Ok(())
 }
 
@@ -390,35 +343,6 @@ fn remove_managed_mcp(home: &Path, managed: &[String]) -> Result<()> {
         remove_mcp(home, name)?;
     }
     Ok(())
-}
-
-fn managed_mcp(root: &Path) -> Result<Vec<String>> {
-    let path = root.join("llm-bootstrap-state.json");
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let state = read_json_or_empty(&path)?;
-    let managed = state
-        .get("managed_mcp")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    Ok(managed)
-}
-
-fn write_managed_mcp(root: &Path, enabled_mcp: &[BaselineMcp]) -> Result<()> {
-    let path = root.join("llm-bootstrap-state.json");
-    let state = json!({
-        "managed_mcp": enabled_mcp.iter().map(|mcp| mcp.name()).collect::<Vec<_>>(),
-    });
-    write_json_pretty(&path, &state)
 }
 
 fn remove_all_registered_mcp(home: &Path) -> Result<()> {

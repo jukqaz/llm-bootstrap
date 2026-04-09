@@ -1,0 +1,37 @@
+id = "oh_my_codex"
+name = "oh-my-codex"
+source_type = "reference"
+status = "active"
+provider_scope = ["codex", "cross-provider"]
+categories = ["runtime", "harness", "orchestration", "token-efficiency"]
+weight = "optional"
+summary = "Reference for multi-agent orchestration modes, Ralph loops, and fast/deep execution lanes."
+
+urls = [
+  "https://github.com/junghwaYang/oh-my-codex"
+]
+
+capabilities = [
+  "mode-based orchestration",
+  "parallel execution lanes",
+  "persistent ralph loop",
+  "token-efficient eco lane",
+  "rich skill inventory"
+]
+
+adoptable_parts = [
+  "Ralph-loop concept as a shared harness",
+  "clear execution lanes such as plan, autopilot, parallel, and eco",
+  "team and verify loop patterns"
+]
+
+do_not_copy = [
+  "Codex-only runtime assumptions into all providers",
+  "large skill inventory before shared pack and harness metadata exists"
+]
+
+[[evidence]]
+label = "oh-my-codex README"
+url = "https://github.com/junghwaYang/oh-my-codex"
+note = "The repo describes itself as a multi-agent orchestration system and exposes autopilot, team, ralph, eco, and parallel modes."
+

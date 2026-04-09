@@ -1,0 +1,33 @@
+id = "mcp_universe"
+name = "MCP-Universe"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["benchmark", "mcp", "evaluation"]
+weight = "advanced"
+summary = "Reference for testing and benchmarking MCP-heavy agents rather than only installing them."
+
+urls = [
+  "https://github.com/SalesforceAIResearch/MCP-Universe"
+]
+
+capabilities = [
+  "agent benchmark framework",
+  "MCP-heavy evaluation harness",
+  "testing and benchmarking tasks"
+]
+
+adoptable_parts = [
+  "evaluation mindset for MCP-enabled agents",
+  "separate install decisions from benchmark and quality evidence"
+]
+
+do_not_copy = [
+  "large benchmark harness into day-one bootstrap"
+]
+
+[[evidence]]
+label = "MCP-Universe repo"
+url = "https://github.com/SalesforceAIResearch/MCP-Universe"
+note = "The project describes itself as a framework for developing, testing, and benchmarking AI agents with MCP-centric configurations."
+

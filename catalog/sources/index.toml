@@ -1,0 +1,97 @@
+version = 1
+
+[[entry]]
+id = "openai_codex"
+file = "official/openai_codex.toml"
+source_type = "official"
+priority = 10
+
+[[entry]]
+id = "gemini_cli"
+file = "official/gemini_cli.toml"
+source_type = "official"
+priority = 10
+
+[[entry]]
+id = "claude_code"
+file = "official/claude_code.toml"
+source_type = "official"
+priority = 10
+
+[[entry]]
+id = "gstack"
+file = "reference/gstack.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
+id = "oh_my_codex"
+file = "reference/oh_my_codex.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
+id = "github_agentic_workflows"
+file = "reference/github_agentic_workflows.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
+id = "spec_kit"
+file = "reference/spec_kit.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
+id = "rtk"
+file = "tool/rtk.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "repomix"
+file = "tool/repomix.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "coding_context_cli"
+file = "tool/coding_context_cli.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "mcpm"
+file = "tool/mcpm.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "goose"
+file = "tool/goose.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "agentapi"
+file = "tool/agentapi.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "mini_swe_agent"
+file = "tool/mini_swe_agent.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "kelos"
+file = "tool/kelos.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "mcp_universe"
+file = "tool/mcp_universe.toml"
+source_type = "tool"
+priority = 30

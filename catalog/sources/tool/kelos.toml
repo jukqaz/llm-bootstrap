@@ -1,0 +1,34 @@
+id = "kelos"
+name = "Kelos"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["orchestration", "sandboxing", "kubernetes"]
+weight = "advanced"
+summary = "Reference for remote and sandboxed orchestration of coding agents through declarative workflows on Kubernetes."
+
+urls = [
+  "https://news.ycombinator.com/item?id=47218469"
+]
+
+capabilities = [
+  "declarative workflows",
+  "ephemeral pod sandboxing",
+  "issue and PR automation",
+  "background codebase scans"
+]
+
+adoptable_parts = [
+  "sandbox-first orchestration ideas",
+  "declarative workflow definitions for remote runs"
+]
+
+do_not_copy = [
+  "Kubernetes control plane into local bootstrap defaults"
+]
+
+[[evidence]]
+label = "Show HN Kelos"
+url = "https://news.ycombinator.com/item?id=47218469"
+note = "Kelos is presented as declarative workflow orchestration for coding agents in ephemeral Kubernetes pods."
+
