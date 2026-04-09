@@ -9,6 +9,10 @@ pub(crate) struct InstalledState {
     pub(crate) active_preset: Option<String>,
     pub(crate) active_packs: Vec<String>,
     pub(crate) active_harnesses: Vec<String>,
+    pub(crate) active_connectors: Vec<String>,
+    pub(crate) active_automations: Vec<String>,
+    pub(crate) active_surfaces: Vec<String>,
+    pub(crate) managed_paths: Vec<String>,
 }
 
 impl InstalledState {
@@ -17,10 +21,18 @@ impl InstalledState {
         requested_preset: Option<&str>,
         requested_packs: &[String],
         requested_harnesses: &[String],
+        requested_connectors: &[String],
+        requested_automations: &[String],
+        requested_surfaces: &[String],
+        requested_managed_paths: &[String],
     ) -> bool {
         self.active_preset.as_deref() != requested_preset
             || self.active_packs != requested_packs
             || self.active_harnesses != requested_harnesses
+            || self.active_connectors != requested_connectors
+            || self.active_automations != requested_automations
+            || self.active_surfaces != requested_surfaces
+            || self.managed_paths != requested_managed_paths
     }
 }
 
@@ -42,6 +54,10 @@ pub(crate) fn read_installed_state(root: &Path) -> Result<InstalledState> {
             .map(ToOwned::to_owned),
         active_packs: json_string_array(&value, "active_packs"),
         active_harnesses: json_string_array(&value, "active_harnesses"),
+        active_connectors: json_string_array(&value, "active_connectors"),
+        active_automations: json_string_array(&value, "active_automations"),
+        active_surfaces: json_string_array(&value, "active_surfaces"),
+        managed_paths: json_string_array(&value, "managed_paths"),
     })
 }
 
@@ -61,16 +77,18 @@ pub(crate) fn managed_mcp_names(root: &Path) -> Result<Vec<String>> {
 pub(crate) fn write_installed_state(
     root: &Path,
     enabled_mcp: &[BaselineMcp],
-    active_packs: &[String],
-    active_harnesses: &[String],
-    active_preset: Option<&str>,
+    state: &InstalledState,
 ) -> Result<()> {
     let path = state_path(root);
     let state = json!({
         "managed_mcp": enabled_mcp.iter().map(|mcp| mcp.name()).collect::<Vec<_>>(),
-        "active_preset": active_preset,
-        "active_packs": active_packs,
-        "active_harnesses": active_harnesses,
+        "active_preset": state.active_preset,
+        "active_packs": state.active_packs,
+        "active_harnesses": state.active_harnesses,
+        "active_connectors": state.active_connectors,
+        "active_automations": state.active_automations,
+        "active_surfaces": state.active_surfaces,
+        "managed_paths": state.managed_paths,
     });
     fs::write(
         &path,

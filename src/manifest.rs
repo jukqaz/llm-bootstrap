@@ -66,8 +66,6 @@ pub(crate) struct PackDefinition {
     #[serde(default)]
     pub(crate) harnesses: Vec<String>,
     #[serde(default)]
-    pub(crate) apps: Vec<String>,
-    #[serde(default)]
     pub(crate) mcp_servers: Vec<BaselineMcp>,
     #[serde(default)]
     pub(crate) connectors: Vec<String>,
@@ -77,8 +75,6 @@ pub(crate) struct PackDefinition {
     pub(crate) gemini_surfaces: Vec<String>,
     #[serde(default)]
     pub(crate) claude_surfaces: Vec<String>,
-    #[serde(default)]
-    pub(crate) distribution_targets: Vec<DistributionTarget>,
     pub(crate) description: String,
 }
 

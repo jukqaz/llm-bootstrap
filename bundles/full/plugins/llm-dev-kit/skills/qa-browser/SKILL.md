@@ -1,3 +1,8 @@
+---
+name: qa-browser
+description: Run repeatable browser verification for UI changes using chrome-devtools
+---
+
 # QA Browser
 
 Use this skill when a change needs repeatable browser verification beyond a quick live inspection.

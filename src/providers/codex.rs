@@ -7,10 +7,11 @@ use crate::fs_ops::{
 use crate::layout::{
     all_codex_bundle_doc_paths, all_codex_bundle_plugin_asset_paths, all_codex_plugin_asset_paths,
     codex_bundle_doc_paths, codex_bundle_plugin_asset_paths, codex_managed_paths,
-    codex_plugin_asset_paths, codex_uninstall_paths,
+    codex_managed_paths_for, codex_plugin_asset_paths,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
+use crate::state::read_installed_state;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -201,10 +202,28 @@ pub(crate) fn uninstall(home: &Path, rtk_enabled: bool) -> Result<()> {
         return Ok(());
     }
 
+    let installed_state = read_installed_state(&root)?;
+    let uninstall_paths = if installed_state.managed_paths.is_empty() {
+        if installed_state.active_surfaces.is_empty() {
+            codex_managed_paths()
+                .into_iter()
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        } else {
+            codex_managed_paths_for(
+                &installed_state.active_surfaces,
+                crate::layout::provider_surface_enabled(&installed_state.active_surfaces),
+                rtk_enabled,
+            )
+        }
+    } else {
+        installed_state.managed_paths
+    };
+
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
     println!("[codex] backup {}", backup_root.display());
 
-    for relative in codex_uninstall_paths(rtk_enabled) {
+    for relative in &uninstall_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
 
@@ -212,7 +231,7 @@ pub(crate) fn uninstall(home: &Path, rtk_enabled: bool) -> Result<()> {
         run_rtk_uninstall(home)?;
     }
 
-    for relative in codex_uninstall_paths(rtk_enabled) {
+    for relative in &uninstall_paths {
         remove_if_exists(&root.join(relative))?;
     }
 
@@ -224,17 +243,26 @@ pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
     let root = home.join(".codex");
     fs::create_dir_all(&root)?;
     let source_backup = resolve_backup_root(&root, backup_name)?;
+    let installed_state = read_installed_state(&root)?;
+    let managed_paths = if installed_state.managed_paths.is_empty() {
+        codex_managed_paths()
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>()
+    } else {
+        installed_state.managed_paths
+    };
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
     println!("[codex] backup {}", backup_root.display());
 
-    for relative in codex_managed_paths() {
+    for relative in &managed_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
 
-    for relative in codex_managed_paths() {
+    for relative in &managed_paths {
         remove_if_exists(&root.join(relative))?;
     }
-    for relative in codex_managed_paths() {
+    for relative in &managed_paths {
         restore_relative(&root, &source_backup, Path::new(relative))?;
     }
 

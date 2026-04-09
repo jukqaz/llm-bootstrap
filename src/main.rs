@@ -28,6 +28,8 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
+use crate::layout::{claude_managed_paths_for, codex_managed_paths_for, gemini_managed_paths_for};
+
 const ZSHRC_MARKER_START: &str = "# >>> llm-bootstrap env >>>";
 const ZSHRC_MARKER_END: &str = "# <<< llm-bootstrap env <<<";
 const ZSHRC_ENV_RELATIVE_PATH: &str = ".zshrc.d/llm-bootstrap-env.zsh";
@@ -249,10 +251,25 @@ fn doctor_with(
 
     for provider in providers {
         let installed_state = read_installed_state(&provider_root(home, *provider))?;
+        let requested_surfaces = match provider {
+            Provider::Codex => &resolved.surfaces.codex,
+            Provider::Gemini => &resolved.surfaces.gemini,
+            Provider::Claude => &resolved.surfaces.claude,
+        };
+        let requested_managed_paths = provider_managed_paths(
+            *provider,
+            rtk_enabled,
+            &resolved.distribution_state,
+            &resolved.surfaces,
+        );
         let state_mismatch = installed_state.mismatch(
             resolved.selection.preset.as_deref(),
             &resolved.selection.packs,
             &resolved.selection.harnesses,
+            &catalog_report.active_connectors,
+            &catalog_report.active_automations,
+            requested_surfaces,
+            &requested_managed_paths,
         );
         if !json {
             println!("[doctor] provider {}", provider.name());
@@ -320,6 +337,11 @@ fn doctor_with(
             installed_preset: installed_state.active_preset,
             installed_packs: installed_state.active_packs,
             installed_harnesses: installed_state.active_harnesses,
+            installed_connectors: installed_state.active_connectors,
+            installed_automations: installed_state.active_automations,
+            installed_surfaces: installed_state.active_surfaces,
+            installed_managed_paths: installed_state.managed_paths,
+            requested_managed_paths,
             state_mismatch,
             checks: provider_checks,
         });
@@ -374,15 +396,15 @@ fn doctor_with(
         }
         for pack in &catalog_report.packs {
             println!(
-                "[ok] pack {} (scope: {}, lane: {}, harnesses: {}, apps: {}, mcp: {}, selected: {}, targets: {})",
+                "[ok] pack {} (scope: {}, lane: {}, harnesses: {}, connector apps: {}, mcp: {}, selected: {}, targets: {})",
                 pack.name,
                 pack.scope,
                 pack.lane,
                 pack.harnesses.join(","),
-                pack.apps.join(","),
+                pack.connector_apps.join(","),
                 pack.mcp_servers.join(","),
                 if pack.selected { "yes" } else { "no" },
-                pack.distribution_targets.join(",")
+                pack.resolved_distribution_targets.join(",")
             );
         }
         for connector in &catalog_report.connectors {
@@ -620,6 +642,8 @@ fn install_with(
     let claude_skills_enabled = resolved
         .distribution_state
         .enabled(DistributionTarget::ClaudeSkills);
+    let active_connectors = selected_connector_names(manifest, &resolved.selection.packs);
+    let active_automations = selected_automation_names(manifest, &resolved.selection.packs);
     for provider in providers {
         match *provider {
             Provider::Codex => codex::install(
@@ -653,9 +677,20 @@ fn install_with(
         write_installed_state(
             &provider_root(home, *provider),
             &resolved.enabled_mcp,
-            &resolved.selection.packs,
-            &resolved.selection.harnesses,
-            resolved.selection.preset.as_deref(),
+            &state::InstalledState {
+                active_preset: resolved.selection.preset.clone(),
+                active_packs: resolved.selection.packs.clone(),
+                active_harnesses: resolved.selection.harnesses.clone(),
+                active_connectors: active_connectors.clone(),
+                active_automations: active_automations.clone(),
+                active_surfaces: provider_surfaces(*provider, &resolved.surfaces).to_vec(),
+                managed_paths: provider_managed_paths(
+                    *provider,
+                    rtk_enabled,
+                    &resolved.distribution_state,
+                    &resolved.surfaces,
+                ),
+            },
         )?;
     }
 
@@ -863,6 +898,11 @@ struct DoctorProviderReport {
     installed_preset: Option<String>,
     installed_packs: Vec<String>,
     installed_harnesses: Vec<String>,
+    installed_connectors: Vec<String>,
+    installed_automations: Vec<String>,
+    installed_surfaces: Vec<String>,
+    installed_managed_paths: Vec<String>,
+    requested_managed_paths: Vec<String>,
     state_mismatch: bool,
     checks: Vec<DoctorCheck>,
 }
@@ -899,6 +939,18 @@ struct DoctorCatalogReport {
     presets: Vec<DoctorPresetReport>,
     connectors: Vec<DoctorConnectorReport>,
     automations: Vec<DoctorAutomationReport>,
+    runtime_handoff: DoctorRuntimeHandoffReport,
+}
+
+#[derive(Serialize)]
+struct DoctorRuntimeHandoffReport {
+    active_app_connector_count: usize,
+    pending_app_verification_count: usize,
+    active_automation_count: usize,
+    pending_scheduler_registration_count: usize,
+    connector_queue: Vec<String>,
+    automation_queue: Vec<String>,
+    next_steps: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -918,6 +970,13 @@ struct DoctorConnectorReport {
     approval: String,
     automation_allowed: bool,
     active: bool,
+    health: String,
+    auth_state: String,
+    runtime_owner: String,
+    verification_mode: String,
+    connection_status: String,
+    next_step: Option<String>,
+    detail: Option<String>,
     description: String,
 }
 
@@ -929,6 +988,11 @@ struct DoctorAutomationReport {
     connectors: Vec<String>,
     artifact: String,
     active: bool,
+    status: String,
+    scheduler_owner: String,
+    registration_status: String,
+    next_step: Option<String>,
+    detail: Option<String>,
     description: String,
 }
 
@@ -986,13 +1050,13 @@ struct DoctorPackReport {
     scope: String,
     lane: String,
     harnesses: Vec<String>,
-    apps: Vec<String>,
+    connector_apps: Vec<String>,
     mcp_servers: Vec<String>,
     connectors: Vec<String>,
     codex_surfaces: Vec<String>,
     gemini_surfaces: Vec<String>,
     claude_surfaces: Vec<String>,
-    distribution_targets: Vec<String>,
+    resolved_distribution_targets: Vec<String>,
     selected: bool,
     description: String,
 }
@@ -1078,7 +1142,7 @@ fn doctor_catalog_report(
                 scope: pack.scope.name().to_string(),
                 lane: pack.lane.name().to_string(),
                 harnesses: pack.harnesses.clone(),
-                apps: pack.apps.clone(),
+                connector_apps: pack_app_names(manifest, pack),
                 mcp_servers: pack
                     .mcp_servers
                     .iter()
@@ -1088,9 +1152,8 @@ fn doctor_catalog_report(
                 codex_surfaces: pack.codex_surfaces.clone(),
                 gemini_surfaces: pack.gemini_surfaces.clone(),
                 claude_surfaces: pack.claude_surfaces.clone(),
-                distribution_targets: pack
-                    .distribution_targets
-                    .iter()
+                resolved_distribution_targets: pack_distribution_targets(pack)
+                    .into_iter()
                     .map(|target| target.name().to_string())
                     .collect(),
                 selected: selection.packs.contains(&pack.name),
@@ -1118,6 +1181,14 @@ fn doctor_catalog_report(
                 approval: connector.approval.name().to_string(),
                 automation_allowed: connector.automation_allowed,
                 active: active_connectors.contains(&connector.name),
+                health: connector_health(connector, &active_connectors).to_string(),
+                auth_state: connector_auth_state(connector, &active_connectors).to_string(),
+                runtime_owner: connector_runtime_owner(connector).to_string(),
+                verification_mode: connector_verification_mode(connector).to_string(),
+                connection_status: connector_connection_status(connector, &active_connectors)
+                    .to_string(),
+                next_step: connector_next_step(connector, &active_connectors),
+                detail: connector_detail(connector, &active_connectors),
                 description: connector.description.clone(),
             })
             .collect(),
@@ -1131,10 +1202,234 @@ fn doctor_catalog_report(
                 connectors: automation.connectors.clone(),
                 artifact: automation.artifact.clone(),
                 active: active_automations.contains(&automation.name),
+                status: automation_status(automation, &active_automations).to_string(),
+                scheduler_owner: automation_scheduler_owner().to_string(),
+                registration_status: automation_registration_status(
+                    automation,
+                    &active_automations,
+                )
+                .to_string(),
+                next_step: automation_next_step(automation, &active_automations),
+                detail: automation_detail(automation, &active_automations),
                 description: automation.description.clone(),
             })
             .collect(),
+        runtime_handoff: doctor_runtime_handoff_report(
+            manifest,
+            &active_connectors,
+            &active_automations,
+        ),
     }
+}
+
+fn doctor_runtime_handoff_report(
+    manifest: &BootstrapManifest,
+    active_connectors: &[String],
+    active_automations: &[String],
+) -> DoctorRuntimeHandoffReport {
+    let connector_queue = manifest
+        .connectors
+        .iter()
+        .filter(|connector| active_connectors.contains(&connector.name))
+        .filter(|connector| {
+            matches!(
+                connector.tool_source,
+                manifest::ConnectorToolSource::App | manifest::ConnectorToolSource::Native
+            )
+        })
+        .map(|connector| connector.name.clone())
+        .collect::<Vec<_>>();
+
+    let automation_queue = manifest
+        .automations
+        .iter()
+        .filter(|automation| active_automations.contains(&automation.name))
+        .map(|automation| automation.name.clone())
+        .collect::<Vec<_>>();
+
+    let mut next_steps = Vec::new();
+    if !connector_queue.is_empty() {
+        next_steps.push(
+            "open each provider runtime and verify active app connectors with one real read action"
+                .to_string(),
+        );
+    }
+    if !automation_queue.is_empty() {
+        next_steps.push(
+            "register active automation contracts in the target runtime scheduler before expecting recurring runs"
+                .to_string(),
+        );
+    }
+    if next_steps.is_empty() {
+        next_steps.push("no runtime handoff work is pending for the active preset".to_string());
+    }
+
+    DoctorRuntimeHandoffReport {
+        active_app_connector_count: connector_queue.len(),
+        pending_app_verification_count: connector_queue.len(),
+        active_automation_count: automation_queue.len(),
+        pending_scheduler_registration_count: automation_queue.len(),
+        connector_queue,
+        automation_queue,
+        next_steps,
+    }
+}
+
+fn connector_health(
+    connector: &manifest::ConnectorDefinition,
+    active_connectors: &[String],
+) -> &'static str {
+    if !active_connectors.contains(&connector.name) {
+        return "inactive";
+    }
+
+    match connector.tool_source {
+        manifest::ConnectorToolSource::App => "runtime-managed",
+        manifest::ConnectorToolSource::Mcp => "managed",
+        manifest::ConnectorToolSource::Native => "ready",
+    }
+}
+
+fn connector_auth_state(
+    connector: &manifest::ConnectorDefinition,
+    active_connectors: &[String],
+) -> &'static str {
+    if !active_connectors.contains(&connector.name) {
+        return "not-needed";
+    }
+
+    match connector.tool_source {
+        manifest::ConnectorToolSource::App => "external-runtime",
+        manifest::ConnectorToolSource::Mcp => "bootstrap-managed",
+        manifest::ConnectorToolSource::Native => "native-runtime",
+    }
+}
+
+fn connector_runtime_owner(connector: &manifest::ConnectorDefinition) -> &'static str {
+    match connector.tool_source {
+        manifest::ConnectorToolSource::App => "provider-runtime",
+        manifest::ConnectorToolSource::Mcp => "bootstrap",
+        manifest::ConnectorToolSource::Native => "provider-native",
+    }
+}
+
+fn connector_verification_mode(connector: &manifest::ConnectorDefinition) -> &'static str {
+    match connector.tool_source {
+        manifest::ConnectorToolSource::App => "manual-runtime-check",
+        manifest::ConnectorToolSource::Mcp => "bootstrap-check",
+        manifest::ConnectorToolSource::Native => "native-check",
+    }
+}
+
+fn connector_connection_status(
+    connector: &manifest::ConnectorDefinition,
+    active_connectors: &[String],
+) -> &'static str {
+    if !active_connectors.contains(&connector.name) {
+        return "not-requested";
+    }
+
+    match connector.tool_source {
+        manifest::ConnectorToolSource::App => "not-verified",
+        manifest::ConnectorToolSource::Mcp => "managed",
+        manifest::ConnectorToolSource::Native => "ready",
+    }
+}
+
+fn connector_next_step(
+    connector: &manifest::ConnectorDefinition,
+    active_connectors: &[String],
+) -> Option<String> {
+    if !active_connectors.contains(&connector.name) {
+        return None;
+    }
+
+    match connector.tool_source {
+        manifest::ConnectorToolSource::App => Some(format!(
+            "verify {} inside the provider runtime and confirm the account session is connected",
+            connector.name
+        )),
+        manifest::ConnectorToolSource::Mcp => Some(format!(
+            "run doctor or the target MCP client and confirm {} is callable",
+            connector.name
+        )),
+        manifest::ConnectorToolSource::Native => None,
+    }
+}
+
+fn connector_detail(
+    connector: &manifest::ConnectorDefinition,
+    active_connectors: &[String],
+) -> Option<String> {
+    if !active_connectors.contains(&connector.name) {
+        return None;
+    }
+
+    match connector.tool_source {
+        manifest::ConnectorToolSource::App => Some(
+            "app connector auth is owned by the provider runtime and not verified by bootstrap"
+                .to_string(),
+        ),
+        manifest::ConnectorToolSource::Mcp => Some(
+            "connector is expected to be available through bootstrap-managed MCP wiring"
+                .to_string(),
+        ),
+        manifest::ConnectorToolSource::Native => None,
+    }
+}
+
+fn automation_status(
+    automation: &manifest::AutomationDefinition,
+    active_automations: &[String],
+) -> &'static str {
+    if active_automations.contains(&automation.name) {
+        "rendered"
+    } else {
+        "inactive"
+    }
+}
+
+fn automation_scheduler_owner() -> &'static str {
+    "runtime-managed"
+}
+
+fn automation_registration_status(
+    automation: &manifest::AutomationDefinition,
+    active_automations: &[String],
+) -> &'static str {
+    if !active_automations.contains(&automation.name) {
+        return "not-requested";
+    }
+
+    "not-registered"
+}
+
+fn automation_next_step(
+    automation: &manifest::AutomationDefinition,
+    active_automations: &[String],
+) -> Option<String> {
+    if !active_automations.contains(&automation.name) {
+        return None;
+    }
+
+    Some(format!(
+        "register {} in the target runtime scheduler if you want recurring execution",
+        automation.name
+    ))
+}
+
+fn automation_detail(
+    automation: &manifest::AutomationDefinition,
+    active_automations: &[String],
+) -> Option<String> {
+    if !active_automations.contains(&automation.name) {
+        return None;
+    }
+
+    Some(
+        "automation contract is rendered into the installed runtime state; recurring scheduler registration stays runtime-managed"
+            .to_string(),
+    )
 }
 
 fn provider_root(home: &Path, provider: Provider) -> PathBuf {
@@ -1142,6 +1437,39 @@ fn provider_root(home: &Path, provider: Provider) -> PathBuf {
         Provider::Codex => home.join(".codex"),
         Provider::Gemini => home.join(".gemini"),
         Provider::Claude => home.join(".claude"),
+    }
+}
+
+fn provider_managed_paths(
+    provider: Provider,
+    rtk_enabled: bool,
+    distribution_state: &ResolvedDistributionState,
+    surfaces: &ProviderSurfaces,
+) -> Vec<String> {
+    match provider {
+        Provider::Codex => codex_managed_paths_for(
+            &surfaces.codex,
+            distribution_state.enabled(DistributionTarget::CodexPlugin),
+            rtk_enabled,
+        ),
+        Provider::Gemini => gemini_managed_paths_for(
+            &surfaces.gemini,
+            distribution_state.enabled(DistributionTarget::GeminiExtension),
+            rtk_enabled,
+        ),
+        Provider::Claude => claude_managed_paths_for(
+            &surfaces.claude,
+            distribution_state.enabled(DistributionTarget::ClaudeSkills),
+            rtk_enabled,
+        ),
+    }
+}
+
+fn provider_surfaces(provider: Provider, surfaces: &ProviderSurfaces) -> &[String] {
+    match provider {
+        Provider::Codex => &surfaces.codex,
+        Provider::Gemini => &surfaces.gemini,
+        Provider::Claude => &surfaces.claude,
     }
 }
 
@@ -1274,19 +1602,61 @@ fn selected_automation_names(manifest: &BootstrapManifest, active_packs: &[Strin
             automation
                 .packs
                 .iter()
-                .any(|pack| active_packs.contains(pack))
+                .all(|pack| active_packs.contains(pack))
         })
         .map(|automation| automation.name.clone())
         .collect()
+}
+
+fn pack_app_names(manifest: &BootstrapManifest, pack: &manifest::PackDefinition) -> Vec<String> {
+    pack.connectors
+        .iter()
+        .filter(|name| {
+            manifest.connectors.iter().any(|connector| {
+                connector.name == **name
+                    && connector.tool_source == manifest::ConnectorToolSource::App
+            })
+        })
+        .cloned()
+        .collect()
+}
+
+fn pack_distribution_targets(pack: &manifest::PackDefinition) -> Vec<DistributionTarget> {
+    let mut targets = IndexSet::new();
+
+    if !pack.codex_surfaces.is_empty() {
+        targets.insert(DistributionTarget::CodexPlugin);
+    }
+    if !pack.gemini_surfaces.is_empty() {
+        targets.insert(DistributionTarget::GeminiExtension);
+    }
+    if !pack.claude_surfaces.is_empty() {
+        targets.insert(DistributionTarget::ClaudeSkills);
+    }
+
+    targets.into_iter().collect()
 }
 
 fn selected_distribution_targets(
     manifest: &BootstrapManifest,
     active_packs: &[String],
 ) -> Vec<DistributionTarget> {
-    selected_pack_items(manifest, active_packs, |pack| {
-        pack.distribution_targets.as_slice()
-    })
+    let codex_surfaces = selected_codex_surfaces(manifest, active_packs);
+    let gemini_surfaces = selected_gemini_surfaces(manifest, active_packs);
+    let claude_surfaces = selected_claude_surfaces(manifest, active_packs);
+    let mut targets = Vec::new();
+
+    if !codex_surfaces.is_empty() {
+        targets.push(DistributionTarget::CodexPlugin);
+    }
+    if !gemini_surfaces.is_empty() {
+        targets.push(DistributionTarget::GeminiExtension);
+    }
+    if !claude_surfaces.is_empty() {
+        targets.push(DistributionTarget::ClaudeSkills);
+    }
+
+    targets
 }
 
 fn effective_distribution_targets(
@@ -1341,14 +1711,14 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
         if pack.harnesses.is_empty() {
             errors.push(format!("pack {} has no harnesses", pack.name));
         }
-        if pack.distribution_targets.is_empty() {
-            errors.push(format!("pack {} has no distribution_targets", pack.name));
+        if pack.connectors.is_empty() {
+            errors.push(format!("pack {} has no connectors", pack.name));
         }
-        if pack.apps.is_empty() {
-            errors.push(format!("pack {} has no apps", pack.name));
-        }
-        if pack.scope.name() == "company" && pack.connectors.is_empty() {
-            errors.push(format!("company pack {} has no connectors", pack.name));
+        if pack.codex_surfaces.is_empty()
+            && pack.gemini_surfaces.is_empty()
+            && pack.claude_surfaces.is_empty()
+        {
+            errors.push(format!("pack {} has no provider surfaces", pack.name));
         }
         for harness in &pack.harnesses {
             if !harness_names.contains(harness) {
@@ -1395,20 +1765,6 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
     }
 
     for pack in &manifest.packs {
-        for app in &pack.apps {
-            if !connector_names.contains(app) {
-                errors.push(format!("pack {} references unknown app {}", pack.name, app));
-            } else if !manifest
-                .connectors
-                .iter()
-                .any(|connector| connector.name == *app && connector.tool_source.name() == "app")
-            {
-                errors.push(format!(
-                    "pack {} references non-app connector {} as app",
-                    pack.name, app
-                ));
-            }
-        }
         for connector in &pack.connectors {
             if !connector_names.contains(connector) {
                 errors.push(format!(
@@ -1916,6 +2272,12 @@ mod tests {
                     description: "Review, QA, and verification gate.".to_string(),
                 },
                 HarnessDefinition {
+                    name: "incident".to_string(),
+                    category: HarnessCategory::Quality,
+                    default_enabled: true,
+                    description: "Incident and regression response harness.".to_string(),
+                },
+                HarnessDefinition {
                     name: "founder-loop".to_string(),
                     category: HarnessCategory::Company,
                     default_enabled: false,
@@ -1939,7 +2301,6 @@ mod tests {
                         "delivery".to_string(),
                         "review-gate".to_string(),
                     ],
-                    apps: vec!["github".to_string(), "linear".to_string()],
                     mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
                     connectors: vec!["github".to_string(), "linear".to_string()],
                     codex_surfaces: vec!["llm-dev-kit".to_string(), "delivery-skills".to_string()],
@@ -1951,12 +2312,25 @@ mod tests {
                         "claude-skills".to_string(),
                         "delivery-skills".to_string(),
                     ],
-                    distribution_targets: vec![
-                        DistributionTarget::CodexPlugin,
-                        DistributionTarget::GeminiExtension,
-                        DistributionTarget::ClaudeSkills,
-                    ],
                     description: "Core software delivery pack.".to_string(),
+                },
+                PackDefinition {
+                    name: "incident-pack".to_string(),
+                    scope: PackScope::Development,
+                    lane: PackLane::Core,
+                    harnesses: vec!["incident".to_string(), "review-gate".to_string()],
+                    mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
+                    connectors: vec!["github".to_string(), "linear".to_string()],
+                    codex_surfaces: vec!["llm-dev-kit".to_string(), "incident-skills".to_string()],
+                    gemini_surfaces: vec![
+                        "llm-bootstrap-dev".to_string(),
+                        "incident-commands".to_string(),
+                    ],
+                    claude_surfaces: vec![
+                        "claude-skills".to_string(),
+                        "incident-skills".to_string(),
+                    ],
+                    description: "Incident response pack.".to_string(),
                 },
                 PackDefinition {
                     name: "founder-pack".to_string(),
@@ -1966,14 +2340,6 @@ mod tests {
                         "ralph-plan".to_string(),
                         "founder-loop".to_string(),
                         "operating-review".to_string(),
-                    ],
-                    apps: vec![
-                        "linear".to_string(),
-                        "gmail".to_string(),
-                        "calendar".to_string(),
-                        "drive".to_string(),
-                        "figma".to_string(),
-                        "stitch".to_string(),
                     ],
                     mcp_servers: vec![BaselineMcp::Exa],
                     connectors: vec![
@@ -1993,12 +2359,30 @@ mod tests {
                         "claude-skills".to_string(),
                         "company-skills".to_string(),
                     ],
-                    distribution_targets: vec![
-                        DistributionTarget::CodexPlugin,
-                        DistributionTarget::GeminiExtension,
-                        DistributionTarget::ClaudeSkills,
-                    ],
                     description: "Founder and company operating pack.".to_string(),
+                },
+                PackDefinition {
+                    name: "ops-pack".to_string(),
+                    scope: PackScope::Company,
+                    lane: PackLane::Optional,
+                    harnesses: vec!["ralph-plan".to_string(), "operating-review".to_string()],
+                    mcp_servers: vec![BaselineMcp::Exa],
+                    connectors: vec![
+                        "linear".to_string(),
+                        "gmail".to_string(),
+                        "calendar".to_string(),
+                        "drive".to_string(),
+                    ],
+                    codex_surfaces: vec!["llm-dev-kit".to_string(), "company-skills".to_string()],
+                    gemini_surfaces: vec![
+                        "llm-bootstrap-dev".to_string(),
+                        "company-commands".to_string(),
+                    ],
+                    claude_surfaces: vec![
+                        "claude-skills".to_string(),
+                        "company-skills".to_string(),
+                    ],
+                    description: "Operating review pack.".to_string(),
                 },
             ],
             presets: vec![
@@ -2009,13 +2393,23 @@ mod tests {
                 },
                 PresetDefinition {
                     name: "normal".to_string(),
-                    packs: vec!["delivery-pack".to_string()],
+                    packs: vec!["delivery-pack".to_string(), "incident-pack".to_string()],
                     description: "Default development baseline.".to_string(),
                 },
                 PresetDefinition {
                     name: "full".to_string(),
-                    packs: vec!["delivery-pack".to_string(), "founder-pack".to_string()],
+                    packs: vec![
+                        "delivery-pack".to_string(),
+                        "incident-pack".to_string(),
+                        "founder-pack".to_string(),
+                        "ops-pack".to_string(),
+                    ],
                     description: "Development and company packs.".to_string(),
+                },
+                PresetDefinition {
+                    name: "company".to_string(),
+                    packs: vec!["founder-pack".to_string(), "ops-pack".to_string()],
+                    description: "Company operating packs.".to_string(),
                 },
             ],
             connectors: vec![
@@ -2100,7 +2494,7 @@ mod tests {
                 AutomationDefinition {
                     name: "weekly-operating-review".to_string(),
                     cadence: AutomationCadence::Weekly,
-                    packs: vec!["founder-pack".to_string()],
+                    packs: vec!["founder-pack".to_string(), "ops-pack".to_string()],
                     connectors: vec![
                         "linear".to_string(),
                         "gmail".to_string(),
@@ -2146,8 +2540,8 @@ mod tests {
             &distribution_state,
         );
 
-        assert_eq!(report.harnesses.len(), 6);
-        assert_eq!(report.packs.len(), 2);
+        assert_eq!(report.harnesses.len(), 7);
+        assert_eq!(report.packs.len(), 4);
         assert_eq!(report.default_preset, "normal".to_string());
         assert_eq!(report.active_preset, Some("normal".to_string()));
         assert_eq!(report.active_packs, vec!["delivery-pack".to_string()]);
@@ -2190,7 +2584,7 @@ mod tests {
         assert!(report.harnesses[0].default_enabled);
         assert_eq!(report.packs[0].name, "delivery-pack");
         assert_eq!(
-            report.packs[0].apps,
+            report.packs[0].connector_apps,
             vec!["github".to_string(), "linear".to_string()]
         );
         assert_eq!(
@@ -2202,12 +2596,91 @@ mod tests {
         assert!(report.packs[0].selected);
         assert_eq!(report.connectors.len(), 7);
         assert_eq!(report.automations.len(), 2);
+        assert_eq!(report.runtime_handoff.active_app_connector_count, 2);
+        assert_eq!(report.runtime_handoff.pending_app_verification_count, 2);
+        assert_eq!(report.runtime_handoff.active_automation_count, 0);
+        assert_eq!(
+            report.runtime_handoff.pending_scheduler_registration_count,
+            0
+        );
+        assert_eq!(
+            report.runtime_handoff.connector_queue,
+            vec!["github".to_string(), "linear".to_string()]
+        );
+        assert!(report.runtime_handoff.automation_queue.is_empty());
+        assert_eq!(
+            report.runtime_handoff.next_steps,
+            vec![
+                "open each provider runtime and verify active app connectors with one real read action"
+                    .to_string()
+            ]
+        );
+        let github = report
+            .connectors
+            .iter()
+            .find(|connector| connector.name == "github")
+            .unwrap();
+        assert_eq!(github.health, "runtime-managed");
+        assert_eq!(github.auth_state, "external-runtime");
+        assert_eq!(github.runtime_owner, "provider-runtime");
+        assert_eq!(github.verification_mode, "manual-runtime-check");
+        assert_eq!(github.connection_status, "not-verified");
+        assert_eq!(
+            github.next_step.as_deref(),
+            Some(
+                "verify github inside the provider runtime and confirm the account session is connected"
+            )
+        );
+        let gmail = report
+            .connectors
+            .iter()
+            .find(|connector| connector.name == "gmail")
+            .unwrap();
+        assert_eq!(gmail.connection_status, "not-requested");
+        assert!(gmail.next_step.is_none());
+        let founder_brief = report
+            .automations
+            .iter()
+            .find(|automation| automation.name == "daily-founder-brief")
+            .unwrap();
+        assert_eq!(founder_brief.status, "inactive");
+        assert_eq!(founder_brief.scheduler_owner, "runtime-managed");
+        assert_eq!(founder_brief.registration_status, "not-requested");
+        assert!(founder_brief.next_step.is_none());
+    }
+
+    #[test]
+    fn installed_state_mismatch_includes_managed_paths() {
+        let requested = crate::state::InstalledState {
+            active_preset: Some("normal".to_string()),
+            active_packs: vec!["delivery-pack".to_string(), "incident-pack".to_string()],
+            active_harnesses: vec![
+                "ralph-loop".to_string(),
+                "ralph-plan".to_string(),
+                "delivery".to_string(),
+                "review-gate".to_string(),
+            ],
+            active_connectors: vec!["github".to_string(), "linear".to_string()],
+            active_automations: Vec::new(),
+            active_surfaces: vec!["llm-dev-kit".to_string(), "delivery-skills".to_string()],
+            managed_paths: vec!["config.toml".to_string(), "AGENTS.md".to_string()],
+        };
+
+        assert!(requested.mismatch(
+            Some("normal"),
+            &requested.active_packs,
+            &requested.active_harnesses,
+            &requested.active_connectors,
+            &requested.active_automations,
+            &requested.active_surfaces,
+            &["config.toml".to_string()],
+        ));
     }
 
     #[test]
     fn doctor_catalog_report_separates_requested_and_effective_targets() {
         let manifest = test_manifest();
-        let active_packs = vec!["founder-pack".to_string()];
+        let active_packs = vec!["founder-pack".to_string(), "ops-pack".to_string()];
         let active_harnesses = super::selected_harness_names(&manifest, &active_packs);
         let selection = super::ActiveSelection {
             preset: None,
@@ -2269,6 +2742,69 @@ mod tests {
                 "weekly-operating-review".to_string()
             ]
         );
+        assert_eq!(report.runtime_handoff.active_app_connector_count, 6);
+        assert_eq!(report.runtime_handoff.pending_app_verification_count, 6);
+        assert_eq!(report.runtime_handoff.active_automation_count, 2);
+        assert_eq!(
+            report.runtime_handoff.pending_scheduler_registration_count,
+            2
+        );
+        assert_eq!(
+            report.runtime_handoff.connector_queue,
+            vec![
+                "linear".to_string(),
+                "gmail".to_string(),
+                "calendar".to_string(),
+                "drive".to_string(),
+                "figma".to_string(),
+                "stitch".to_string()
+            ]
+        );
+        assert_eq!(
+            report.runtime_handoff.automation_queue,
+            vec![
+                "daily-founder-brief".to_string(),
+                "weekly-operating-review".to_string()
+            ]
+        );
+        assert_eq!(
+            report.runtime_handoff.next_steps,
+            vec![
+                "open each provider runtime and verify active app connectors with one real read action"
+                    .to_string(),
+                "register active automation contracts in the target runtime scheduler before expecting recurring runs"
+                    .to_string()
+            ]
+        );
+        let drive = report
+            .connectors
+            .iter()
+            .find(|connector| connector.name == "drive")
+            .unwrap();
+        assert_eq!(drive.health, "runtime-managed");
+        assert_eq!(drive.runtime_owner, "provider-runtime");
+        assert_eq!(drive.verification_mode, "manual-runtime-check");
+        assert_eq!(drive.connection_status, "not-verified");
+        assert_eq!(
+            drive.next_step.as_deref(),
+            Some(
+                "verify drive inside the provider runtime and confirm the account session is connected"
+            )
+        );
+        let operating_review = report
+            .automations
+            .iter()
+            .find(|automation| automation.name == "weekly-operating-review")
+            .unwrap();
+        assert_eq!(operating_review.status, "rendered");
+        assert_eq!(operating_review.scheduler_owner, "runtime-managed");
+        assert_eq!(operating_review.registration_status, "not-registered");
+        assert_eq!(
+            operating_review.next_step.as_deref(),
+            Some(
+                "register weekly-operating-review in the target runtime scheduler if you want recurring execution"
+            )
+        );
     }
 
     #[test]
@@ -2287,11 +2823,9 @@ mod tests {
         assert!(manifest.packs.iter().any(|pack| {
             pack.name == "delivery-pack"
                 && pack.scope == PackScope::Development
-                && pack.apps.contains(&"linear".to_string())
+                && pack.connectors.contains(&"linear".to_string())
                 && pack.mcp_servers.contains(&BaselineMcp::Context7)
-                && pack
-                    .distribution_targets
-                    .contains(&DistributionTarget::CodexPlugin)
+                && pack.codex_surfaces.contains(&"delivery-skills".to_string())
         }));
         assert!(
             manifest
@@ -2330,6 +2864,14 @@ mod tests {
                 .iter()
                 .any(|automation| automation.name == "weekly-operating-review")
         );
+    }
+
+    #[test]
+    fn codex_bundle_qa_browser_skill_has_frontmatter() {
+        let path = crate::runtime::repo_root()
+            .join("bundles/full/plugins/llm-dev-kit/skills/qa-browser/SKILL.md");
+        let raw = fs::read_to_string(path).unwrap();
+        assert!(raw.starts_with("---\n"));
     }
 
     fn temp_home() -> PathBuf {
@@ -2447,7 +2989,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(selection.preset, Some("normal".to_string()));
-        assert_eq!(selection.packs, vec!["delivery-pack".to_string()]);
+        assert_eq!(
+            selection.packs,
+            vec!["delivery-pack".to_string(), "incident-pack".to_string()]
+        );
     }
 
     #[test]
@@ -2476,7 +3021,31 @@ mod tests {
         assert_eq!(selection.preset, Some("full".to_string()));
         assert_eq!(
             selection.packs,
-            vec!["delivery-pack".to_string(), "founder-pack".to_string()]
+            vec![
+                "delivery-pack".to_string(),
+                "incident-pack".to_string(),
+                "founder-pack".to_string(),
+                "ops-pack".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn selected_automation_names_require_all_declared_packs() {
+        let founder_only =
+            super::selected_automation_names(&test_manifest(), &["founder-pack".to_string()]);
+        let founder_and_ops = super::selected_automation_names(
+            &test_manifest(),
+            &["founder-pack".to_string(), "ops-pack".to_string()],
+        );
+
+        assert_eq!(founder_only, vec!["daily-founder-brief".to_string()]);
+        assert_eq!(
+            founder_and_ops,
+            vec![
+                "daily-founder-brief".to_string(),
+                "weekly-operating-review".to_string()
+            ]
         );
     }
 
@@ -2552,6 +3121,13 @@ mod tests {
                 DistributionTarget::ClaudeSkills
             ]
         );
+    }
+
+    #[test]
+    fn effective_distribution_targets_keep_gemini_extension_for_incident_only_pack() {
+        let active_packs = vec!["incident-pack".to_string()];
+        let targets = super::effective_distribution_targets(&test_manifest(), &active_packs);
+        assert!(targets.contains(&DistributionTarget::GeminiExtension));
     }
 
     #[test]

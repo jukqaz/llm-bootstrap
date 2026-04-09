@@ -7,11 +7,11 @@ use crate::fs_ops::{
 use crate::json_ops::{cleanup_claude_settings, read_json_or_empty};
 use crate::layout::{
     all_claude_harness_doc_paths, all_claude_skill_paths, claude_harness_doc_paths,
-    claude_skill_paths,
+    claude_managed_paths_for, claude_skill_paths,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
-use crate::state::{managed_mcp_names, write_installed_state};
+use crate::state::{managed_mcp_names, read_installed_state, write_installed_state};
 use anyhow::{Context, Result, bail};
 use serde_json::Value;
 use std::fs;
@@ -205,13 +205,32 @@ pub(crate) fn uninstall(
     }
 
     fs::create_dir_all(&root)?;
+    let installed_state = read_installed_state(&root)?;
+    let managed_paths = if installed_state.managed_paths.is_empty() {
+        if installed_state.active_surfaces.is_empty() {
+            CLAUDE_MANAGED_PATHS
+                .iter()
+                .map(|path| (*path).to_string())
+                .chain(
+                    CLAUDE_MANAGED_SKILL_PATHS
+                        .iter()
+                        .map(|path| (*path).to_string()),
+                )
+                .collect::<Vec<_>>()
+        } else {
+            claude_managed_paths_for(
+                &installed_state.active_surfaces,
+                crate::layout::provider_surface_enabled(&installed_state.active_surfaces),
+                rtk_enabled,
+            )
+        }
+    } else {
+        installed_state.managed_paths
+    };
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
     println!("[claude] backup {}", backup_root.display());
 
-    for relative in CLAUDE_MANAGED_PATHS {
-        backup_relative(&root, &backup_root, Path::new(relative))?;
-    }
-    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+    for relative in &managed_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
@@ -222,13 +241,10 @@ pub(crate) fn uninstall(
         run_rtk_uninstall(home)?;
     }
 
-    for relative in CLAUDE_MANAGED_PATHS {
-        if *relative == "settings.json" {
+    for relative in &managed_paths {
+        if relative == "settings.json" {
             continue;
         }
-        remove_if_exists(&root.join(relative))?;
-    }
-    for relative in CLAUDE_MANAGED_SKILL_PATHS {
         remove_if_exists(&root.join(relative))?;
     }
     if rtk_enabled {
@@ -245,29 +261,34 @@ pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
     let root = home.join(".claude");
     fs::create_dir_all(&root)?;
     let source_backup = resolve_backup_root(&root, backup_name)?;
+    let installed_state = read_installed_state(&root)?;
+    let managed_paths = if installed_state.managed_paths.is_empty() {
+        CLAUDE_MANAGED_PATHS
+            .iter()
+            .map(|path| (*path).to_string())
+            .chain(
+                CLAUDE_MANAGED_SKILL_PATHS
+                    .iter()
+                    .map(|path| (*path).to_string()),
+            )
+            .collect::<Vec<_>>()
+    } else {
+        installed_state.managed_paths
+    };
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
     println!("[claude] backup {}", backup_root.display());
 
-    for relative in CLAUDE_MANAGED_PATHS {
-        backup_relative(&root, &backup_root, Path::new(relative))?;
-    }
-    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+    for relative in &managed_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
 
-    for relative in CLAUDE_MANAGED_PATHS {
-        remove_if_exists(&root.join(relative))?;
-    }
-    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+    for relative in &managed_paths {
         remove_if_exists(&root.join(relative))?;
     }
     remove_if_exists(&home.join(".claude.json"))?;
 
-    for relative in CLAUDE_MANAGED_PATHS {
-        restore_relative(&root, &source_backup, Path::new(relative))?;
-    }
-    for relative in CLAUDE_MANAGED_SKILL_PATHS {
+    for relative in &managed_paths {
         restore_relative(&root, &source_backup, Path::new(relative))?;
     }
     restore_named_entry(&source_backup, "claude.json", &home.join(".claude.json"))?;
@@ -334,7 +355,7 @@ fn sync_baseline_mcp(home: &Path, root: &Path, enabled_mcp: &[BaselineMcp]) -> R
             &format!("adding Claude MCP {}", mcp.name()),
         )?;
     }
-    write_installed_state(root, enabled_mcp, &[], &[], None)?;
+    write_installed_state(root, enabled_mcp, &crate::state::InstalledState::default())?;
     Ok(())
 }
 

@@ -38,6 +38,11 @@ English:
 - [docs/official-best-practices.md](docs/official-best-practices.md)
 - [docs/recent-signal-scan.md](docs/recent-signal-scan.md)
 - [docs/provider-surface-strategy.md](docs/provider-surface-strategy.md)
+- [docs/oh-my-comparison-report.md](docs/oh-my-comparison-report.md)
+- [docs/reference-repo-backlog.md](docs/reference-repo-backlog.md)
+- [docs/superset-strategy.md](docs/superset-strategy.md)
+- [docs/runtime-handoff.md](docs/runtime-handoff.md)
+- [docs/runtime-risk-register.md](docs/runtime-risk-register.md)
 
 Korean:
 - [README.ko.md](README.ko.md)
@@ -46,6 +51,9 @@ Korean:
 - [docs/business-ops-blueprint.ko.md](docs/business-ops-blueprint.ko.md)
 - [docs/external-tool-landscape.ko.md](docs/external-tool-landscape.ko.md)
 - [docs/provider-surface-strategy.ko.md](docs/provider-surface-strategy.ko.md)
+- [docs/oh-my-comparison-report.ko.md](docs/oh-my-comparison-report.ko.md)
+- [docs/reference-repo-backlog.ko.md](docs/reference-repo-backlog.ko.md)
+- [docs/superset-strategy.ko.md](docs/superset-strategy.ko.md)
 
 Reference data:
 - [catalog/sources/README.md](catalog/sources/README.md)
@@ -249,12 +257,13 @@ Do not combine `--preset` and `--packs`.
 
 ### Preset capability mapping
 
-Each preset now resolves as a concrete `pack -> apps -> MCP -> provider surface`
+Each preset now resolves as a concrete
+`pack -> connectors -> connector apps -> MCP -> provider surface`
 composition, not just a document bundle.
 
 - `light`
   - packs: `delivery-pack`
-  - apps: `github`, `linear`
+  - connector apps: `github`, `linear`
   - MCP: `chrome-devtools`, `context7`
   - surfaces:
     - Codex: `llm-dev-kit`, `delivery-skills`
@@ -262,7 +271,7 @@ composition, not just a document bundle.
     - Claude: `claude-skills`, `delivery-skills`
 - `normal`
   - packs: `delivery-pack`, `incident-pack`
-  - apps: `github`, `linear`
+  - connector apps: `github`, `linear`
   - MCP: `chrome-devtools`, `context7`
   - surfaces:
     - Codex: `delivery-skills`, `incident-skills`
@@ -270,7 +279,7 @@ composition, not just a document bundle.
     - Claude: `delivery-skills`, `incident-skills`
 - `full`
   - packs: `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
-  - apps: `github`, `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - connector apps: `github`, `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
   - MCP: `chrome-devtools`, `context7`, `exa`
   - surfaces:
     - Codex: development and company skills
@@ -278,22 +287,28 @@ composition, not just a document bundle.
     - Claude: development and company skills
 - `company`
   - packs: `founder-pack`, `ops-pack`
-  - apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - connector apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
   - MCP: `exa`
   - surfaces:
     - Codex: company skills
     - Gemini: company commands
     - Claude: company skills
 
-`doctor --json` exposes the same pack mapping directly. At the current stage,
-apps and MCP are wired through pack metadata and doctor reporting, while
-provider surfaces remain the main slicing contract for install behavior.
+`doctor --json` exposes the same pack mapping directly. It now also records the
+installed preset state per provider, including connectors, automations,
+surfaces, and pack-projected managed paths.
 
-Known gaps:
+Runtime boundaries:
 
-- connector health and auth checks are still metadata-first
-- recurring automation registration is documented, but not created automatically
-- uninstall and restore are provider-safe, but not fully pack-projected yet
+- app connector auth is owned by the provider runtime and reported as `runtime-managed`
+- automation contracts are rendered into installed state, while recurring scheduler registration remains runtime-managed
+
+`doctor --json` now also exposes runtime handoff hints for active connectors and
+automations:
+
+- connectors: `runtime_owner`, `verification_mode`, `connection_status`, `next_step`
+- automations: `scheduler_owner`, `registration_status`, `next_step`
+- runtime queue: `runtime_handoff.connector_queue`, `runtime_handoff.automation_queue`, `runtime_handoff.next_steps`
 
 Mode examples:
 

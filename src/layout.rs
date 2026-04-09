@@ -56,15 +56,97 @@ pub(crate) fn gemini_managed_paths() -> Vec<&'static str> {
     managed_paths(GEMINI_BASE_PATHS, "hooks/rtk-hook-gemini.sh", true)
 }
 
-pub(crate) fn codex_uninstall_paths(rtk_enabled: bool) -> Vec<&'static str> {
-    managed_paths(CODEX_BASE_PATHS, "RTK.md", rtk_enabled)
+pub(crate) fn codex_managed_paths_for(
+    active_surfaces: &[String],
+    plugin_enabled: bool,
+    rtk_enabled: bool,
+) -> Vec<String> {
+    let mut paths = vec![
+        "config.toml".to_string(),
+        "llm-bootstrap-state.json".to_string(),
+        "AGENTS.md".to_string(),
+        "agents".to_string(),
+        "scripts".to_string(),
+    ];
+    paths.extend(
+        codex_bundle_doc_paths(active_surfaces)
+            .into_iter()
+            .map(ToOwned::to_owned),
+    );
+    if plugin_enabled {
+        paths.push(".agents/plugins/marketplace.json".to_string());
+        paths.push("plugins/llm-dev-kit".to_string());
+        paths.push("plugins/cache/llm-bootstrap/llm-dev-kit".to_string());
+    }
+    if rtk_enabled {
+        paths.push("RTK.md".to_string());
+    }
+    paths
 }
 
-pub(crate) fn gemini_uninstall_paths(rtk_enabled: bool) -> Vec<&'static str> {
-    managed_paths(GEMINI_BASE_PATHS, "hooks/rtk-hook-gemini.sh", rtk_enabled)
+pub(crate) fn gemini_managed_paths_for(
+    active_surfaces: &[String],
+    extension_enabled: bool,
+    rtk_enabled: bool,
+) -> Vec<String> {
+    let mut paths = vec![
+        "GEMINI.md".to_string(),
+        "llm-bootstrap-state.json".to_string(),
+        "settings.json".to_string(),
+        "scripts".to_string(),
+    ];
+    paths.extend(
+        gemini_bundle_doc_paths(active_surfaces)
+            .into_iter()
+            .map(ToOwned::to_owned),
+    );
+    if extension_enabled {
+        paths.push("extensions/llm-bootstrap-dev".to_string());
+        paths.push("extensions/extension-enablement.json".to_string());
+    }
+    if rtk_enabled {
+        paths.push("hooks/rtk-hook-gemini.sh".to_string());
+    }
+    paths
 }
 
-const DEV_SURFACES: &[&str] = &["delivery-skills", "incident-skills", "delivery-commands"];
+pub(crate) fn claude_managed_paths_for(
+    active_surfaces: &[String],
+    skills_enabled: bool,
+    rtk_enabled: bool,
+) -> Vec<String> {
+    let mut paths = vec![
+        "CLAUDE.md".to_string(),
+        "agents".to_string(),
+        "scripts".to_string(),
+        "llm-bootstrap-state.json".to_string(),
+    ];
+    paths.extend(
+        claude_harness_doc_paths(active_surfaces)
+            .into_iter()
+            .map(ToOwned::to_owned),
+    );
+    if skills_enabled {
+        paths.extend(
+            claude_skill_paths(active_surfaces)
+                .into_iter()
+                .map(ToOwned::to_owned),
+        );
+    }
+    if rtk_enabled {
+        paths.push("settings.json".to_string());
+        paths.push("RTK.md".to_string());
+        paths.push("hooks/rtk-rewrite.sh".to_string());
+    }
+    paths
+}
+
+const DEV_SURFACES: &[&str] = &[
+    "delivery-skills",
+    "incident-skills",
+    "delivery-commands",
+    "incident-commands",
+];
 const COMPANY_SURFACES: &[&str] = &["company-skills", "company-commands"];
 const CODEX_BUNDLE_DOC_PATHS: &[&str] = &[
     "RALPH_PLAN.md",

@@ -11,10 +11,11 @@ use crate::json_ops::{
 use crate::layout::{
     all_gemini_bundle_doc_paths, all_gemini_extension_asset_paths, gemini_bundle_doc_paths,
     gemini_extension_asset_paths, gemini_extension_enablement_path, gemini_managed_paths,
-    gemini_uninstall_paths,
+    gemini_managed_paths_for,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
+use crate::state::read_installed_state;
 use anyhow::Result;
 use serde_json::{Map, Value, json};
 use std::fs;
@@ -180,10 +181,28 @@ pub(crate) fn uninstall(
         return Ok(());
     }
 
+    let installed_state = read_installed_state(&root)?;
+    let uninstall_paths = if installed_state.managed_paths.is_empty() {
+        if installed_state.active_surfaces.is_empty() {
+            gemini_managed_paths()
+                .into_iter()
+                .map(ToOwned::to_owned)
+                .collect::<Vec<_>>()
+        } else {
+            gemini_managed_paths_for(
+                &installed_state.active_surfaces,
+                crate::layout::provider_surface_enabled(&installed_state.active_surfaces),
+                rtk_enabled,
+            )
+        }
+    } else {
+        installed_state.managed_paths
+    };
+
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
     println!("[gemini] backup {}", backup_root.display());
 
-    for relative in gemini_uninstall_paths(rtk_enabled) {
+    for relative in &uninstall_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
 
@@ -191,11 +210,11 @@ pub(crate) fn uninstall(
         run_rtk_uninstall(home)?;
     }
 
-    for relative in gemini_uninstall_paths(rtk_enabled) {
-        match relative {
-            "settings.json" | "extensions/extension-enablement.json" => {}
-            _ => remove_if_exists(&root.join(relative))?,
+    for relative in &uninstall_paths {
+        if relative == "settings.json" || relative == "extensions/extension-enablement.json" {
+            continue;
         }
+        remove_if_exists(&root.join(relative))?;
     }
 
     cleanup_gemini_settings(&root.join("settings.json"), manifest, rtk_enabled)?;
@@ -209,18 +228,27 @@ pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
     let root = home.join(".gemini");
     fs::create_dir_all(&root)?;
     let source_backup = resolve_backup_root(&root, backup_name)?;
+    let installed_state = read_installed_state(&root)?;
+    let managed_paths = if installed_state.managed_paths.is_empty() {
+        gemini_managed_paths()
+            .into_iter()
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>()
+    } else {
+        installed_state.managed_paths
+    };
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
     println!("[gemini] backup {}", backup_root.display());
 
-    for relative in gemini_managed_paths() {
+    for relative in &managed_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
 
-    for relative in gemini_managed_paths() {
+    for relative in &managed_paths {
         remove_if_exists(&root.join(relative))?;
     }
 
-    for relative in gemini_managed_paths() {
+    for relative in &managed_paths {
         restore_relative(&root, &source_backup, Path::new(relative))?;
     }
 

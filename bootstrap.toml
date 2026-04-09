@@ -36,12 +36,6 @@ default_enabled = true
 description = "Development harness for office hours, build plan, review, QA, and ship."
 
 [[harnesses]]
-name = "parallel-build"
-category = "development"
-default_enabled = false
-description = "Parallel delivery harness for bounded work splitting and merge review."
-
-[[harnesses]]
 name = "incident"
 category = "quality"
 default_enabled = true
@@ -70,13 +64,11 @@ name = "delivery-pack"
 scope = "development"
 lane = "core"
 harnesses = ["ralph-loop", "ralph-plan", "delivery", "review-gate"]
-apps = ["github", "linear"]
 mcp_servers = ["chrome-devtools", "context7"]
 connectors = ["github", "linear"]
 codex_surfaces = ["llm-dev-kit", "delivery-skills"]
 gemini_surfaces = ["llm-bootstrap-dev", "delivery-commands"]
 claude_surfaces = ["claude-skills", "delivery-skills"]
-distribution_targets = ["codex-plugin", "gemini-extension", "claude-skills"]
 description = "Default software delivery pack."
 
 [[packs]]
@@ -84,13 +76,11 @@ name = "incident-pack"
 scope = "development"
 lane = "core"
 harnesses = ["incident", "review-gate"]
-apps = ["github", "linear"]
 mcp_servers = ["chrome-devtools", "context7"]
 connectors = ["github", "linear"]
 codex_surfaces = ["llm-dev-kit", "incident-skills"]
 gemini_surfaces = ["llm-bootstrap-dev", "incident-commands"]
 claude_surfaces = ["claude-skills", "incident-skills"]
-distribution_targets = ["codex-plugin", "gemini-extension", "claude-skills"]
 description = "Core incident response and regression pack."
 
 [[packs]]
@@ -98,13 +88,11 @@ name = "founder-pack"
 scope = "company"
 lane = "optional"
 harnesses = ["ralph-plan", "founder-loop", "operating-review"]
-apps = ["linear", "gmail", "calendar", "drive", "figma", "stitch"]
 mcp_servers = ["exa"]
 connectors = ["linear", "gmail", "calendar", "drive", "figma", "stitch"]
 codex_surfaces = ["llm-dev-kit", "company-skills"]
 gemini_surfaces = ["llm-bootstrap-dev", "company-commands"]
 claude_surfaces = ["claude-skills", "company-skills"]
-distribution_targets = ["codex-plugin", "gemini-extension", "claude-skills"]
 description = "Founder and product operating pack."
 
 [[packs]]
@@ -112,13 +100,11 @@ name = "ops-pack"
 scope = "company"
 lane = "optional"
 harnesses = ["ralph-plan", "operating-review"]
-apps = ["linear", "gmail", "calendar", "drive"]
 mcp_servers = ["exa"]
 connectors = ["linear", "gmail", "calendar", "drive"]
 codex_surfaces = ["llm-dev-kit", "company-skills"]
 gemini_surfaces = ["llm-bootstrap-dev", "company-commands"]
 claude_surfaces = ["claude-skills", "company-skills"]
-distribution_targets = ["codex-plugin", "gemini-extension", "claude-skills"]
 description = "Weekly operating review and KPI pack."
 
 [[presets]]

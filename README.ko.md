@@ -36,6 +36,11 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 - [docs/official-best-practices.ko.md](docs/official-best-practices.ko.md)
 - [docs/recent-signal-scan.ko.md](docs/recent-signal-scan.ko.md)
 - [docs/provider-surface-strategy.ko.md](docs/provider-surface-strategy.ko.md)
+- [docs/oh-my-comparison-report.ko.md](docs/oh-my-comparison-report.ko.md)
+- [docs/reference-repo-backlog.ko.md](docs/reference-repo-backlog.ko.md)
+- [docs/superset-strategy.ko.md](docs/superset-strategy.ko.md)
+- [docs/runtime-handoff.ko.md](docs/runtime-handoff.ko.md)
+- [docs/runtime-risk-register.ko.md](docs/runtime-risk-register.ko.md)
 
 참고 데이터:
 - [catalog/sources/README.md](catalog/sources/README.md)
@@ -174,11 +179,13 @@ cargo run -- doctor --providers codex,gemini --preset company --json
 
 ### preset별 연결 성격
 
-각 preset은 단순 문서 묶음이 아니라 `pack -> apps -> MCP -> provider surface` 조합으로 동작한다.
+각 preset은 단순 문서 묶음이 아니라
+`pack -> connectors -> connector apps -> MCP -> provider surface`
+조합으로 동작한다.
 
 - `light`
   - packs: `delivery-pack`
-  - apps: `github`, `linear`
+  - connector apps: `github`, `linear`
   - MCP: `chrome-devtools`, `context7`
   - surfaces:
     - Codex: `llm-dev-kit`, `delivery-skills`
@@ -186,7 +193,7 @@ cargo run -- doctor --providers codex,gemini --preset company --json
     - Claude: `claude-skills`, `delivery-skills`
 - `normal`
   - packs: `delivery-pack`, `incident-pack`
-  - apps: `github`, `linear`
+  - connector apps: `github`, `linear`
   - MCP: `chrome-devtools`, `context7`
   - surfaces:
     - Codex: `delivery-skills`, `incident-skills`
@@ -194,7 +201,7 @@ cargo run -- doctor --providers codex,gemini --preset company --json
     - Claude: `delivery-skills`, `incident-skills`
 - `full`
   - packs: `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
-  - apps: `github`, `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - connector apps: `github`, `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
   - MCP: `chrome-devtools`, `context7`, `exa`
   - surfaces:
     - Codex: development + company skills
@@ -202,20 +209,28 @@ cargo run -- doctor --providers codex,gemini --preset company --json
     - Claude: development + company skills
 - `company`
   - packs: `founder-pack`, `ops-pack`
-  - apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
+  - connector apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
   - MCP: `exa`
   - surfaces:
     - Codex: company skills
     - Gemini: company commands
     - Claude: company skills
 
-`doctor --json`은 이 조합을 pack별로 그대로 노출한다. 현재 기준으로 `apps`와 `MCP`는 pack 메타와 doctor에 반영되고, provider surface는 install slicing의 설명 단위로도 같이 유지된다.
+`doctor --json`은 이 조합을 pack별로 그대로 노출한다. 이제 provider별로
+설치된 preset state 안에 connectors, automations, surfaces, managed paths도 같이
+기록하고 비교한다.
 
-남은 점:
+runtime 경계:
 
-- connector health와 auth 체크는 아직 metadata-first다
-- recurring automation은 문서와 catalog까지만 있고 자동 등록은 아직 없다
-- uninstall/restore는 안전하지만 pack 단위 미세 투영까지는 아직 아니다
+- app connector auth는 provider runtime이 소유하므로 `runtime-managed`로 보고한다
+- automation contract는 설치 state에 렌더링하지만 반복 스케줄 등록은 runtime이 맡는다
+
+`doctor --json`은 active connector와 automation에 대해 runtime handoff 힌트도
+같이 보여준다.
+
+- connector: `runtime_owner`, `verification_mode`, `connection_status`, `next_step`
+- automation: `scheduler_owner`, `registration_status`, `next_step`
+- runtime queue: `runtime_handoff.connector_queue`, `runtime_handoff.automation_queue`, `runtime_handoff.next_steps`
 
 ## wizard
 
