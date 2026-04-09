@@ -1,0 +1,34 @@
+id = "continue"
+name = "Continue"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["workflow-contract", "pr-checks", "editor", "automation"]
+weight = "optional"
+summary = "Reference for markdown-defined PR checks and agent workflows that run as repeatable review gates."
+
+urls = [
+  "https://github.com/continuedev/continue"
+]
+
+capabilities = [
+  "markdown-defined pull request checks",
+  "agent workflows as repository status checks",
+  "editor and CLI install paths"
+]
+
+adoptable_parts = [
+  "markdown-defined check contracts",
+  "review-gate and security-review automation ideas",
+  "repository-level workflow-as-code patterns for future advanced lanes"
+]
+
+do_not_copy = [
+  "repo-scoped checks into user-home bootstrap core",
+  "project-level file generation by default"
+]
+
+[[evidence]]
+label = "Continue README"
+url = "https://github.com/continuedev/continue"
+note = "The README describes agents that run on every pull request as GitHub status checks, with each check defined by a markdown file."

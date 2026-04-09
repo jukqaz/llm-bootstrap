@@ -1,0 +1,36 @@
+id = "openclaw"
+name = "OpenClaw"
+source_type = "reference"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["control-plane", "multi-channel", "routing", "company-ops"]
+weight = "advanced"
+summary = "Reference for a local-first control plane that routes channels, tools, and agents across multiple communication surfaces."
+
+urls = [
+  "https://github.com/openclaw/openclaw"
+]
+
+capabilities = [
+  "multi-channel inbox and delivery surfaces",
+  "agent routing per channel or account",
+  "local-first control plane",
+  "model and auth profile selection"
+]
+
+adoptable_parts = [
+  "account and channel routing ideas for future company-operation lanes",
+  "clear separation between control plane and worker runtime",
+  "multi-channel inbox thinking for founder or ops reviews"
+]
+
+do_not_copy = [
+  "full messaging gateway into bootstrap core",
+  "channel runtime assumptions inside provider home bootstrap",
+  "chat network integrations as default baseline"
+]
+
+[[evidence]]
+label = "OpenClaw README"
+url = "https://github.com/openclaw/openclaw"
+note = "The README emphasizes a local-first gateway, multi-channel inbox, and multi-agent routing across connected channels and accounts."

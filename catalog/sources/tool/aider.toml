@@ -1,0 +1,35 @@
+id = "aider"
+name = "Aider"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "git-centric", "minimal-loop", "precision-editing"]
+weight = "optional"
+summary = "Reference for a minimal and git-centric coding workflow that keeps edits precise and the developer in control."
+
+urls = [
+  "https://github.com/Aider-AI/aider"
+]
+
+capabilities = [
+  "git-aware editing loop",
+  "automatic commit generation",
+  "minimal interaction model",
+  "broad model support"
+]
+
+adoptable_parts = [
+  "precision-first edit loop ideas",
+  "git-centric verification and commit ergonomics",
+  "small-surface execution model"
+]
+
+do_not_copy = [
+  "full runtime replacement for provider-native lanes",
+  "automatic commit behavior as a bootstrap default"
+]
+
+[[evidence]]
+label = "Aider README"
+url = "https://github.com/Aider-AI/aider"
+note = "The README emphasizes git integration, automatic commits, broad model support, and a precise developer-in-control workflow."

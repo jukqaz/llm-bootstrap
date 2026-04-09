@@ -1,0 +1,35 @@
+id = "roo_code"
+name = "Roo Code"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "modes", "mcp", "editor"]
+weight = "optional"
+summary = "Reference for mode-based developer team metaphors, MCP use, and custom workflow modes in an editor-native coding agent."
+
+urls = [
+  "https://github.com/RooCodeInc/Roo-Code"
+]
+
+capabilities = [
+  "custom modes for different workflows",
+  "architect and ask lanes",
+  "MCP server usage",
+  "AI dev team framing"
+]
+
+adoptable_parts = [
+  "mode naming and entrypoint ideas",
+  "lightweight architect versus ask versus build lane separation",
+  "custom mode packaging patterns"
+]
+
+do_not_copy = [
+  "editor-extension runtime into bootstrap core",
+  "broad mode catalogs without shared pack or harness mapping"
+]
+
+[[evidence]]
+label = "Roo Code README"
+url = "https://github.com/RooCodeInc/Roo-Code"
+note = "The README presents Roo Code as an AI-powered dev team with custom modes, architect or ask lanes, and MCP server support."

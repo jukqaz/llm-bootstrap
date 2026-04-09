@@ -1,0 +1,35 @@
+id = "cline"
+name = "Cline"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "browser-validation", "mcp", "editor"]
+weight = "optional"
+summary = "Reference for browser-assisted validation, MCP tool expansion, and task snapshots inside an editor-native coding agent."
+
+urls = [
+  "https://github.com/cline/cline"
+]
+
+capabilities = [
+  "browser-driven runtime validation",
+  "task snapshots and restore points",
+  "MCP add-a-tool expansion",
+  "large-project context curation"
+]
+
+adoptable_parts = [
+  "task snapshot and rollback ideas",
+  "strong browser validation entrypoint design",
+  "tool installation UX for MCP-like expansions"
+]
+
+do_not_copy = [
+  "editor-extension runtime into bootstrap core",
+  "workspace snapshot machinery as default home-level state"
+]
+
+[[evidence]]
+label = "Cline README"
+url = "https://github.com/cline/cline"
+note = "The README highlights browser use, MCP tool additions, careful context curation, and per-task snapshots with restore support."

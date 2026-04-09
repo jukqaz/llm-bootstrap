@@ -43,8 +43,38 @@ source_type = "reference"
 priority = 20
 
 [[entry]]
+id = "openclaw"
+file = "reference/openclaw.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
 id = "rtk"
 file = "tool/rtk.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "cline"
+file = "tool/cline.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "roo_code"
+file = "tool/roo_code.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "continue"
+file = "tool/continue.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "aider"
+file = "tool/aider.toml"
 source_type = "tool"
 priority = 30
 
