@@ -274,6 +274,7 @@ fn doctor_with(
             active_harnesses: &resolved.selection.harnesses,
             active_connectors: &catalog_report.active_connectors,
             active_automations: &catalog_report.active_automations,
+            active_record_templates: &catalog_report.active_record_templates,
             active_surfaces: requested_surfaces,
             managed_paths: &requested_managed_paths,
         };
@@ -346,6 +347,7 @@ fn doctor_with(
             installed_harnesses: installed_state.active_harnesses,
             installed_connectors: installed_state.active_connectors,
             installed_automations: installed_state.active_automations,
+            installed_record_templates: installed_state.active_record_templates,
             installed_surfaces: installed_state.active_surfaces,
             installed_managed_paths: installed_state.managed_paths,
             requested_managed_paths,
@@ -384,6 +386,10 @@ fn doctor_with(
         println!(
             "[ok] active automations: {}",
             catalog_report.active_automations.join(",")
+        );
+        println!(
+            "[ok] active record templates: {}",
+            catalog_report.active_record_templates.join(",")
         );
         println!(
             "[ok] requested distribution targets: {}",
@@ -433,6 +439,12 @@ fn doctor_with(
                 if automation.active { "yes" } else { "no" }
             );
         }
+        println!(
+            "[ok] record readiness: system={}, templates={}, missing_handoffs={}",
+            catalog_report.record_readiness.record_system,
+            catalog_report.record_readiness.active_templates.join(","),
+            catalog_report.record_readiness.missing_handoffs.join(",")
+        );
     }
 
     let report = DoctorReport {
@@ -651,6 +663,8 @@ fn install_with(
         .enabled(DistributionTarget::ClaudeSkills);
     let active_connectors = selected_connector_names(manifest, &resolved.selection.packs);
     let active_automations = selected_automation_names(manifest, &resolved.selection.packs);
+    let active_record_templates =
+        selected_record_template_names(manifest, &resolved.selection.packs);
     if mode == cli::ApplyMode::Replace {
         cleanup_home_legacy_artifacts(home)?;
         cleanup_legacy_env_vars(home)?;
@@ -694,6 +708,7 @@ fn install_with(
                 active_harnesses: resolved.selection.harnesses.clone(),
                 active_connectors: active_connectors.clone(),
                 active_automations: active_automations.clone(),
+                active_record_templates: active_record_templates.clone(),
                 active_surfaces: provider_surfaces(*provider, &resolved.surfaces).to_vec(),
                 managed_paths: provider_managed_paths(
                     *provider,
@@ -1006,6 +1021,7 @@ struct DoctorProviderReport {
     installed_harnesses: Vec<String>,
     installed_connectors: Vec<String>,
     installed_automations: Vec<String>,
+    installed_record_templates: Vec<String>,
     installed_surfaces: Vec<String>,
     installed_managed_paths: Vec<String>,
     requested_managed_paths: Vec<String>,
@@ -1038,6 +1054,7 @@ struct DoctorCatalogReport {
     active_mcp_servers: Vec<String>,
     active_connectors: Vec<String>,
     active_automations: Vec<String>,
+    active_record_templates: Vec<String>,
     requested_distribution_targets: Vec<String>,
     active_distribution_targets: Vec<String>,
     harnesses: Vec<DoctorHarnessReport>,
@@ -1045,7 +1062,9 @@ struct DoctorCatalogReport {
     presets: Vec<DoctorPresetReport>,
     connectors: Vec<DoctorConnectorReport>,
     automations: Vec<DoctorAutomationReport>,
+    record_templates: Vec<DoctorRecordTemplateReport>,
     runtime_handoff: DoctorRuntimeHandoffReport,
+    record_readiness: DoctorRecordReadinessReport,
 }
 
 #[derive(Serialize)]
@@ -1100,6 +1119,28 @@ struct DoctorAutomationReport {
     next_step: Option<String>,
     detail: Option<String>,
     description: String,
+}
+
+#[derive(Serialize)]
+struct DoctorRecordTemplateReport {
+    name: String,
+    record_type: String,
+    stage: String,
+    packs: Vec<String>,
+    surfaces: Vec<String>,
+    active: bool,
+    runtime_owner: String,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct DoctorRecordReadinessReport {
+    enabled: bool,
+    record_system: String,
+    runtime_owner: String,
+    active_templates: Vec<String>,
+    missing_handoffs: Vec<String>,
+    next_action: String,
 }
 
 struct ResolvedDistributionState {
@@ -1204,6 +1245,7 @@ fn doctor_catalog_report(
 ) -> DoctorCatalogReport {
     let active_connectors = selected_connector_names(manifest, &selection.packs);
     let active_automations = selected_automation_names(manifest, &selection.packs);
+    let active_record_templates = selected_record_template_names(manifest, &selection.packs);
 
     DoctorCatalogReport {
         default_preset: manifest.bootstrap.default_preset.clone(),
@@ -1220,6 +1262,7 @@ fn doctor_catalog_report(
             .collect(),
         active_connectors: active_connectors.clone(),
         active_automations: active_automations.clone(),
+        active_record_templates: active_record_templates.clone(),
         requested_distribution_targets: distribution_state
             .requested
             .iter()
@@ -1320,11 +1363,77 @@ fn doctor_catalog_report(
                 description: automation.description.clone(),
             })
             .collect(),
+        record_templates: manifest
+            .record_templates
+            .iter()
+            .map(|record| DoctorRecordTemplateReport {
+                name: record.name.clone(),
+                record_type: record.record_type.clone(),
+                stage: record.stage.clone(),
+                packs: record.packs.clone(),
+                surfaces: record.surfaces.clone(),
+                active: active_record_templates.contains(&record.name),
+                runtime_owner: record_runtime_owner(record, &active_record_templates).to_string(),
+                description: record.description.clone(),
+            })
+            .collect(),
         runtime_handoff: doctor_runtime_handoff_report(
             manifest,
             &active_connectors,
             &active_automations,
         ),
+        record_readiness: doctor_record_readiness_report(
+            &active_connectors,
+            &active_record_templates,
+        ),
+    }
+}
+
+fn doctor_record_readiness_report(
+    active_connectors: &[String],
+    active_record_templates: &[String],
+) -> DoctorRecordReadinessReport {
+    let missing_handoffs = active_connectors
+        .iter()
+        .filter(|connector| connector.as_str() != "github")
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let next_action = if active_record_templates.is_empty() {
+        "no record templates are active for the selected packs".to_string()
+    } else if missing_handoffs.is_empty() {
+        "write operating records to local docs or GitHub issue and repo-doc links".to_string()
+    } else {
+        "write operating records to local docs or GitHub links, then verify external source-of-truth handoffs"
+            .to_string()
+    };
+
+    DoctorRecordReadinessReport {
+        enabled: !active_record_templates.is_empty(),
+        record_system: "local-docs+github-issues".to_string(),
+        runtime_owner: "bootstrap-contracts+external-tools".to_string(),
+        active_templates: active_record_templates.to_vec(),
+        missing_handoffs,
+        next_action,
+    }
+}
+
+fn record_runtime_owner(
+    record: &manifest::RecordTemplateDefinition,
+    active_record_templates: &[String],
+) -> &'static str {
+    if !active_record_templates.contains(&record.name) {
+        return "not-requested";
+    }
+
+    if record
+        .surfaces
+        .iter()
+        .any(|surface| surface == "github-issues")
+    {
+        "external-tools"
+    } else {
+        "bootstrap-contract"
     }
 }
 
@@ -1714,6 +1823,18 @@ fn selected_automation_names(manifest: &BootstrapManifest, active_packs: &[Strin
         .collect()
 }
 
+fn selected_record_template_names(
+    manifest: &BootstrapManifest,
+    active_packs: &[String],
+) -> Vec<String> {
+    manifest
+        .record_templates
+        .iter()
+        .filter(|record| record.packs.iter().any(|pack| active_packs.contains(pack)))
+        .map(|record| record.name.clone())
+        .collect()
+}
+
 fn pack_app_names(manifest: &BootstrapManifest, pack: &manifest::PackDefinition) -> Vec<String> {
     pack.connectors
         .iter()
@@ -1803,6 +1924,7 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
     let mut pack_names = IndexSet::new();
     let mut preset_names = IndexSet::new();
     let mut connector_names = IndexSet::new();
+    let mut record_template_names = IndexSet::new();
 
     for harness in &manifest.harnesses {
         if !harness_names.insert(harness.name.clone()) {
@@ -1916,6 +2038,26 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
                 errors.push(format!(
                     "automation {} references unknown connector {}",
                     automation.name, connector
+                ));
+            }
+        }
+    }
+
+    for record in &manifest.record_templates {
+        if !record_template_names.insert(record.name.clone()) {
+            errors.push(format!("duplicate record template: {}", record.name));
+        }
+        if record.packs.is_empty() {
+            errors.push(format!("record template {} has no packs", record.name));
+        }
+        if record.surfaces.is_empty() {
+            errors.push(format!("record template {} has no surfaces", record.name));
+        }
+        for pack in &record.packs {
+            if !pack_names.contains(pack) {
+                errors.push(format!(
+                    "record template {} references unknown pack {}",
+                    record.name, pack
                 ));
             }
         }
@@ -2316,7 +2458,7 @@ mod tests {
         ConnectorAccess, ConnectorApproval, ConnectorCategory, ConnectorDefinition,
         ConnectorToolSource, DistributionTarget, EnvGatedMcp, ExternalSection, HarnessCategory,
         HarnessDefinition, McpSection, PackDefinition, PackLane, PackScope, PresetDefinition,
-        RtkSection,
+        RecordTemplateDefinition, RtkSection,
     };
     use crate::providers::{claude, codex, gemini};
     use serde_json::json;
@@ -2611,6 +2753,24 @@ mod tests {
                     description: "Weekly operating review.".to_string(),
                 },
             ],
+            record_templates: vec![
+                RecordTemplateDefinition {
+                    name: "project-record".to_string(),
+                    record_type: "ProjectRecord".to_string(),
+                    stage: "build".to_string(),
+                    packs: vec!["delivery-pack".to_string(), "founder-pack".to_string()],
+                    surfaces: vec!["local-docs".to_string(), "github-issues".to_string()],
+                    description: "Project brief and execution record.".to_string(),
+                },
+                RecordTemplateDefinition {
+                    name: "ops-record".to_string(),
+                    record_type: "OpsRecord".to_string(),
+                    stage: "learn".to_string(),
+                    packs: vec!["ops-pack".to_string()],
+                    surfaces: vec!["local-docs".to_string(), "github-issues".to_string()],
+                    description: "Weekly operating record.".to_string(),
+                },
+            ],
         }
     }
 
@@ -2715,6 +2875,25 @@ mod tests {
         );
         assert!(report.runtime_handoff.automation_queue.is_empty());
         assert_eq!(
+            report.active_record_templates,
+            vec!["project-record".to_string()]
+        );
+        assert_eq!(report.record_templates.len(), 2);
+        assert!(report.record_templates[0].active);
+        assert_eq!(report.record_templates[0].runtime_owner, "external-tools");
+        assert_eq!(
+            report.record_readiness.record_system,
+            "local-docs+github-issues"
+        );
+        assert_eq!(
+            report.record_readiness.active_templates,
+            vec!["project-record".to_string()]
+        );
+        assert_eq!(
+            report.record_readiness.missing_handoffs,
+            vec!["linear".to_string()]
+        );
+        assert_eq!(
             report.runtime_handoff.next_steps,
             vec![
                 "open each provider runtime and verify active app connectors with one real read action"
@@ -2768,6 +2947,7 @@ mod tests {
             ],
             active_connectors: vec!["github".to_string(), "linear".to_string()],
             active_automations: Vec::new(),
+            active_record_templates: vec!["project-record".to_string()],
             active_surfaces: vec!["llm-dev-kit".to_string(), "delivery-skills".to_string()],
             managed_paths: vec!["config.toml".to_string(), "AGENTS.md".to_string()],
         };
@@ -2778,6 +2958,7 @@ mod tests {
             active_harnesses: &requested.active_harnesses,
             active_connectors: &requested.active_connectors,
             active_automations: &requested.active_automations,
+            active_record_templates: &requested.active_record_templates,
             active_surfaces: &requested.active_surfaces,
             managed_paths: &["config.toml".to_string()],
         };
@@ -2848,6 +3029,21 @@ mod tests {
             vec![
                 "daily-founder-brief".to_string(),
                 "weekly-operating-review".to_string()
+            ]
+        );
+        assert_eq!(
+            report.active_record_templates,
+            vec!["project-record".to_string(), "ops-record".to_string()]
+        );
+        assert_eq!(
+            report.record_readiness.missing_handoffs,
+            vec![
+                "linear".to_string(),
+                "gmail".to_string(),
+                "calendar".to_string(),
+                "drive".to_string(),
+                "figma".to_string(),
+                "stitch".to_string()
             ]
         );
         assert_eq!(report.runtime_handoff.active_app_connector_count, 6);
@@ -2972,6 +3168,11 @@ mod tests {
                 .iter()
                 .any(|automation| automation.name == "weekly-operating-review")
         );
+        assert!(manifest.record_templates.iter().any(|record| {
+            record.name == "ops-record"
+                && record.record_type == "OpsRecord"
+                && record.surfaces.contains(&"github-issues".to_string())
+        }));
     }
 
     #[test]
@@ -3284,6 +3485,17 @@ mod tests {
     }
 
     #[test]
+    fn selected_record_template_names_follow_active_packs() {
+        let delivery =
+            super::selected_record_template_names(&test_manifest(), &["delivery-pack".to_string()]);
+        let ops =
+            super::selected_record_template_names(&test_manifest(), &["ops-pack".to_string()]);
+
+        assert_eq!(delivery, vec!["project-record".to_string()]);
+        assert_eq!(ops, vec!["ops-record".to_string()]);
+    }
+
+    #[test]
     fn effective_distribution_targets_drop_dev_surfaces_for_company_only_harnesses() {
         let active_packs = vec!["founder-pack".to_string()];
         let targets = super::effective_distribution_targets(&test_manifest(), &active_packs);
@@ -3339,6 +3551,20 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("pack delivery-pack references unknown connector missing-connector")
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_unknown_record_template_pack() {
+        let mut manifest = test_manifest();
+        manifest.record_templates[0]
+            .packs
+            .push("missing-pack".to_string());
+
+        let err = super::validate_manifest(&manifest).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("record template project-record references unknown pack missing-pack")
         );
     }
 

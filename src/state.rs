@@ -11,6 +11,7 @@ pub(crate) struct InstalledState {
     pub(crate) active_harnesses: Vec<String>,
     pub(crate) active_connectors: Vec<String>,
     pub(crate) active_automations: Vec<String>,
+    pub(crate) active_record_templates: Vec<String>,
     pub(crate) active_surfaces: Vec<String>,
     pub(crate) managed_paths: Vec<String>,
 }
@@ -21,6 +22,7 @@ pub(crate) struct RequestedState<'a> {
     pub(crate) active_harnesses: &'a [String],
     pub(crate) active_connectors: &'a [String],
     pub(crate) active_automations: &'a [String],
+    pub(crate) active_record_templates: &'a [String],
     pub(crate) active_surfaces: &'a [String],
     pub(crate) managed_paths: &'a [String],
 }
@@ -32,6 +34,7 @@ impl InstalledState {
             || self.active_harnesses != requested.active_harnesses
             || self.active_connectors != requested.active_connectors
             || self.active_automations != requested.active_automations
+            || self.active_record_templates != requested.active_record_templates
             || self.active_surfaces != requested.active_surfaces
             || self.managed_paths != requested.managed_paths
     }
@@ -57,6 +60,7 @@ pub(crate) fn read_installed_state(root: &Path) -> Result<InstalledState> {
         active_harnesses: json_string_array(&value, "active_harnesses"),
         active_connectors: json_string_array(&value, "active_connectors"),
         active_automations: json_string_array(&value, "active_automations"),
+        active_record_templates: json_string_array(&value, "active_record_templates"),
         active_surfaces: json_string_array(&value, "active_surfaces"),
         managed_paths: json_string_array(&value, "managed_paths"),
     })
@@ -88,6 +92,7 @@ pub(crate) fn write_installed_state(
         "active_harnesses": state.active_harnesses,
         "active_connectors": state.active_connectors,
         "active_automations": state.active_automations,
+        "active_record_templates": state.active_record_templates,
         "active_surfaces": state.active_surfaces,
         "managed_paths": state.managed_paths,
     });

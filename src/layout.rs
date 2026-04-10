@@ -231,6 +231,7 @@ const DEV_SURFACES: &[&str] = &[
 const COMPANY_SURFACES: &[&str] = &["company-skills", "company-commands"];
 const CODEX_BUNDLE_DOC_PATHS: &[&str] = &[
     "RALPH_PLAN.md",
+    "OPERATING_RECORDS.md",
     "FOUNDER_LOOP.md",
     "OPERATING_REVIEW.md",
     "CONNECTORS.md",
@@ -247,6 +248,7 @@ const CODEX_PLUGIN_ASSET_PATHS: &[&str] = &[
     "skills/autopilot/SKILL.md",
     "skills/delivery-loop/SKILL.md",
     "skills/ralph-plan/SKILL.md",
+    "skills/record-work/SKILL.md",
     "skills/founder-loop/SKILL.md",
     "skills/operating-review/SKILL.md",
     "skills/investigate/SKILL.md",
@@ -272,12 +274,14 @@ const GEMINI_EXTENSION_ASSET_PATHS: &[&str] = &[
     "extensions/llm-bootstrap-dev/commands/intent.toml",
     "extensions/llm-bootstrap-dev/commands/operating-review.toml",
     "extensions/llm-bootstrap-dev/commands/ralph-plan.toml",
+    "extensions/llm-bootstrap-dev/commands/record-work.toml",
     "extensions/llm-bootstrap-dev/commands/review.toml",
     "extensions/llm-bootstrap-dev/commands/ship.toml",
 ];
 const GEMINI_EXTENSION_ENABLEMENT_PATH: &str = "extensions/extension-enablement.json";
 const CLAUDE_HARNESS_DOC_PATHS: &[&str] = &[
     "RALPH_PLAN.md",
+    "OPERATING_RECORDS.md",
     "FOUNDER_LOOP.md",
     "OPERATING_REVIEW.md",
     "CONNECTORS.md",
@@ -295,6 +299,7 @@ const CLAUDE_HARNESS_DOC_PATHS: &[&str] = &[
 const CLAUDE_SKILL_PATHS: &[&str] = &[
     "skills/autopilot",
     "skills/ralph-plan",
+    "skills/record-work",
     "skills/founder-loop",
     "skills/investigate",
     "skills/operating-review",
@@ -314,6 +319,7 @@ pub(crate) fn codex_bundle_doc_paths(active_surfaces: &[String]) -> Vec<&'static
     let mut paths = Vec::new();
     if has_any_surface(active_surfaces, &["delivery-skills", "company-skills"]) {
         paths.push("RALPH_PLAN.md");
+        paths.push("OPERATING_RECORDS.md");
     }
     if has_any_surface(active_surfaces, &["delivery-skills"]) {
         paths.push("WORKFLOW.md");
@@ -356,6 +362,12 @@ pub(crate) fn codex_plugin_asset_paths(active_surfaces: &[String]) -> Vec<&'stat
     if has_any_surface(active_surfaces, &["company-skills"]) {
         paths.push("skills/ralph-plan/SKILL.md");
     }
+    if has_any_surface(
+        active_surfaces,
+        &["delivery-skills", "incident-skills", "company-skills"],
+    ) {
+        paths.push("skills/record-work/SKILL.md");
+    }
     if has_any_surface(active_surfaces, &["delivery-skills"]) {
         paths.push("skills/delivery-loop/SKILL.md");
         paths.push("skills/autopilot/SKILL.md");
@@ -394,6 +406,7 @@ pub(crate) fn gemini_bundle_doc_paths(active_surfaces: &[String]) -> Vec<&'stati
     let mut paths = Vec::new();
     if has_any_surface(active_surfaces, &["delivery-commands", "company-commands"]) {
         paths.push("RALPH_PLAN.md");
+        paths.push("OPERATING_RECORDS.md");
     }
     if has_any_surface(active_surfaces, &["delivery-commands"]) {
         paths.push("WORKFLOW.md");
@@ -415,6 +428,7 @@ pub(crate) fn all_gemini_bundle_doc_paths() -> &'static [&'static str] {
         "WORKFLOW.md",
         "SHIP_CHECKLIST.md",
         "RALPH_PLAN.md",
+        "OPERATING_RECORDS.md",
         "FOUNDER_LOOP.md",
         "OPERATING_REVIEW.md",
         "CONNECTORS.md",
@@ -436,6 +450,12 @@ pub(crate) fn gemini_extension_asset_paths(active_surfaces: &[String]) -> Vec<&'
     }
     if has_any_surface(active_surfaces, &["company-commands"]) {
         paths.push("extensions/llm-bootstrap-dev/commands/ralph-plan.toml");
+    }
+    if has_any_surface(
+        active_surfaces,
+        &["delivery-commands", "incident-commands", "company-commands"],
+    ) {
+        paths.push("extensions/llm-bootstrap-dev/commands/record-work.toml");
     }
     if has_any_surface(active_surfaces, &["delivery-commands"]) {
         paths.push("extensions/llm-bootstrap-dev/OFFICE_HOURS.md");
@@ -476,6 +496,7 @@ pub(crate) fn claude_harness_doc_paths(active_surfaces: &[String]) -> Vec<&'stat
     let mut paths = Vec::new();
     if has_any_surface(active_surfaces, &["delivery-skills", "company-skills"]) {
         paths.push("RALPH_PLAN.md");
+        paths.push("OPERATING_RECORDS.md");
     }
     if has_any_surface(active_surfaces, &["delivery-skills"]) {
         paths.push("WORKFLOW.md");
@@ -515,6 +536,12 @@ pub(crate) fn claude_skill_paths(active_surfaces: &[String]) -> Vec<&'static str
         paths.push("skills/ralph-plan");
         paths.push("skills/founder-loop");
         paths.push("skills/operating-review");
+    }
+    if has_any_surface(
+        active_surfaces,
+        &["delivery-skills", "incident-skills", "company-skills"],
+    ) {
+        paths.push("skills/record-work");
     }
     if has_any_surface(active_surfaces, &["delivery-skills"]) {
         paths.push("skills/autopilot");

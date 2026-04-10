@@ -157,6 +157,21 @@ wizard는 capability 선택 뒤 record surface를 묻는다.
 6. 반복 사용이 충분할 때만 lightweight local index를 추가한다
 7. 외부 connector write는 approval boundary가 준비된 뒤 opt-in으로 연다
 
+현재 구현된 것:
+
+- `bootstrap.toml`의 `record_templates` catalog
+- `OPERATING_RECORDS.md` provider doc
+- Codex/Claude `record-work` skill
+- Gemini `record-work` command
+- `doctor`의 `active_record_templates`, `record_templates`, `record_readiness`
+
+아직 구현하지 않은 것:
+
+- wizard의 record surface 선택 UI
+- local record 파일 생성 명령
+- GitHub issue 생성 자동화
+- 외부 connector write
+
 ## Non-goals
 
 - 자체 CRM 구현

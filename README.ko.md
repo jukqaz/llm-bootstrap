@@ -168,9 +168,11 @@ cargo run -- uninstall --providers codex,gemini --dry-run
 - `RALPH_PLAN.md`
 - `FOUNDER_LOOP.md`
 - `OPERATING_REVIEW.md`
+- `OPERATING_RECORDS.md`
 - `CONNECTORS.md`
 - `AUTOMATIONS.md`
 - Codex skill / Gemini command / Claude skill 진입점
+- `record-work` Codex/Claude skill, Gemini command
 
 예시:
 
@@ -237,6 +239,7 @@ runtime 경계:
 - connector: `runtime_owner`, `verification_mode`, `connection_status`, `next_step`
 - automation: `scheduler_owner`, `registration_status`, `next_step`
 - runtime queue: `runtime_handoff.connector_queue`, `runtime_handoff.automation_queue`, `runtime_handoff.next_steps`
+- records: `active_record_templates`, `record_templates`, `record_readiness`
 
 ## wizard
 

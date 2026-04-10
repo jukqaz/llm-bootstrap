@@ -16,6 +16,8 @@ pub(crate) struct BootstrapManifest {
     pub(crate) connectors: Vec<ConnectorDefinition>,
     #[serde(default)]
     pub(crate) automations: Vec<AutomationDefinition>,
+    #[serde(default)]
+    pub(crate) record_templates: Vec<RecordTemplateDefinition>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -106,6 +108,18 @@ pub(crate) struct AutomationDefinition {
     #[serde(default)]
     pub(crate) connectors: Vec<String>,
     pub(crate) artifact: String,
+    pub(crate) description: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct RecordTemplateDefinition {
+    pub(crate) name: String,
+    pub(crate) record_type: String,
+    pub(crate) stage: String,
+    #[serde(default)]
+    pub(crate) packs: Vec<String>,
+    #[serde(default)]
+    pub(crate) surfaces: Vec<String>,
     pub(crate) description: String,
 }
 

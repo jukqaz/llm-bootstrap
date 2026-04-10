@@ -221,3 +221,75 @@ packs = ["ops-pack"]
 connectors = ["linear", "gmail", "calendar", "drive"]
 artifact = "Pipeline Review"
 description = "Summarize active pipeline, follow-ups, and schedule risk for the next operating week."
+
+[[record_templates]]
+name = "opportunity-record"
+record_type = "OpportunityRecord"
+stage = "discover"
+packs = ["founder-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "Market, customer pain, wedge, and why-now record for founder review."
+
+[[record_templates]]
+name = "decision-record"
+record_type = "DecisionRecord"
+stage = "decide"
+packs = ["founder-pack", "ops-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "Bounded decision record with options, rationale, owner, and review date."
+
+[[record_templates]]
+name = "project-record"
+record_type = "ProjectRecord"
+stage = "build"
+packs = ["delivery-pack", "founder-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "Product brief, scope, milestone, artifact, and issue/PR link record."
+
+[[record_templates]]
+name = "task-record"
+record_type = "TaskRecord"
+stage = "build"
+packs = ["delivery-pack", "incident-pack"]
+surfaces = ["github-issues", "local-docs"]
+description = "Execution unit record with next action, owner, status, and verification evidence."
+
+[[record_templates]]
+name = "support-record"
+record_type = "SupportRecord"
+stage = "launch"
+packs = ["incident-pack", "founder-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "Customer inquiry, severity, reply draft, repro link, and resolution record."
+
+[[record_templates]]
+name = "growth-record"
+record_type = "GrowthRecord"
+stage = "validate"
+packs = ["founder-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "Campaign, channel, hypothesis, result, and next experiment record."
+
+[[record_templates]]
+name = "ops-record"
+record_type = "OpsRecord"
+stage = "learn"
+packs = ["ops-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "Weekly operating review record with KPI, pipeline, risk, decisions, and next bets."
+
+[[record_templates]]
+name = "risk-record"
+record_type = "RiskRecord"
+stage = "build"
+packs = ["delivery-pack", "ops-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "Security, privacy, legal, finance, or release risk record with approval boundary."
+
+[[record_templates]]
+name = "handoff-record"
+record_type = "HandoffRecord"
+stage = "launch"
+packs = ["delivery-pack", "incident-pack", "founder-pack", "ops-pack"]
+surfaces = ["local-docs", "github-issues"]
+description = "External runtime owner, object link, missing verification, and next-step record."
