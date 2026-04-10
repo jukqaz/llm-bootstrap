@@ -3799,7 +3799,7 @@ mod tests {
         fs::create_dir_all(&gemini_home).unwrap();
         fs::write(
             gemini_home.join("settings.json"),
-            "{\n  \"mcpServers\": {\n    \"legacy-memory\": {\"command\": \"legacy-memory\"},\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
+            "{\n  \"mcpServers\": {\n    \"legacy-memory\": {\"command\": \"legacy-memory\"},\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\",\n  \"security\": {\n    \"auth\": {\n      \"selectedType\": \"oauth-personal\"\n    }\n  }\n}\n",
         )
         .unwrap();
 
@@ -3832,7 +3832,7 @@ mod tests {
         fs::create_dir_all(&gemini_home).unwrap();
         fs::write(
             gemini_home.join("settings.json"),
-            "{\n  \"mcpServers\": {\n    \"legacy-memory\": {\"command\": \"legacy-memory\"},\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\"\n}\n",
+            "{\n  \"mcpServers\": {\n    \"legacy-memory\": {\"command\": \"legacy-memory\"},\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\",\n  \"security\": {\n    \"auth\": {\n      \"selectedType\": \"oauth-personal\"\n    }\n  }\n}\n",
         )
         .unwrap();
 
@@ -3853,6 +3853,11 @@ mod tests {
         assert!(after["mcpServers"].get("legacy-memory").is_none());
         assert!(after["mcpServers"].get("manual-tool").is_none());
         assert!(after["mcpServers"].get("chrome-devtools").is_some());
+        assert_eq!(after["selectedAuthType"], json!("oauth-personal"));
+        assert_eq!(
+            after["security"]["auth"]["selectedType"],
+            json!("oauth-personal")
+        );
 
         fs::remove_dir_all(home).unwrap();
     }

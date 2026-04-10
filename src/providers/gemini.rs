@@ -79,6 +79,11 @@ pub(crate) fn install(
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
 
+    let settings_path = root.join("settings.json");
+    let existing_settings = read_json_or_empty(&settings_path)?;
+    let enablement_path = root.join("extensions/extension-enablement.json");
+    let existing_enablement = read_json_or_empty(&enablement_path)?;
+
     if mode == ApplyMode::Replace {
         for relative in gemini_managed_paths() {
             remove_if_exists(&root.join(relative))?;
@@ -93,11 +98,6 @@ pub(crate) fn install(
     } else {
         remove_if_exists(&root.join("hooks/rtk-hook-gemini.sh"))?;
     }
-
-    let settings_path = root.join("settings.json");
-    let existing_settings = read_json_or_empty(&settings_path)?;
-    let enablement_path = root.join("extensions/extension-enablement.json");
-    let existing_enablement = read_json_or_empty(&enablement_path)?;
 
     copy_render_file_with_extras(
         &template_root.join("GEMINI.md"),
