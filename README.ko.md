@@ -4,7 +4,7 @@
 
 ## 설치
 
-현재 release: `v0.2.1`
+현재 release: `v0.2.2`
 
 기본 경로는 wizard 실행이다.
 
@@ -127,7 +127,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.2.1 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.2.2 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.
@@ -150,8 +150,14 @@ cargo run -- uninstall --providers codex,gemini --dry-run
 ```
 
 `doctor --json`에는 현재 요청한 preset/pack 외에 실제 홈에 기록된
-`installed_preset`, `installed_packs`, `state_mismatch`도 나온다. 새 preset을
-아직 설치하지 않은 홈이라면 이 값으로 드리프트를 먼저 확인할 수 있다.
+`installed_preset`, `installed_packs`, `installed_record_surface`,
+`requested_record_surface`, `state_mismatch`도 나온다. 새 preset을 아직 설치하지
+않은 홈이라면 이 값으로 드리프트를 먼저 확인할 수 있다. provider runtime 체크도
+공용 prerequisite와 분리해서 본다.
+
+- Codex: `codex` CLI 또는 `/Applications/Codex.app`
+- Gemini: `gemini` CLI
+- Claude Code: `claude` CLI
 
 ## 세트메뉴 preset
 

@@ -100,6 +100,12 @@ pub(crate) struct InstallArgs {
         help = "Skip RTK official init even if enabled in bootstrap.toml"
     )]
     pub(crate) without_rtk: bool,
+    #[arg(
+        long,
+        value_enum,
+        help = "Preferred operating record surface for the installed baseline"
+    )]
+    pub(crate) record_surface: Option<RecordSurface>,
     #[arg(long, help = "Show the planned install without writing files")]
     pub(crate) dry_run: bool,
 }
@@ -144,6 +150,12 @@ pub(crate) struct DoctorArgs {
     pub(crate) pack_args: PackArgs,
     #[arg(long, help = "Skip RTK checks even if enabled in bootstrap.toml")]
     pub(crate) without_rtk: bool,
+    #[arg(
+        long,
+        value_enum,
+        help = "Expected operating record surface when checking installed state"
+    )]
+    pub(crate) record_surface: Option<RecordSurface>,
     #[arg(long, help = "Emit doctor results as JSON")]
     pub(crate) json: bool,
 }

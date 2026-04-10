@@ -356,6 +356,19 @@ pub(crate) fn copy_render_file(
     copy_render_file_with_extras(source, destination, executable, home, &[])
 }
 
+pub(crate) fn render_template_file_with_extras(
+    source: &Path,
+    home: &Path,
+    extra_tokens: &[(&str, &str)],
+) -> Result<String> {
+    Ok(render_tokens_with_extras(
+        &fs::read_to_string(source)
+            .with_context(|| format!("failed to read {}", source.display()))?,
+        home,
+        extra_tokens,
+    ))
+}
+
 pub(crate) fn copy_render_file_with_extras(
     source: &Path,
     destination: &Path,
@@ -372,12 +385,7 @@ pub(crate) fn copy_render_file_with_extras(
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
 
-    let rendered = render_tokens_with_extras(
-        &fs::read_to_string(source)
-            .with_context(|| format!("failed to read {}", source.display()))?,
-        home,
-        extra_tokens,
-    );
+    let rendered = render_template_file_with_extras(source, home, extra_tokens)?;
     fs::write(destination, rendered).with_context(|| {
         format!(
             "failed to write {} -> {}",

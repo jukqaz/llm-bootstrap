@@ -9,7 +9,7 @@ integration.
 
 ## Install
 
-Current release: `v0.2.1`
+Current release: `v0.2.2`
 
 Default path: run the wizard first.
 
@@ -195,7 +195,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.2.1 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.2.2 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
@@ -219,8 +219,15 @@ cargo run -- install --providers codex,gemini,claude --preset full
 ```
 
 `doctor --json` now exposes both the requested preset state and the last
-installed home state through `installed_preset`, `installed_packs`, and
-`state_mismatch`. That makes preset drift visible before you reinstall.
+installed home state through `installed_preset`, `installed_packs`,
+`installed_record_surface`, `requested_record_surface`, and `state_mismatch`.
+That makes preset drift visible before you reinstall. Provider runtime checks
+now also distinguish shared command prerequisites from provider runtime
+requirements:
+
+- Codex: `codex` CLI or `/Applications/Codex.app`
+- Gemini: `gemini` CLI
+- Claude Code: `claude` CLI
 
 ## Preset menus
 

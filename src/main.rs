@@ -70,14 +70,31 @@ fn install(args: InstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     let providers = selected_providers(&args.provider_args, manifest);
     let mode = args.mode.unwrap_or(manifest.bootstrap.default_mode);
     let rtk_enabled = is_rtk_enabled(args.without_rtk, manifest);
+    let record_surface = args.record_surface.unwrap_or(RecordSurface::Both);
     let resolved = resolve_plan(manifest, &args.pack_args)?;
     let home = home_dir()?;
     if args.dry_run {
-        print_install_plan(&home, &providers, manifest, mode, rtk_enabled, &resolved);
+        print_install_plan(
+            &home,
+            &providers,
+            manifest,
+            mode,
+            rtk_enabled,
+            record_surface,
+            &resolved,
+        );
         return Ok(());
     }
     ensure_runtime_dependencies(rtk_enabled)?;
-    install_with(&home, &providers, manifest, mode, rtk_enabled, &resolved)
+    install_with(
+        &home,
+        &providers,
+        manifest,
+        mode,
+        rtk_enabled,
+        record_surface,
+        &resolved,
+    )
 }
 
 fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
@@ -152,6 +169,7 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
         manifest,
         is_rtk_enabled(args.without_rtk, manifest),
         args.json,
+        args.record_surface,
         &resolved,
     )
 }
@@ -166,6 +184,7 @@ fn doctor_with(
     manifest: &BootstrapManifest,
     rtk_enabled: bool,
     json: bool,
+    record_surface: Option<RecordSurface>,
     resolved: &ResolvedPlan,
 ) -> Result<()> {
     let mut failures = Vec::new();
@@ -179,6 +198,7 @@ fn doctor_with(
         &resolved.requested_mcp,
         &resolved.enabled_mcp,
         &resolved.distribution_state,
+        record_surface.unwrap_or(RecordSurface::Both),
     );
     let codex_plugin_enabled = resolved
         .distribution_state
@@ -196,9 +216,6 @@ fn doctor_with(
     let mut commands = vec!["node", "npx"];
     if rtk_enabled {
         commands.insert(0, "rtk");
-    }
-    if providers.contains(&Provider::Claude) {
-        commands.insert(0, "claude");
     }
     for command in commands {
         if command_exists(command) {
@@ -262,6 +279,7 @@ fn doctor_with(
 
     for provider in providers {
         let installed_state = read_installed_state(&provider_root(home, *provider))?;
+        let runtime_check = provider_runtime_check(*provider);
         let requested_surfaces = match provider {
             Provider::Codex => &resolved.surfaces.codex,
             Provider::Gemini => &resolved.surfaces.gemini,
@@ -273,8 +291,10 @@ fn doctor_with(
             &resolved.distribution_state,
             &resolved.surfaces,
         );
+        let requested_record_surface = record_surface.map(RecordSurface::name);
         let requested_state = RequestedState {
             active_preset: resolved.selection.preset.as_deref(),
+            record_surface: requested_record_surface,
             active_packs: &resolved.selection.packs,
             active_harnesses: &resolved.selection.harnesses,
             active_connectors: &catalog_report.active_connectors,
@@ -288,9 +308,13 @@ fn doctor_with(
             println!("[doctor] provider {}", provider.name());
             if state_mismatch {
                 println!(
-                    "[warn] installed state differs: preset={}, packs={}",
+                    "[warn] installed state differs: preset={}, record_surface={}, packs={}",
                     installed_state
                         .active_preset
+                        .as_deref()
+                        .unwrap_or("unknown"),
+                    installed_state
+                        .record_surface
                         .as_deref()
                         .unwrap_or("unknown"),
                     installed_state.active_packs.join(",")
@@ -322,6 +346,21 @@ fn doctor_with(
             ),
         };
         let mut provider_checks = Vec::new();
+        if !json {
+            let label = match runtime_check.status.as_str() {
+                "ok" => "ok",
+                _ => "missing",
+            };
+            if let Some(detail) = runtime_check.detail.as_deref() {
+                println!("[{}] runtime {} ({})", label, runtime_check.target, detail);
+            } else {
+                println!("[{}] runtime {}", label, runtime_check.target);
+            }
+        }
+        if runtime_check.status != "ok" {
+            failures.push(PathBuf::from(runtime_check.target.clone()));
+        }
+        provider_checks.push(runtime_check);
 
         for path in checks {
             if path.exists() {
@@ -348,6 +387,7 @@ fn doctor_with(
         provider_reports.push(DoctorProviderReport {
             provider: provider.name().to_string(),
             installed_preset: installed_state.active_preset,
+            installed_record_surface: installed_state.record_surface,
             installed_packs: installed_state.active_packs,
             installed_harnesses: installed_state.active_harnesses,
             installed_connectors: installed_state.active_connectors,
@@ -355,6 +395,7 @@ fn doctor_with(
             installed_record_templates: installed_state.active_record_templates,
             installed_surfaces: installed_state.active_surfaces,
             installed_managed_paths: installed_state.managed_paths,
+            requested_record_surface: requested_record_surface.map(str::to_string),
             requested_managed_paths,
             state_mismatch,
             checks: provider_checks,
@@ -665,8 +706,24 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
     if apply_now {
         ensure_runtime_dependencies(rtk_enabled)?;
         let home = home_dir()?;
-        install_with(&home, &providers, manifest, mode, rtk_enabled, &resolved)?;
-        doctor_with(&home, &providers, manifest, rtk_enabled, false, &resolved)?;
+        install_with(
+            &home,
+            &providers,
+            manifest,
+            mode,
+            rtk_enabled,
+            record_surface,
+            &resolved,
+        )?;
+        doctor_with(
+            &home,
+            &providers,
+            manifest,
+            rtk_enabled,
+            false,
+            Some(record_surface),
+            &resolved,
+        )?;
     }
 
     Ok(())
@@ -678,6 +735,7 @@ fn install_with(
     manifest: &BootstrapManifest,
     mode: cli::ApplyMode,
     rtk_enabled: bool,
+    record_surface: RecordSurface,
     resolved: &ResolvedPlan,
 ) -> Result<()> {
     let codex_plugin_enabled = resolved
@@ -732,6 +790,7 @@ fn install_with(
             &resolved.enabled_mcp,
             &state::InstalledState {
                 active_preset: resolved.selection.preset.clone(),
+                record_surface: Some(record_surface.name().to_string()),
                 active_packs: resolved.selection.packs.clone(),
                 active_harnesses: resolved.selection.harnesses.clone(),
                 active_connectors: active_connectors.clone(),
@@ -749,12 +808,13 @@ fn install_with(
     }
 
     println!(
-        "installed providers: {} (mode: {}, rtk: {}, preset: {}, packs: {}, requested_targets: {}, targets: {})",
+        "installed providers: {} (mode: {}, rtk: {}, preset: {}, packs: {}, record_surface: {}, requested_targets: {}, targets: {})",
         provider_names(providers),
         mode.name(),
         if rtk_enabled { "enabled" } else { "disabled" },
         resolved.selection.preset.as_deref().unwrap_or("custom"),
         resolved.selection.packs.join(","),
+        record_surface.name(),
         resolved
             .distribution_state
             .requested
@@ -874,6 +934,7 @@ fn print_install_plan(
     _manifest: &BootstrapManifest,
     mode: cli::ApplyMode,
     rtk_enabled: bool,
+    record_surface: RecordSurface,
     resolved: &ResolvedPlan,
 ) {
     println!("[dry-run] install");
@@ -885,6 +946,7 @@ fn print_install_plan(
     );
     println!("packs: {}", resolved.selection.packs.join(","));
     println!("harnesses: {}", resolved.selection.harnesses.join(","));
+    println!("record_surface: {}", record_surface.name());
     println!(
         "requested_distribution_targets: {}",
         resolved
@@ -1045,6 +1107,7 @@ struct DoctorReport {
 struct DoctorProviderReport {
     provider: String,
     installed_preset: Option<String>,
+    installed_record_surface: Option<String>,
     installed_packs: Vec<String>,
     installed_harnesses: Vec<String>,
     installed_connectors: Vec<String>,
@@ -1052,6 +1115,7 @@ struct DoctorProviderReport {
     installed_record_templates: Vec<String>,
     installed_surfaces: Vec<String>,
     installed_managed_paths: Vec<String>,
+    requested_record_surface: Option<String>,
     requested_managed_paths: Vec<String>,
     state_mismatch: bool,
     checks: Vec<DoctorCheck>,
@@ -1270,6 +1334,7 @@ fn doctor_catalog_report(
     requested_mcp: &[BaselineMcp],
     active_mcp: &[BaselineMcp],
     distribution_state: &ResolvedDistributionState,
+    record_surface: RecordSurface,
 ) -> DoctorCatalogReport {
     let active_connectors = selected_connector_names(manifest, &selection.packs);
     let active_automations = selected_automation_names(manifest, &selection.packs);
@@ -1411,6 +1476,7 @@ fn doctor_catalog_report(
             &active_automations,
         ),
         record_readiness: doctor_record_readiness_report(
+            record_surface,
             &active_connectors,
             &active_record_templates,
         ),
@@ -1418,6 +1484,7 @@ fn doctor_catalog_report(
 }
 
 fn doctor_record_readiness_report(
+    record_surface: RecordSurface,
     active_connectors: &[String],
     active_record_templates: &[String],
 ) -> DoctorRecordReadinessReport {
@@ -1438,12 +1505,68 @@ fn doctor_record_readiness_report(
 
     DoctorRecordReadinessReport {
         enabled: !active_record_templates.is_empty(),
-        record_system: "local-docs+github-issues".to_string(),
+        record_system: record_surface.name().to_string(),
         runtime_owner: "bootstrap-contracts+external-tools".to_string(),
         active_templates: active_record_templates.to_vec(),
         missing_handoffs,
         next_action,
     }
+}
+
+fn provider_runtime_check(provider: Provider) -> DoctorCheck {
+    match provider {
+        Provider::Codex => {
+            if command_exists("codex") {
+                DoctorCheck {
+                    target: "codex".to_string(),
+                    status: "ok".to_string(),
+                    detail: Some("runtime=cli".to_string()),
+                }
+            } else if codex_app_exists() {
+                DoctorCheck {
+                    target: "/Applications/Codex.app".to_string(),
+                    status: "ok".to_string(),
+                    detail: Some("runtime=app".to_string()),
+                }
+            } else {
+                DoctorCheck {
+                    target: "codex or /Applications/Codex.app".to_string(),
+                    status: "missing".to_string(),
+                    detail: Some("install Codex CLI or Codex app".to_string()),
+                }
+            }
+        }
+        Provider::Gemini => {
+            required_runtime_check("gemini", "Gemini CLI is required", Some("runtime=cli"))
+        }
+        Provider::Claude => {
+            required_runtime_check("claude", "Claude Code CLI is required", Some("runtime=cli"))
+        }
+    }
+}
+
+fn required_runtime_check(
+    target: &str,
+    missing_detail: &str,
+    ok_detail: Option<&str>,
+) -> DoctorCheck {
+    if command_exists(target) {
+        DoctorCheck {
+            target: target.to_string(),
+            status: "ok".to_string(),
+            detail: ok_detail.map(str::to_string),
+        }
+    } else {
+        DoctorCheck {
+            target: target.to_string(),
+            status: "missing".to_string(),
+            detail: Some(missing_detail.to_string()),
+        }
+    }
+}
+
+fn codex_app_exists() -> bool {
+    Path::new("/Applications/Codex.app").exists()
 }
 
 fn record_runtime_owner(
@@ -2995,6 +3118,7 @@ mod tests {
             &requested_mcp,
             &requested_mcp,
             &distribution_state,
+            crate::cli::RecordSurface::Both,
         );
 
         assert_eq!(report.harnesses.len(), 7);
@@ -3072,10 +3196,7 @@ mod tests {
         assert_eq!(report.record_templates.len(), 2);
         assert!(report.record_templates[0].active);
         assert_eq!(report.record_templates[0].runtime_owner, "external-tools");
-        assert_eq!(
-            report.record_readiness.record_system,
-            "local-docs+github-issues"
-        );
+        assert_eq!(report.record_readiness.record_system, "both");
         assert_eq!(
             report.record_readiness.active_templates,
             vec!["project-record".to_string()]
@@ -3129,6 +3250,7 @@ mod tests {
     fn installed_state_mismatch_includes_managed_paths() {
         let requested = crate::state::InstalledState {
             active_preset: Some("normal".to_string()),
+            record_surface: Some("local-docs".to_string()),
             active_packs: vec!["delivery-pack".to_string(), "incident-pack".to_string()],
             active_harnesses: vec![
                 "ralph-loop".to_string(),
@@ -3145,6 +3267,7 @@ mod tests {
 
         let requested_state = crate::state::RequestedState {
             active_preset: Some("normal"),
+            record_surface: Some("github-issue"),
             active_packs: &requested.active_packs,
             active_harnesses: &requested.active_harnesses,
             active_connectors: &requested.active_connectors,
@@ -3155,6 +3278,35 @@ mod tests {
         };
 
         assert!(requested.mismatch(&requested_state));
+    }
+
+    #[test]
+    fn installed_state_ignores_record_surface_when_not_requested() {
+        let installed = crate::state::InstalledState {
+            active_preset: Some("normal".to_string()),
+            record_surface: Some("local-docs".to_string()),
+            active_packs: vec!["delivery-pack".to_string()],
+            active_harnesses: vec!["delivery".to_string()],
+            active_connectors: vec!["github".to_string()],
+            active_automations: Vec::new(),
+            active_record_templates: vec!["project-record".to_string()],
+            active_surfaces: vec!["delivery-skills".to_string()],
+            managed_paths: vec!["config.toml".to_string()],
+        };
+
+        let requested_state = crate::state::RequestedState {
+            active_preset: Some("normal"),
+            record_surface: None,
+            active_packs: &installed.active_packs,
+            active_harnesses: &installed.active_harnesses,
+            active_connectors: &installed.active_connectors,
+            active_automations: &installed.active_automations,
+            active_record_templates: &installed.active_record_templates,
+            active_surfaces: &installed.active_surfaces,
+            managed_paths: &installed.managed_paths,
+        };
+
+        assert!(!installed.mismatch(&requested_state));
     }
 
     #[test]
@@ -3185,6 +3337,7 @@ mod tests {
             &requested_mcp,
             &active_mcp,
             &distribution_state,
+            crate::cli::RecordSurface::GithubIssue,
         );
 
         assert_eq!(
@@ -3226,6 +3379,7 @@ mod tests {
             report.active_record_templates,
             vec!["project-record".to_string(), "ops-record".to_string()]
         );
+        assert_eq!(report.record_readiness.record_system, "github-issue");
         assert_eq!(
             report.record_readiness.missing_handoffs,
             vec![
@@ -3606,6 +3760,42 @@ mod tests {
                 "ops-pack".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn provider_runtime_check_requires_gemini_cli() {
+        let check = super::provider_runtime_check(super::Provider::Gemini);
+
+        if crate::runtime::command_exists("gemini") {
+            assert_eq!(check.status, "ok");
+            assert_eq!(check.detail.as_deref(), Some("runtime=cli"));
+        } else {
+            assert_eq!(check.status, "missing");
+            assert_eq!(check.target, "gemini");
+            assert_eq!(check.detail.as_deref(), Some("Gemini CLI is required"));
+        }
+    }
+
+    #[test]
+    fn provider_runtime_check_accepts_codex_cli_or_app() {
+        let check = super::provider_runtime_check(super::Provider::Codex);
+
+        if crate::runtime::command_exists("codex") {
+            assert_eq!(check.status, "ok");
+            assert_eq!(check.target, "codex");
+            assert_eq!(check.detail.as_deref(), Some("runtime=cli"));
+        } else if Path::new("/Applications/Codex.app").exists() {
+            assert_eq!(check.status, "ok");
+            assert_eq!(check.target, "/Applications/Codex.app");
+            assert_eq!(check.detail.as_deref(), Some("runtime=app"));
+        } else {
+            assert_eq!(check.status, "missing");
+            assert_eq!(check.target, "codex or /Applications/Codex.app");
+            assert_eq!(
+                check.detail.as_deref(),
+                Some("install Codex CLI or Codex app")
+            );
+        }
     }
 
     #[test]
@@ -4254,6 +4444,52 @@ mod tests {
 
         assert!(blocks.contains("[mcp_servers.manual-tool]"));
         assert!(blocks.contains("[mcp_servers.\"chrome-devtools\"]"));
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn codex_merge_preserves_unmanaged_top_level_config() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let codex_home = home.join(".codex");
+        fs::create_dir_all(&codex_home).unwrap();
+        fs::write(
+            codex_home.join("config.toml"),
+            "model = \"legacy-model\"\n\n[projects.\"/tmp/demo\"]\ntrust_level = \"trusted\"\n\n[mcp_servers.manual-tool]\ncommand = \"manual-tool\"\nenabled = true\n",
+        )
+        .unwrap();
+
+        codex::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+
+        let config = fs::read_to_string(codex_home.join("config.toml")).unwrap();
+        let parsed: toml::Value = config.parse().unwrap();
+        assert_eq!(parsed.get("model").and_then(toml::Value::as_str), Some("gpt-5.4"));
+        assert_eq!(
+            parsed
+                .get("projects")
+                .and_then(toml::Value::as_table)
+                .and_then(|projects| projects.get("/tmp/demo"))
+                .and_then(toml::Value::as_table)
+                .and_then(|project| project.get("trust_level"))
+                .and_then(toml::Value::as_str),
+            Some("trusted")
+        );
+        let mcp_servers = parsed
+            .get("mcp_servers")
+            .and_then(toml::Value::as_table)
+            .unwrap();
+        assert!(mcp_servers.contains_key("manual-tool"));
+        assert!(mcp_servers.contains_key("chrome-devtools"));
 
         fs::remove_dir_all(home).unwrap();
     }

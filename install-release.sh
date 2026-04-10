@@ -18,22 +18,6 @@ need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
 }
 
-resolve_command() {
-  if [[ $# -eq 0 ]]; then
-    printf 'wizard'
-    return
-  fi
-
-  case "$1" in
-    install|wizard|doctor|restore|backups|uninstall|record|help|--help|-h|--version|-V)
-      printf '%s' "$1"
-      ;;
-    *)
-      printf 'install'
-      ;;
-  esac
-}
-
 detect_target() {
   local os arch
   os="$(uname -s)"
@@ -117,8 +101,6 @@ main() {
   need_cmd mktemp
 
   local target archive_url checksum_download_url temp_dir archive_path checksum_path
-  local command
-  command="$(resolve_command "$@")"
   target="$(detect_target)"
   archive_url="$(download_url "$target")"
   checksum_download_url="$(checksum_url "$target")"
@@ -141,10 +123,21 @@ main() {
   [[ -n "$extracted_dir" ]] || fail "failed to find extracted llm-bootstrap directory"
   [[ -x "$extracted_dir/llm-bootstrap" ]] || fail "bundled llm-bootstrap binary not found"
 
-  if [[ $# -gt 0 && "$command" == "$1" ]]; then
+  if [[ $# -eq 0 ]]; then
+    exec "$extracted_dir/llm-bootstrap" wizard
+  fi
+
+  case "$1" in
+    --help|-h|--version|-V)
+      exec "$extracted_dir/llm-bootstrap" "$@"
+      ;;
+  esac
+
+  if [[ "$1" != -* ]] && "$extracted_dir/llm-bootstrap" "$1" --help >/dev/null 2>&1; then
     exec "$extracted_dir/llm-bootstrap" "$@"
   fi
-  exec "$extracted_dir/llm-bootstrap" "$command" "$@"
+
+  exec "$extracted_dir/llm-bootstrap" install "$@"
 }
 
 main "$@"

@@ -2,7 +2,8 @@ use crate::cli::ApplyMode;
 use crate::fs_ops::{
     backup_and_remove_relative_paths, backup_relative, copy_render_dir, copy_render_file,
     copy_render_file_with_extras, copy_render_relative_entries, copy_selected_scripts,
-    create_backup_root, remove_if_exists, resolve_backup_root, restore_relative, toml_table_key,
+    create_backup_root, remove_if_exists, render_template_file_with_extras, resolve_backup_root,
+    restore_relative, toml_table_key,
 };
 use crate::layout::{
     CODEX_LEGACY_CLEANUP_PATHS, all_codex_bundle_doc_paths, all_codex_bundle_plugin_asset_paths,
@@ -113,11 +114,11 @@ pub(crate) fn install(
 
     let codex_mcp_blocks = mcp_blocks(home, &root, enabled_mcp, mode)?;
     let codex_plugin_blocks = plugin_blocks(plugin_enabled);
-    copy_render_file_with_extras(
+    write_codex_config(
         &template_root.join("config.toml"),
         &root.join("config.toml"),
-        false,
         home,
+        mode,
         &[
             ("__CODEX_MCP_BLOCKS__", codex_mcp_blocks.as_str()),
             ("__CODEX_PLUGIN_BLOCKS__", codex_plugin_blocks.as_str()),
@@ -320,6 +321,51 @@ pub(crate) fn plugin_blocks(plugin_enabled: bool) -> String {
         "[plugins.\"llm-dev-kit@llm-bootstrap\"]\nenabled = true".to_string()
     } else {
         String::new()
+    }
+}
+
+fn write_codex_config(
+    source: &Path,
+    destination: &Path,
+    home: &Path,
+    mode: ApplyMode,
+    extra_tokens: &[(&str, &str)],
+) -> Result<()> {
+    let rendered = render_template_file_with_extras(source, home, extra_tokens)?;
+    if mode == ApplyMode::Replace || !destination.exists() {
+        fs::write(destination, rendered)
+            .with_context(|| format!("failed to write {}", destination.display()))?;
+        return Ok(());
+    }
+
+    let existing_raw = fs::read_to_string(destination)
+        .with_context(|| format!("failed to read {}", destination.display()))?;
+    let existing = existing_raw
+        .parse::<Value>()
+        .with_context(|| format!("failed to parse {}", destination.display()))?;
+    let managed = rendered
+        .parse::<Value>()
+        .with_context(|| format!("failed to parse rendered {}", source.display()))?;
+    let merged = merge_toml_value(managed, existing);
+    fs::write(destination, toml::to_string(&merged)?)
+        .with_context(|| format!("failed to write {}", destination.display()))?;
+    Ok(())
+}
+
+fn merge_toml_value(managed: Value, existing: Value) -> Value {
+    match (managed, existing) {
+        (Value::Table(managed_table), Value::Table(existing_table)) => {
+            let mut merged = existing_table;
+            for (key, managed_value) in managed_table {
+                let next_value = match merged.remove(&key) {
+                    Some(existing_value) => merge_toml_value(managed_value, existing_value),
+                    None => managed_value,
+                };
+                merged.insert(key, next_value);
+            }
+            Value::Table(merged)
+        }
+        (managed_value, _) => managed_value,
     }
 }
 

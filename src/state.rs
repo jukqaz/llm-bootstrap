@@ -7,6 +7,7 @@ use std::path::Path;
 #[derive(Default)]
 pub(crate) struct InstalledState {
     pub(crate) active_preset: Option<String>,
+    pub(crate) record_surface: Option<String>,
     pub(crate) active_packs: Vec<String>,
     pub(crate) active_harnesses: Vec<String>,
     pub(crate) active_connectors: Vec<String>,
@@ -18,6 +19,7 @@ pub(crate) struct InstalledState {
 
 pub(crate) struct RequestedState<'a> {
     pub(crate) active_preset: Option<&'a str>,
+    pub(crate) record_surface: Option<&'a str>,
     pub(crate) active_packs: &'a [String],
     pub(crate) active_harnesses: &'a [String],
     pub(crate) active_connectors: &'a [String],
@@ -30,6 +32,9 @@ pub(crate) struct RequestedState<'a> {
 impl InstalledState {
     pub(crate) fn mismatch(&self, requested: &RequestedState<'_>) -> bool {
         self.active_preset.as_deref() != requested.active_preset
+            || requested
+                .record_surface
+                .is_some_and(|surface| self.record_surface.as_deref() != Some(surface))
             || self.active_packs != requested.active_packs
             || self.active_harnesses != requested.active_harnesses
             || self.active_connectors != requested.active_connectors
@@ -54,6 +59,10 @@ pub(crate) fn read_installed_state(root: &Path) -> Result<InstalledState> {
     Ok(InstalledState {
         active_preset: value
             .get("active_preset")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        record_surface: value
+            .get("record_surface")
             .and_then(Value::as_str)
             .map(ToOwned::to_owned),
         active_packs: json_string_array(&value, "active_packs"),
@@ -88,6 +97,7 @@ pub(crate) fn write_installed_state(
     let state = json!({
         "managed_mcp": enabled_mcp.iter().map(|mcp| mcp.name()).collect::<Vec<_>>(),
         "active_preset": state.active_preset,
+        "record_surface": state.record_surface,
         "active_packs": state.active_packs,
         "active_harnesses": state.active_harnesses,
         "active_connectors": state.active_connectors,
