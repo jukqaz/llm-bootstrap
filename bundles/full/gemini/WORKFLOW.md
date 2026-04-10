@@ -10,6 +10,12 @@ Use this lane when a Gemini session needs more than a single prompt-response loo
 4. Review for regressions and missing verification.
 5. Ship only after QA evidence is written down.
 
+## Workflow gates
+
+- Keep local task-state current with `llm-bootstrap internal task-state begin|advance|show`.
+- Check `llm-bootstrap internal gate check --target-phase review|qa|ship --json` before moving a gated phase.
+- Use the `gate` command lane when the report should drive the next move.
+
 ## Notes
 
 - Prefer extension agents for planning, execution, review, and verification instead of one long mixed prompt.

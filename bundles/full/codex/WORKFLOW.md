@@ -10,6 +10,13 @@ Use this lane when the task needs a heavier development harness.
 4. Verify with the narrowest credible command set.
 5. Report exact files changed, verification run, and remaining risk.
 
+## Workflow gates
+
+- Keep `llm-bootstrap internal task-state show --json` current when the task spans multiple phases.
+- Check `llm-bootstrap internal gate check --target-phase review|qa|ship --json` before phase changes.
+- Persist finished signals with `llm-bootstrap internal task-state advance --complete ...`.
+- Apply the phase move with `llm-bootstrap internal gate apply --target-phase ... --json`.
+
 ## Browser-heavy work
 
 - Use `chrome-devtools` for live inspection, console, network, and layout debugging.

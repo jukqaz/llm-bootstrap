@@ -1,0 +1,9 @@
+description = "Capture a lightweight retrospective with what worked, what failed, and what to change next time."
+prompt = """
+Use this command lane after a meaningful slice lands or stalls.
+
+Output format:
+- What worked:
+- What failed:
+- What to change next time:
+"""
