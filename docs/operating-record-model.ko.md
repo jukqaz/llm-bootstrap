@@ -43,6 +43,17 @@ linked_tools:
 context:
   summary: ""
   assumptions: []
+  task_state:
+    source: ""
+    id: ""
+    phase: ""
+    status: ""
+    providers: []
+    packs: []
+    harnesses: []
+    completed_signals: []
+    attempt_count: 0
+    last_failure: ""
 decision:
   chosen: ""
   alternatives: []
@@ -62,6 +73,9 @@ handoff:
 
 provider별 command나 skill은 이 contract를 얇게 렌더링한다.
 필드가 비어 있으면 LLM이 질문을 던지거나, 외부 tool handoff로 남긴다.
+
+active local task-state가 있으면 `llm-bootstrap record --from-task-state`로
+owner, next action, lane context를 record에 붙일 수 있다.
 
 ## Record Type
 
@@ -167,6 +181,7 @@ wizard는 capability 선택 뒤 record surface를 묻는다.
 - wizard의 record surface 선택 UI
 - `llm-bootstrap record` local docs 생성 명령
 - `llm-bootstrap record --surface github-issue|both` GitHub issue 생성 명령
+- `llm-bootstrap record --from-task-state` active task-state attach 및 owner/next_action fallback
 
 아직 구현하지 않은 것:
 
@@ -176,6 +191,8 @@ wizard는 capability 선택 뒤 record surface를 묻는다.
 
 ```bash
 llm-bootstrap record --type project --title "MVP scope" --next-action "create first issue"
+llm-bootstrap internal task-state begin --title "Build auth flow" --phase execute --owner codex --next-action "capture resumable record"
+llm-bootstrap record --type task --title "Build auth flow" --from-task-state
 llm-bootstrap record --type task --title "Build auth flow" --surface both --github-repo owner/repo
 llm-bootstrap record --type handoff --title "CRM setup" --surface github-issue --dry-run
 ```

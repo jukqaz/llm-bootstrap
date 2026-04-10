@@ -520,6 +520,11 @@ pub(crate) struct RecordArgs {
     pub(crate) next_action: Option<String>,
     #[arg(
         long,
+        help = "Attach the active local task-state to the record and use its owner or next action when missing"
+    )]
+    pub(crate) from_task_state: bool,
+    #[arg(
+        long,
         value_enum,
         default_value = "local-docs",
         help = "Where to write the record"

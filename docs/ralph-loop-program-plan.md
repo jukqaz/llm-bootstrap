@@ -51,10 +51,10 @@ Scope:
 Done already:
 - `phase-gate` now covers `plan -> execute -> review -> qa -> ship`
 - ship-side review gate is already enforced
+- `record --from-task-state` can now attach the active task-state to record context and supply owner/next action fallbacks
 
 Still inside this lane:
 - add `ralph-retry`
-- connect `task-state` and `record` more directly
 - tighten gate output so the next action is always resumable
 
 Verification:
@@ -63,7 +63,7 @@ Verification:
 - install plus provider surface refresh
 
 Next slice:
-- implement `ralph-retry` and connect repeated failures to task-state evidence
+- implement `ralph-retry` and connect repeated failures to task-state evidence plus gate output
 
 ### 2. `repo-automation-lane`
 

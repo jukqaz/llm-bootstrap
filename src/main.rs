@@ -3109,7 +3109,16 @@ fn record_with(args: &RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
         .record_templates
         .iter()
         .find(|record| record.record_type == args.record_type.record_type());
-    let body = render_record_body(args, record_template)?;
+    let task_state = if args.from_task_state {
+        let home = home_dir()?;
+        Some(
+            read_task_state(&home)?
+                .context("no active task state to attach; start one with `llm-bootstrap internal task-state begin ...`")?,
+        )
+    } else {
+        None
+    };
+    let body = render_record_body(args, record_template, task_state.as_ref())?;
     let local_path = if args.surface.includes_local_docs() {
         let output_dir = resolve_record_output_dir(&args.output_dir)?;
         let path = output_dir.join(record_file_name(args)?);
@@ -3149,6 +3158,7 @@ fn record_with(args: &RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
 fn render_record_body(
     args: &RecordArgs,
     template: Option<&manifest::RecordTemplateDefinition>,
+    task_state: Option<&TaskState>,
 ) -> Result<String> {
     let id = format!("rec_{}", timestamp_string()?);
     let updated_at = timestamp_string()?;
@@ -3161,11 +3171,43 @@ fn render_record_body(
     let description = template
         .map(|record| record.description.as_str())
         .unwrap_or("Manual operating record.");
-    let owner = args.owner.as_deref().unwrap_or("");
-    let next_action = args.next_action.as_deref().unwrap_or("");
+    let owner = args
+        .owner
+        .as_deref()
+        .or_else(|| task_state.and_then(|state| state.owner.as_deref()))
+        .unwrap_or("");
+    let next_action = args
+        .next_action
+        .as_deref()
+        .or_else(|| task_state.and_then(|state| state.next_action.as_deref()))
+        .unwrap_or("");
+    let task_state_source = if task_state.is_some() {
+        "active-task-state"
+    } else {
+        ""
+    };
+    let task_state_id = task_state.map(|state| state.id.as_str()).unwrap_or("");
+    let task_state_phase = task_state.map(|state| state.phase.as_str()).unwrap_or("");
+    let task_state_status = task_state.map(|state| state.status.as_str()).unwrap_or("");
+    let task_state_providers = task_state
+        .map(|state| yaml_inline_string_array(&state.providers))
+        .unwrap_or_else(|| "[]".to_string());
+    let task_state_packs = task_state
+        .map(|state| yaml_inline_string_array(&state.packs))
+        .unwrap_or_else(|| "[]".to_string());
+    let task_state_harnesses = task_state
+        .map(|state| yaml_inline_string_array(&state.harnesses))
+        .unwrap_or_else(|| "[]".to_string());
+    let task_state_completed = task_state
+        .map(|state| yaml_inline_string_array(&state.completed_signals))
+        .unwrap_or_else(|| "[]".to_string());
+    let task_state_attempts = task_state.map(|state| state.attempt_count).unwrap_or(0);
+    let task_state_failure = task_state
+        .and_then(|state| state.last_failure.as_deref())
+        .unwrap_or("");
 
     Ok(format!(
-        "# {title}\n\n```yaml\nid: \"{id}\"\ntype: \"{record_type}\"\ntemplate: \"{template_name}\"\nstage: \"{stage}\"\ntitle: \"{title}\"\nstatus: \"{status}\"\nsource: \"llm-bootstrap record\"\nowner: \"{owner}\"\nupdated_at: \"{updated_at}\"\nnext_action: \"{next_action}\"\nlinked_tools:\n  github: \"\"\n  linear: \"\"\n  figma: \"\"\n  docs: \"\"\n  calendar: \"\"\n  crm: \"\"\n  helpdesk: \"\"\n  analytics: \"\"\ncontext:\n  summary: \"\"\n  assumptions: []\ndecision:\n  chosen: \"\"\n  alternatives: []\n  rationale: \"\"\nevidence:\n  links: []\n  notes: []\napprovals:\n  required: false\n  reason: \"\"\n  approver: \"\"\nhandoff:\n  runtime_owner: \"\"\n  external_object_id: \"\"\n  next_step: \"\"\n```\n\n## Description\n\n{description}\n\n## Notes\n\n- Keep this record compact.\n- Link to external source-of-truth systems instead of copying their data.\n- Require approval before customer sends, legal/finance decisions, or external writes.\n",
+        "# {title}\n\n```yaml\nid: \"{id}\"\ntype: \"{record_type}\"\ntemplate: \"{template_name}\"\nstage: \"{stage}\"\ntitle: \"{title}\"\nstatus: \"{status}\"\nsource: \"llm-bootstrap record\"\nowner: \"{owner}\"\nupdated_at: \"{updated_at}\"\nnext_action: \"{next_action}\"\nlinked_tools:\n  github: \"\"\n  linear: \"\"\n  figma: \"\"\n  docs: \"\"\n  calendar: \"\"\n  crm: \"\"\n  helpdesk: \"\"\n  analytics: \"\"\ncontext:\n  summary: \"\"\n  assumptions: []\n  task_state:\n    source: \"{task_state_source}\"\n    id: \"{task_state_id}\"\n    phase: \"{task_state_phase}\"\n    status: \"{task_state_status}\"\n    providers: {task_state_providers}\n    packs: {task_state_packs}\n    harnesses: {task_state_harnesses}\n    completed_signals: {task_state_completed}\n    attempt_count: {task_state_attempts}\n    last_failure: \"{task_state_failure}\"\ndecision:\n  chosen: \"\"\n  alternatives: []\n  rationale: \"\"\nevidence:\n  links: []\n  notes: []\napprovals:\n  required: false\n  reason: \"\"\n  approver: \"\"\nhandoff:\n  runtime_owner: \"\"\n  external_object_id: \"\"\n  next_step: \"\"\n```\n\n## Description\n\n{description}\n\n## Notes\n\n- Keep this record compact.\n- Link to external source-of-truth systems instead of copying their data.\n- If task-state is attached, keep this record aligned with the active lane before closing the loop.\n- Require approval before customer sends, legal/finance decisions, or external writes.\n",
         title = yaml_string(&args.title),
         id = id,
         record_type = args.record_type.record_type(),
@@ -3175,8 +3217,33 @@ fn render_record_body(
         owner = yaml_string(owner),
         updated_at = updated_at,
         next_action = yaml_string(next_action),
+        task_state_source = yaml_string(task_state_source),
+        task_state_id = yaml_string(task_state_id),
+        task_state_phase = yaml_string(task_state_phase),
+        task_state_status = yaml_string(task_state_status),
+        task_state_providers = task_state_providers,
+        task_state_packs = task_state_packs,
+        task_state_harnesses = task_state_harnesses,
+        task_state_completed = task_state_completed,
+        task_state_attempts = task_state_attempts,
+        task_state_failure = yaml_string(task_state_failure),
         description = description,
     ))
+}
+
+fn yaml_inline_string_array(values: &[String]) -> String {
+    if values.is_empty() {
+        "[]".to_string()
+    } else {
+        format!(
+            "[{}]",
+            values
+                .iter()
+                .map(|value| format!("\"{}\"", yaml_string(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
 }
 
 fn resolve_record_output_dir(path: &Path) -> Result<PathBuf> {
@@ -5980,6 +6047,7 @@ mod tests {
             status: "active".to_string(),
             owner: Some("owner".to_string()),
             next_action: Some("verify record flow".to_string()),
+            from_task_state: false,
             surface: crate::cli::RecordSurface::LocalDocs,
             output_dir: output_dir.clone(),
             github_repo: None,
@@ -6000,6 +6068,38 @@ mod tests {
         assert!(raw.contains("next_action: \"verify record flow\""));
 
         fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn render_record_body_attaches_task_state_context() {
+        let args = super::RecordArgs {
+            record_type: crate::cli::RecordKind::Task,
+            title: "Attach task state".to_string(),
+            status: "draft".to_string(),
+            owner: None,
+            next_action: None,
+            from_task_state: true,
+            surface: crate::cli::RecordSurface::LocalDocs,
+            output_dir: PathBuf::from(".llm-bootstrap/records"),
+            github_repo: None,
+            dry_run: true,
+        };
+        let task_state = test_task_state(&["parallel-build", "review-gate"]);
+        let body = super::render_record_body(
+            &args,
+            test_manifest()
+                .record_templates
+                .iter()
+                .find(|record| record.record_type == "TaskRecord"),
+            Some(&task_state),
+        )
+        .unwrap();
+
+        assert!(body.contains("source: \"active-task-state\""));
+        assert!(body.contains("id: \"task_1\""));
+        assert!(body.contains("harnesses: [\"parallel-build\", \"review-gate\"]"));
+        assert!(body.contains("owner: \"codex\""));
+        assert!(body.contains("next_action: \"continue\""));
     }
 
     #[test]

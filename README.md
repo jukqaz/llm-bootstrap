@@ -293,6 +293,8 @@ cargo run -- install --providers codex,gemini,claude --preset full
 cargo run -- install --providers codex,gemini,claude --preset orchestrator
 cargo run -- doctor --providers codex,gemini --preset company --json
 cargo run -- record --type project --title "MVP scope" --next-action "create first issue"
+cargo run -- internal task-state begin --title "Build auth flow" --phase execute --owner codex --next-action "capture resumable record"
+cargo run -- record --type task --title "Build auth flow" --from-task-state
 cargo run -- record --type task --title "Build auth flow" --surface both --github-repo owner/repo
 ```
 

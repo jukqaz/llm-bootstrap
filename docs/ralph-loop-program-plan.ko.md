@@ -51,10 +51,10 @@ Scope:
 이미 끝난 것:
 - `phase-gate`가 이제 `plan -> execute -> review -> qa -> ship`을 다룬다
 - ship 쪽 review gate는 이미 동작한다
+- `record --from-task-state`가 active task-state를 record context에 붙이고 owner/next action fallback을 제공한다
 
 이 lane 안에 아직 남은 것:
 - `ralph-retry` 추가
-- `task-state`와 `record`를 더 직접 연결
 - gate 결과가 항상 resumable next action을 내도록 정리
 
 Verification:
@@ -63,7 +63,7 @@ Verification:
 - install 및 provider surface refresh
 
 Next slice:
-- `ralph-retry`를 넣고 반복 실패를 task-state evidence에 연결한다
+- `ralph-retry`를 넣고 반복 실패를 task-state evidence와 gate output에 연결한다
 
 ### 2. `repo-automation-lane`
 
