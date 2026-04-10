@@ -2950,6 +2950,8 @@ mod tests {
         fs::write(home.join(".omg/config.json"), "{}").unwrap();
         fs::create_dir_all(home.join(".config/omc")).unwrap();
         fs::write(home.join(".config/omc/state.json"), "{}").unwrap();
+        fs::create_dir_all(home.join(".local/bin")).unwrap();
+        fs::write(home.join(".local/bin/oh-my-opencode"), "#!/bin/sh\n").unwrap();
         fs::create_dir_all(home.join(".codex/sessions")).unwrap();
         fs::write(home.join(".codex/sessions/session.jsonl"), "keep").unwrap();
 
@@ -2958,6 +2960,7 @@ mod tests {
         assert!(!home.join(".omx").exists());
         assert!(!home.join(".omg").exists());
         assert!(!home.join(".config/omc").exists());
+        assert!(!home.join(".local/bin/oh-my-opencode").exists());
         assert_eq!(
             fs::read_to_string(home.join(".codex/sessions/session.jsonl")).unwrap(),
             "keep"
@@ -2971,6 +2974,7 @@ mod tests {
         assert!(backup_root.join(".omx/cache/state.json").exists());
         assert!(backup_root.join(".omg/config.json").exists());
         assert!(backup_root.join(".config/omc/state.json").exists());
+        assert!(backup_root.join(".local/bin/oh-my-opencode").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
