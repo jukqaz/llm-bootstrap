@@ -1,5 +1,8 @@
 # Capability OS Strategy
 
+> 최상위 목표와 제품 정의는 [product-goal.ko.md](product-goal.ko.md)를 따른다.
+> 이 문서는 그 목표를 capability 구조와 명령 모델로 풀어낸다.
+
 이 문서는 `llm-bootstrap`의 다음 제품 기준선이다.
 
 기존 목표는 LLM별 baseline을 같게 맞추는 것이었다.

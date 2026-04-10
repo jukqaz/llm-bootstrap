@@ -32,6 +32,8 @@ const CLAUDE_MANAGED_PATHS: &[&str] = &[
     "OFFICE_HOURS.md",
     "INVESTIGATE.md",
     "AUTOPILOT.md",
+    "TEAM.md",
+    "REVIEW_AUTOMATION.md",
     "RETRO.md",
     "REVIEW.md",
     "QA.md",
@@ -53,6 +55,9 @@ const CLAUDE_MANAGED_SKILL_PATHS: &[&str] = &[
     "skills/ship",
     "skills/retro",
     "skills/office-hours",
+    "skills/workflow-gate",
+    "skills/team",
+    "skills/review-automation",
 ];
 
 pub(crate) fn doctor_checks(

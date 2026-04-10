@@ -23,4 +23,9 @@ Keep execution direct, compact, and evidence-based.
 - Project-specific rules belong in project `CLAUDE.md` files.
 - Native workflow entrypoints live in `~/.claude/skills/*/SKILL.md`.
 
+## Workflow gates
+
+- Use `workflow-gate` when task-state should control review, QA, ship, or retry transitions.
+- Back the workflow with `llm-bootstrap internal task-state ...` and `llm-bootstrap internal gate ...`.
+
 __RTK_CLAUDE_IMPORT__

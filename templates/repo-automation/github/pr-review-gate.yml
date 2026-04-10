@@ -1,0 +1,172 @@
+# managed by llm-bootstrap
+name: pr-review-gate
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+  pull_request_review:
+    types:
+      - submitted
+      - dismissed
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  statuses: read
+
+concurrency:
+  group: pr-review-gate-${{ github.event.pull_request.number || github.event.review.pull_request_url }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gate config
+        uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            .github/llm-bootstrap/review-automation.json
+          sparse-checkout-cone-mode: false
+
+      - name: Enforce PR review gate
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('node:fs');
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const configPath = '.github/llm-bootstrap/review-automation.json';
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            const pullNumber = context.payload.pull_request?.number ?? context.payload.review?.pull_request_url?.split('/').pop();
+            if (!pullNumber) {
+              core.setFailed('unable to resolve pull request number for pr-review-gate');
+              return;
+            }
+
+            const prResponse = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: Number(pullNumber),
+            });
+            const pr = prResponse.data;
+            const failures = [];
+            const requiredChecklist = config.pr_review_gate.required_checklist || [];
+            const requiredChecks = config.pr_review_gate.required_checks || [];
+            const minimumApprovals = Number(config.pr_review_gate.minimum_approvals || 1);
+            const body = (pr.body || '').toLowerCase();
+
+            function isTerminalSuccess(value) {
+              return ['success', 'neutral', 'skipped'].includes(String(value || '').toLowerCase());
+            }
+
+            function isPending(value) {
+              return ['queued', 'in_progress', 'pending', 'requested', 'waiting'].includes(String(value || '').toLowerCase());
+            }
+
+            async function collectCheckStates(ref) {
+              const states = new Map();
+              const checkRunsResponse = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref,
+                per_page: 100,
+              });
+              for (const run of checkRunsResponse.data.check_runs) {
+                states.set(run.name, run.conclusion || run.status);
+              }
+              const statusesResponse = await github.rest.repos.listCommitStatusesForRef({
+                owner,
+                repo,
+                ref,
+                per_page: 100,
+              });
+              for (const status of statusesResponse.data) {
+                states.set(status.context, status.state);
+              }
+              return states;
+            }
+
+            async function waitForRequiredChecks(ref, checks) {
+              let lastPending = [];
+              for (let attempt = 1; attempt <= 40; attempt += 1) {
+                const states = await collectCheckStates(ref);
+                const failed = [];
+                const pending = [];
+                for (const name of checks) {
+                  const state = states.get(name);
+                  if (isTerminalSuccess(state)) {
+                    continue;
+                  }
+                  if (!state || isPending(state)) {
+                    pending.push(`${name} (${state || 'missing'})`);
+                    continue;
+                  }
+                  failed.push(`${name} (${state})`);
+                }
+                if (failed.length > 0) {
+                  return { ok: false, failures: failed };
+                }
+                if (pending.length === 0) {
+                  return { ok: true, failures: [] };
+                }
+                lastPending = pending;
+                core.notice(`waiting for required checks on ${ref}: ${pending.join(', ')} (attempt ${attempt}/40)`);
+                await new Promise((resolve) => setTimeout(resolve, 15000));
+              }
+              return { ok: false, failures: [`timed out waiting for required checks: ${lastPending.join(', ')}`] };
+            }
+
+            if (pr.draft) {
+              failures.push('pull request is still marked as draft');
+            }
+
+            for (const item of requiredChecklist) {
+              const plain = `- [x] ${item}`.toLowerCase();
+              const colon = `- [x] ${item}:`.toLowerCase();
+              if (!body.includes(plain) && !body.includes(colon)) {
+                failures.push(`missing checked PR checklist item: ${item}`);
+              }
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            const approvals = new Set();
+            for (const review of reviews) {
+              if (!review.user?.login) {
+                continue;
+              }
+              if (review.state === 'APPROVED') {
+                approvals.add(review.user.login);
+              } else if (review.state === 'CHANGES_REQUESTED' || review.state === 'DISMISSED') {
+                approvals.delete(review.user.login);
+              }
+            }
+            if (approvals.size < minimumApprovals) {
+              failures.push(`need at least ${minimumApprovals} approval(s), found ${approvals.size}`);
+            }
+
+            if (requiredChecks.length > 0) {
+              const checkResult = await waitForRequiredChecks(pr.head.sha, requiredChecks);
+              if (!checkResult.ok) {
+                failures.push(...checkResult.failures);
+              }
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(failures.map((item, index) => `${index + 1}. ${item}`).join('\n'));
+              return;
+            }
+
+            core.notice(`PR review gate passed for #${pr.number}`);

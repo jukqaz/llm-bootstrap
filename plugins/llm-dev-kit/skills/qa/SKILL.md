@@ -1,0 +1,14 @@
+---
+name: qa
+description: Run the smallest credible QA pass and summarize what was actually verified.
+---
+
+# qa
+
+Use this skill for targeted QA after implementation.
+
+## Rules
+
+1. Prefer the smallest credible verification set.
+2. Record the exact command or runtime path that was checked.
+3. Name any path that was not validated.
