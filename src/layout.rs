@@ -72,6 +72,36 @@ pub(crate) const HOME_LEGACY_CLEANUP_PATHS: &[&str] = &[
     ".cargo/bin/oh-my-opencode",
 ];
 
+pub(crate) const LEGACY_ENV_KEYS: &[&str] = &[
+    "OMX",
+    "OMX_API_KEY",
+    "OMX_HOME",
+    "OMX_CONFIG_HOME",
+    "OMG",
+    "OMG_API_KEY",
+    "OMG_HOME",
+    "OMG_CONFIG_HOME",
+    "OMC",
+    "OMC_API_KEY",
+    "OMC_HOME",
+    "OMC_CONFIG_HOME",
+    "OH_MY_CODEX_API_KEY",
+    "OH_MY_CODEX_HOME",
+    "OH_MY_CODEX_PATH",
+    "OH_MY_GEMINI_API_KEY",
+    "OH_MY_GEMINI_HOME",
+    "OH_MY_GEMINI_PATH",
+    "OH_MY_GEMINI_CLI_API_KEY",
+    "OH_MY_GEMINI_CLI_HOME",
+    "OH_MY_GEMINI_CLI_PATH",
+    "OH_MY_CLAUDECODE_API_KEY",
+    "OH_MY_CLAUDECODE_HOME",
+    "OH_MY_CLAUDECODE_PATH",
+    "OH_MY_OPENCODE_API_KEY",
+    "OH_MY_OPENCODE_HOME",
+    "OH_MY_OPENCODE_PATH",
+];
+
 pub(crate) const CODEX_LEGACY_CLEANUP_PATHS: &[&str] = &["vendor_imports/skills", ".tmp/plugins"];
 
 pub(crate) const GEMINI_LEGACY_CLEANUP_PATHS: &[&str] =

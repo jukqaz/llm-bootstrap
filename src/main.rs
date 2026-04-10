@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
 use crate::layout::{
-    HOME_LEGACY_CLEANUP_PATHS, claude_managed_paths_for, codex_managed_paths_for,
+    HOME_LEGACY_CLEANUP_PATHS, LEGACY_ENV_KEYS, claude_managed_paths_for, codex_managed_paths_for,
     gemini_managed_paths_for,
 };
 
@@ -91,6 +91,7 @@ fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
     }
 
     cleanup_home_legacy_artifacts(&home)?;
+    cleanup_legacy_env_vars(&home)?;
 
     for provider in &providers {
         match *provider {
@@ -652,6 +653,7 @@ fn install_with(
     let active_automations = selected_automation_names(manifest, &resolved.selection.packs);
     if mode == cli::ApplyMode::Replace {
         cleanup_home_legacy_artifacts(home)?;
+        cleanup_legacy_env_vars(home)?;
     }
     for provider in providers {
         match *provider {
@@ -762,6 +764,65 @@ fn cleanup_home_legacy_artifacts(home: &std::path::Path) -> Result<()> {
         backup_root.display()
     );
     Ok(())
+}
+
+fn cleanup_legacy_env_vars(home: &std::path::Path) -> Result<()> {
+    let launchctl_removed = unset_launchctl_legacy_env_vars();
+    let cli_removed = remove_legacy_managed_cli_env(&home.join(ZSHRC_ENV_RELATIVE_PATH))?;
+
+    if !launchctl_removed.is_empty() {
+        println!(
+            "[legacy] removed launchctl env: {}",
+            launchctl_removed.join(",")
+        );
+    }
+    if !cli_removed.is_empty() {
+        println!("[legacy] removed CLI env: {}", cli_removed.join(","));
+    }
+    Ok(())
+}
+
+fn unset_launchctl_legacy_env_vars() -> Vec<String> {
+    LEGACY_ENV_KEYS
+        .iter()
+        .filter_map(|name| {
+            launchctl_env_value(name)?;
+            let status = ProcessCommand::new("launchctl")
+                .args(["unsetenv", name])
+                .status()
+                .ok()?;
+            status.success().then(|| (*name).to_string())
+        })
+        .collect()
+}
+
+fn remove_legacy_managed_cli_env(path: &Path) -> Result<Vec<String>> {
+    let mut entries = read_managed_env_entries(path)?;
+    let removed = entries
+        .keys()
+        .filter(|name| is_legacy_env_key(name))
+        .cloned()
+        .collect::<Vec<_>>();
+    if removed.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    for name in &removed {
+        entries.remove(name);
+    }
+    write_managed_env_entries(path, &entries)?;
+    Ok(removed)
+}
+
+fn is_legacy_env_key(name: &str) -> bool {
+    let upper = name.to_ascii_uppercase();
+    upper == "OMX"
+        || upper == "OMG"
+        || upper == "OMC"
+        || upper.starts_with("OMX_")
+        || upper.starts_with("OMG_")
+        || upper.starts_with("OMC_")
+        || upper.starts_with("OH_MY_")
 }
 
 fn print_install_plan(
@@ -2975,6 +3036,34 @@ mod tests {
         assert!(backup_root.join(".omg/config.json").exists());
         assert!(backup_root.join(".config/omc/state.json").exists());
         assert!(backup_root.join(".local/bin/oh-my-opencode").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn legacy_env_cleanup_removes_oh_my_keys_from_managed_cli_env_only() {
+        let home = temp_home();
+        let env_path = home.join(".zshrc.d/llm-bootstrap-env.zsh");
+        fs::create_dir_all(env_path.parent().unwrap()).unwrap();
+        fs::write(
+            &env_path,
+            "# managed by llm-bootstrap\nexport EXA_API_KEY='exa-key'\nexport OMX_API_KEY='old-omx'\nexport OH_MY_OPENCODE_API_KEY='old-oh-my'\n",
+        )
+        .unwrap();
+
+        let removed = super::remove_legacy_managed_cli_env(&env_path).unwrap();
+
+        assert_eq!(
+            removed,
+            vec![
+                "OH_MY_OPENCODE_API_KEY".to_string(),
+                "OMX_API_KEY".to_string()
+            ]
+        );
+        let after = fs::read_to_string(&env_path).unwrap();
+        assert!(after.contains("EXA_API_KEY"));
+        assert!(!after.contains("OMX_API_KEY"));
+        assert!(!after.contains("OH_MY_OPENCODE_API_KEY"));
 
         fs::remove_dir_all(home).unwrap();
     }

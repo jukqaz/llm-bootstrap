@@ -9,7 +9,7 @@ integration.
 
 ## Install
 
-Current release: `v0.1.12`
+Current release: `v0.1.13`
 
 Default path: run the wizard first.
 
@@ -113,6 +113,8 @@ user's local home stays intact.
 - `merge` preserves unmanaged assets
 - `replace` resets managed assets and removes known legacy `omx`, `omc`, `omg`,
   and `oh-my-*` user-level artifacts after backing them up
+- `replace` and `uninstall` also remove known legacy `launchctl` env keys and
+  legacy keys from `~/.zshrc.d/llm-bootstrap-env.zsh`
 - `restore` replays a selected backup after creating a fresh backup first
 - env-gated MCP stay disabled until the required env is available
 
@@ -193,7 +195,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.12 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.13 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
@@ -365,6 +367,7 @@ Wizard env reuse order:
 - preserves known auth or session state where supported
 - removes known legacy `omx`, `omc`, `omg`, and `oh-my-*` user-level artifacts
   after backing them up
+- removes known legacy env keys from `launchctl` and the managed CLI env file
 
 ## Backup and restore
 
