@@ -4,7 +4,7 @@
 
 ## 설치
 
-현재 release: `v0.1.15`
+현재 release: `v0.2.0`
 
 기본 경로는 wizard 실행이다.
 
@@ -20,6 +20,11 @@ release 자산:
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | bash -s -- --providers codex,gemini
 ```
+
+## 릴리스 규칙
+
+GitHub Release는 `v*` 태그로 배포한다. patch 번호가 `10`을 넘을 상황이면
+`x.y.11+`을 내지 않고 다음 minor로 올린 뒤 patch를 `0`으로 초기화한다.
 
 ## 문서
 
@@ -122,7 +127,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.15 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.2.0 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.

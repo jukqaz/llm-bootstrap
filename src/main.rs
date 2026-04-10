@@ -3528,6 +3528,18 @@ mod tests {
     }
 
     #[test]
+    fn package_patch_version_stays_within_release_policy() {
+        let patch = env!("CARGO_PKG_VERSION")
+            .split('.')
+            .nth(2)
+            .expect("package version must include a patch component")
+            .parse::<u64>()
+            .expect("package patch version must be numeric");
+
+        assert!(patch <= 10, "roll patch > 10 to the next minor version");
+    }
+
+    #[test]
     fn default_command_is_wizard() {
         match super::default_command() {
             super::Command::Wizard(_) => {}

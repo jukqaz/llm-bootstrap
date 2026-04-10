@@ -9,7 +9,7 @@ integration.
 
 ## Install
 
-Current release: `v0.1.15`
+Current release: `v0.2.0`
 
 Default path: run the wizard first.
 
@@ -195,7 +195,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.15 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.2.0 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
@@ -436,6 +436,8 @@ cargo test
 CI runs on pull requests and on pushes to `main`.
 
 Tagged releases publish GitHub Release assets on tags that match `v*`.
+When the patch number would exceed `10`, roll the next release to the next
+minor version and reset patch to `0` instead of publishing `x.y.11+`.
 
 ## References
 
