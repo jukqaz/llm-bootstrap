@@ -12,6 +12,37 @@
 > 한 사람이 AI들과 함께 시장을 읽고, 아이디어를 고르고, 제품을 만들고,
 > 고객을 얻고, 지원하고, 숫자로 판단하며, 회사를 계속 운영할 수 있어야 한다.
 
+## Lean Operating Principle
+
+이 문서의 stage는 모두 구현해야 하는 절차 목록이 아니다.
+실제 제품은 가능한 한 가볍게 둔다.
+
+기본 판단 순서:
+
+1. LLM이 대화 안에서 바로 처리할 수 있으면 별도 harness로 만들지 않는다
+2. 기존 SaaS나 automation tool이 잘하는 일은 직접 구현하지 않고 handoff한다
+3. 반복되고, 실수 비용이 높고, artifact가 남아야 하는 일만 capability로 만든다
+4. 돈, 고객 발송, 법무, 보안, 개인정보, 채용, 계약은 approval boundary를 둔다
+
+`llm-bootstrap`가 직접 해야 하는 것:
+
+- baseline 설치와 복구
+- provider-native command/skill 배포
+- 업무별 artifact contract
+- 필요한 connector와 runtime handoff 표시
+- doctor readiness
+
+`llm-bootstrap`가 직접 하지 않을 것:
+
+- CRM, analytics, helpdesk, accounting, ads platform runtime 구현
+- 고객 이메일이나 광고를 자동 발송
+- 결제, 환불, 계약, 법무 판단 자동 실행
+- 모든 사업 기능을 giant process로 강제
+- 매번 긴 PRD/spec를 요구
+
+따라서 실제 UX는 "지금 필요한 다음 행동"을 고르는 방식이어야 한다.
+문서의 12개 stage는 구현 후보 catalog이며, 기본 wizard는 더 짧은 흐름으로 보여준다.
+
 ## 전체 흐름
 
 ```text
@@ -34,6 +65,34 @@ market discovery
 
 이 흐름은 선형으로 한 번 끝나지 않는다.
 `company review`가 다시 `market discovery`나 `idea funnel`로 돌아가는 루프다.
+
+일반 사용자가 보는 기본 흐름은 더 짧다.
+
+```text
+discover -> decide -> validate -> build -> launch -> learn
+```
+
+상세 stage는 advanced mode나 capability 내부에서만 노출한다.
+
+## Build / Delegate Matrix
+
+| 영역 | `llm-bootstrap`가 직접 제공 | LLM에 맡김 | 외부 툴에 맡김 |
+|---|---|---|---|
+| 시장조사 | `market-scan` artifact contract | 검색 요약, 경쟁사 비교, pain 정리 | 검색엔진, Reddit/HN/X, app review, analytics |
+| 아이디어 | `idea-score`, `assumption-map` | 브레인스토밍, 중복 제거, 리스크 정리 | 없음 또는 메모/문서 툴 |
+| 검증 | validation checklist | 인터뷰 질문, landing copy 초안 | 폼, landing builder, ads, email tool |
+| 제품기획 | product brief contract | PRD 초안, scope cut | issue tracker, docs |
+| 디자인 | UX/design QA contract | user flow, copy, critique | Figma, design system |
+| 개발 | build/review/QA/ship loop | 코드 작성, 리뷰, 테스트 해석 | GitHub, CI, hosting, monitoring |
+| 마케팅 | launch/growth artifact contract | positioning, content, campaign 초안 | SEO tool, analytics, ads, email platform |
+| 세일즈 | approval boundary와 account brief contract | outreach/proposal 초안 | CRM, email, calendar |
+| CS | triage/repro/reply contract | 답변 초안, feedback clustering | helpdesk, inbox, issue tracker |
+| 재무 | finance-lite checklist | runway/가격 시나리오 초안 | Stripe, accounting, spreadsheet |
+| 법무/보안 | risk checklist | 문서 검토 보조 | 변호사, security scanner, compliance tool |
+| 운영리뷰 | weekly review contract | signal synthesis, next bet 초안 | analytics, CRM, support, accounting |
+
+이 표에서 외부 툴에 맡긴 영역은 `runtime handoff`로 남긴다.
+bootstrap이 그 tool의 runtime이 되지 않는다.
 
 ## Stage 1. Market Discovery
 
@@ -649,7 +708,19 @@ solo-company =
 wizard는 처음부터 기능 목록을 묻지 않는다.
 사업 단계와 목적을 먼저 묻는다.
 
+기본 wizard는 6단계만 보여준다.
+
 1. 지금 어디에 있나?
+   - 발견: 시장/아이디어 탐색
+   - 결정: 후보 선택과 scope cut
+   - 검증: 고객/landing/smoke test
+   - 제작: 제품 설계, 개발, QA
+   - 출시: launch, marketing, sales, support
+   - 학습: 운영 리뷰와 next bet
+
+advanced wizard에서만 세부 stage를 보여준다.
+
+1. 세부 업무를 고른다면 지금 어디에 있나?
    - 시장/아이디어 탐색
    - 검증
    - MVP 개발
@@ -711,13 +782,32 @@ legacy: clean
 
 ## 구현 우선순위
 
-1. `solo-company-flow`를 기준으로 `project` capability를 재정의한다
-2. `growth`에 market discovery, idea funnel, launch, analytics review를 넣는다
-3. `support`에 support triage, bug repro, feedback clustering을 넣는다
-4. `company`에 daily brief, weekly operating review, strategy memo를 넣는다
-5. wizard를 "사업 단계 선택" 방식으로 바꾼다
+1. 기본 wizard를 `discover -> decide -> validate -> build -> launch -> learn`로 단순화한다
+2. `project` capability는 `build`, `review`, `qa`, `ship`처럼 반복 빈도가 높은 loop부터 구현한다
+3. `growth`는 `market-scan`, `positioning`, `launch-plan`, `analytics-review`만 먼저 둔다
+4. `support`는 `support-triage`, `bug-repro`, `customer-reply`만 먼저 둔다
+5. `company`는 `daily-founder-brief`, `weekly-operating-review`, `decision-log`만 먼저 둔다
 6. `doctor`에 readiness와 runtime handoff를 분리해서 보여준다
 7. 실제 사용이 반복되는 영역만 `sales`, `success`, `analytics`, `finance`, `risk`로 분리한다
+8. 외부 SaaS가 더 잘하는 영역은 connector handoff로만 남긴다
+
+## Minimal First Implementation
+
+첫 구현은 아래 10개 이하로 제한한다.
+
+- `market-scan`
+- `idea-score`
+- `validation-plan`
+- `product-brief`
+- `build-plan`
+- `review`
+- `qa`
+- `ship`
+- `launch-plan`
+- `weekly-operating-review`
+
+여기서도 실제 실행은 가능한 한 LLM 대화와 기존 tool을 사용한다.
+`llm-bootstrap`는 이 10개가 provider별 command/skill로 같은 contract를 갖게 만드는 데 집중한다.
 
 ## 중복 방지
 
@@ -728,3 +818,5 @@ legacy: clean
 - `finance-lite`와 `risk-review`는 초기에는 company 안에 둔다
 - 모든 harness는 하나의 artifact contract만 가진다
 - provider별 command/skill은 같은 harness의 renderer output이다
+- 1회성 업무는 harness로 만들지 않는다
+- 외부 tool이 source of truth인 데이터는 복제하지 않고 링크와 요약만 만든다

@@ -16,6 +16,11 @@
 `llm-bootstrap`는 여러 LLM CLI의 baseline 설치기를 넘어서,
 검증된 LLM workflow 기능을 provider-native surface로 재배포하는 개인 AI 운영체계다.
 
+단, 모든 회사 업무를 직접 구현하는 제품은 아니다.
+LLM이 대화 안에서 처리할 수 있는 일은 LLM에 맡기고,
+SaaS와 automation runtime이 더 잘하는 일은 connector handoff로 남긴다.
+`llm-bootstrap`는 반복되는 workflow contract, provider 배포, readiness 확인만 직접 소유한다.
+
 단계는 아래 순서로 간다.
 
 1. `Project OS`: 프로젝트 하나를 기획, 디자인, 개발, QA, 운영, CS까지 굴린다
@@ -402,7 +407,30 @@ bootstrap은 필요한 connector와 next step을 알려준다.
 따라서 wizard와 문서는 business stage를 먼저 보여주고,
 내부적으로 stage를 capability/harness에 매핑한다.
 
-### 규칙 7. 기본값은 작게, opt-in은 강하게
+### 규칙 7. LLM과 외부 툴이 잘하는 것은 직접 구현하지 않는다
+
+요즘 추세는 agent가 모든 runtime을 직접 소유하는 쪽보다,
+LLM이 reasoning/drafting/synthesis를 맡고 외부 SaaS와 automation tool이 실행을 맡는 쪽이 더 실용적이다.
+
+따라서 아래는 직접 구현하지 않는다.
+
+- CRM runtime
+- helpdesk runtime
+- accounting runtime
+- ads platform runtime
+- analytics ingestion runtime
+- email/calendar send runtime
+- legal/compliance decision runtime
+
+대신 `llm-bootstrap`는 다음만 제공한다.
+
+- 필요한 connector contract
+- approval boundary
+- artifact template
+- provider별 command/skill entrypoint
+- doctor handoff status
+
+### 규칙 8. 기본값은 작게, opt-in은 강하게
 
 기본 설치는 lean해야 한다.
 강한 capability는 `add`와 wizard 선택으로 켠다.
