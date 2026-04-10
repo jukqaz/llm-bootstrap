@@ -375,11 +375,13 @@ fn repo_automation_scaffold_with(
 
     let config_path = target_root.join(".github/llm-bootstrap/review-automation.json");
     let branch_doc_path = target_root.join(".github/llm-bootstrap/BRANCH_PROTECTION.md");
+    let pr_template_path = target_root.join(".github/PULL_REQUEST_TEMPLATE.md");
     let pr_workflow_path = target_root.join(".github/workflows/pr-review-gate.yml");
     let release_workflow_path = target_root.join(".github/workflows/release-readiness-gate.yml");
     let managed_files = [
         config_path.clone(),
         branch_doc_path.clone(),
+        pr_template_path.clone(),
         pr_workflow_path.clone(),
         release_workflow_path.clone(),
     ];
@@ -449,6 +451,13 @@ fn repo_automation_scaffold_with(
             ],
         )?;
         copy_render_file_with_extras(
+            &template_root.join("PULL_REQUEST_TEMPLATE.md"),
+            &pr_template_path,
+            false,
+            &home,
+            &[],
+        )?;
+        copy_render_file_with_extras(
             &template_root.join("pr-review-gate.yml"),
             &pr_workflow_path,
             false,
@@ -480,6 +489,10 @@ fn repo_automation_scaffold_with(
                 .to_string(),
         );
     }
+    next_steps.push(
+        "keep `.github/PULL_REQUEST_TEMPLATE.md` aligned with the gate checklist when the repo review contract changes"
+            .to_string(),
+    );
     next_steps.push(
         "open one pull request and one workflow_dispatch release run to validate the gate end to end"
             .to_string(),
@@ -6052,10 +6065,14 @@ mod tests {
             repo.join(".github/workflows/release-readiness-gate.yml")
                 .exists()
         );
+        assert!(repo.join(".github/PULL_REQUEST_TEMPLATE.md").exists());
         let config =
             fs::read_to_string(repo.join(".github/llm-bootstrap/review-automation.json")).unwrap();
         assert!(config.contains("\"managed_by\": \"llm-bootstrap\""));
         assert!(config.contains("\"check\""));
+        let pr_template =
+            fs::read_to_string(repo.join(".github/PULL_REQUEST_TEMPLATE.md")).unwrap();
+        assert!(pr_template.contains("- [ ] review"));
 
         fs::remove_dir_all(repo).unwrap();
     }

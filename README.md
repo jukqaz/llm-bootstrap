@@ -385,9 +385,10 @@ cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-re
 ```
 
 This writes `.github/workflows/pr-review-gate.yml`,
-`.github/workflows/release-readiness-gate.yml`, and
-`.github/llm-bootstrap/BRANCH_PROTECTION.md` into the target repository without
-making repo-level workflow generation part of the default home bootstrap path.
+`.github/workflows/release-readiness-gate.yml`,
+`.github/llm-bootstrap/BRANCH_PROTECTION.md`, and
+`.github/PULL_REQUEST_TEMPLATE.md` into the target repository without making
+repo-level workflow generation part of the default home bootstrap path.
 
 Mode examples:
 

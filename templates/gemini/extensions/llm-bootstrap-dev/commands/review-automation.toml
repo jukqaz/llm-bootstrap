@@ -5,6 +5,7 @@ Use this command lane when `review-gate` should be enforced by repository workfl
 Sequence:
 1. Identify whether the contract is for PR review, release readiness, or both.
 2. Keep the contract in markdown first.
-3. Register required checks in the repository workflow or branch protection lane.
-4. Report the remaining external setup clearly.
+3. Keep `.github/PULL_REQUEST_TEMPLATE.md` aligned with the PR checklist.
+4. Register required checks in the repository workflow or branch protection lane.
+5. Report the remaining external setup clearly.
 """

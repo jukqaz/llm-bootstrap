@@ -11,5 +11,6 @@ Use this workflow when repository workflow should enforce `review-gate`.
 
 1. Decide whether the repo needs a PR gate, release gate, or both.
 2. Write the contract in markdown first.
-3. Register it in workflow, required checks, or branch protection.
-4. Call out the remaining external registration work.
+3. Keep `.github/PULL_REQUEST_TEMPLATE.md` aligned with the PR checklist.
+4. Register it in workflow, required checks, or branch protection.
+5. Call out the remaining external registration work.

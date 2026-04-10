@@ -313,7 +313,8 @@ cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-re
 
 이 명령은 target repo에 `.github/workflows/pr-review-gate.yml`,
 `.github/workflows/release-readiness-gate.yml`,
-`.github/llm-bootstrap/BRANCH_PROTECTION.md`를 생성한다. 기본 home bootstrap 경로에는
+`.github/llm-bootstrap/BRANCH_PROTECTION.md`,
+`.github/PULL_REQUEST_TEMPLATE.md`를 생성한다. 기본 home bootstrap 경로에는
 repo-level workflow 생성을 섞지 않는다.
 
 ## wizard
