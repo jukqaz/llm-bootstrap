@@ -11,7 +11,7 @@ use anyhow::{Context, Result, bail};
 use clap::Parser;
 use cli::{
     BackupsArgs, Cli, Command, DoctorArgs, InstallArgs, PackArgs, Provider, ProviderArgs,
-    RestoreArgs, UninstallArgs, WizardArgs,
+    RecordArgs, RecordSurface, RestoreArgs, UninstallArgs, WizardArgs,
 };
 use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
 use fs_ops::{backup_relative, list_backup_entries, remove_if_exists};
@@ -47,6 +47,7 @@ fn main() -> Result<()> {
         Command::Backups(args) => backups(args, &manifest),
         Command::Uninstall(args) => uninstall(args, &manifest),
         Command::Doctor(args) => doctor(args, &manifest),
+        Command::Record(args) => record(args, &manifest),
         Command::Wizard(args) => wizard(args, &manifest),
     }
 }
@@ -153,6 +154,10 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
         args.json,
         &resolved,
     )
+}
+
+fn record(args: RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
+    record_with(&args, manifest)
 }
 
 fn doctor_with(
@@ -553,6 +558,27 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
             manifest,
         )?
     };
+    let active_record_templates = selected_record_template_names(manifest, &pack_selection.packs);
+    let record_surface_items = [
+        "local docs only",
+        "GitHub issues + repo docs",
+        "local docs + GitHub issue",
+    ];
+    let record_surface = if active_record_templates.is_empty() {
+        RecordSurface::LocalDocs
+    } else {
+        match Select::with_theme(&theme)
+            .with_prompt("record surface")
+            .items(record_surface_items)
+            .default(0)
+            .interact()?
+        {
+            0 => RecordSurface::LocalDocs,
+            1 => RecordSurface::GithubIssue,
+            2 => RecordSurface::Both,
+            _ => unreachable!(),
+        }
+    };
 
     let mode = match Select::with_theme(&theme)
         .with_prompt("mode")
@@ -614,12 +640,14 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
     persist_env_keys(&keys_to_persist, persist_gui, persist_cli)?;
 
     println!(
-        "wizard summary: providers={}, mode={}, rtk={}, preset={}, packs={}, exa={}, context7={}, gui_persist={}, cli_persist={}",
+        "wizard summary: providers={}, mode={}, rtk={}, preset={}, packs={}, record_surface={}, record_templates={}, exa={}, context7={}, gui_persist={}, cli_persist={}",
         provider_names(&providers),
         mode.name(),
         if rtk_enabled { "enabled" } else { "disabled" },
         resolved.selection.preset.as_deref().unwrap_or("custom"),
         resolved.selection.packs.join(","),
+        record_surface.name(),
+        selected_record_template_names(manifest, &resolved.selection.packs).join(","),
         if resolved.enabled_mcp.contains(&BaselineMcp::Exa) {
             "enabled"
         } else {
@@ -1645,6 +1673,169 @@ fn automation_detail(
         "automation contract is rendered into the installed runtime state; recurring scheduler registration stays runtime-managed"
             .to_string(),
     )
+}
+
+fn record_with(args: &RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
+    let record_template = manifest
+        .record_templates
+        .iter()
+        .find(|record| record.record_type == args.record_type.record_type());
+    let body = render_record_body(args, record_template)?;
+    let local_path = if args.surface.includes_local_docs() {
+        let output_dir = resolve_record_output_dir(&args.output_dir)?;
+        let path = output_dir.join(record_file_name(args)?);
+        if args.dry_run {
+            println!("[dry-run] local record: {}", path.display());
+        } else {
+            fs::create_dir_all(&output_dir)
+                .with_context(|| format!("failed to create {}", output_dir.display()))?;
+            fs::write(&path, &body)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+            println!("record written: {}", path.display());
+        }
+        Some(path)
+    } else {
+        None
+    };
+
+    if args.surface.includes_github_issue() {
+        if args.dry_run {
+            println!(
+                "[dry-run] github issue: title={} repo={}",
+                args.title,
+                args.github_repo.as_deref().unwrap_or("current")
+            );
+        } else {
+            create_github_issue(args, &body, local_path.as_deref())?;
+        }
+    }
+
+    if args.dry_run {
+        println!("{body}");
+    }
+
+    Ok(())
+}
+
+fn render_record_body(
+    args: &RecordArgs,
+    template: Option<&manifest::RecordTemplateDefinition>,
+) -> Result<String> {
+    let id = format!("rec_{}", timestamp_string()?);
+    let updated_at = timestamp_string()?;
+    let stage = template
+        .map(|record| record.stage.as_str())
+        .unwrap_or("manual");
+    let template_name = template
+        .map(|record| record.name.as_str())
+        .unwrap_or("manual-record");
+    let description = template
+        .map(|record| record.description.as_str())
+        .unwrap_or("Manual operating record.");
+    let owner = args.owner.as_deref().unwrap_or("");
+    let next_action = args.next_action.as_deref().unwrap_or("");
+
+    Ok(format!(
+        "# {title}\n\n```yaml\nid: \"{id}\"\ntype: \"{record_type}\"\ntemplate: \"{template_name}\"\nstage: \"{stage}\"\ntitle: \"{title}\"\nstatus: \"{status}\"\nsource: \"llm-bootstrap record\"\nowner: \"{owner}\"\nupdated_at: \"{updated_at}\"\nnext_action: \"{next_action}\"\nlinked_tools:\n  github: \"\"\n  linear: \"\"\n  figma: \"\"\n  docs: \"\"\n  calendar: \"\"\n  crm: \"\"\n  helpdesk: \"\"\n  analytics: \"\"\ncontext:\n  summary: \"\"\n  assumptions: []\ndecision:\n  chosen: \"\"\n  alternatives: []\n  rationale: \"\"\nevidence:\n  links: []\n  notes: []\napprovals:\n  required: false\n  reason: \"\"\n  approver: \"\"\nhandoff:\n  runtime_owner: \"\"\n  external_object_id: \"\"\n  next_step: \"\"\n```\n\n## Description\n\n{description}\n\n## Notes\n\n- Keep this record compact.\n- Link to external source-of-truth systems instead of copying their data.\n- Require approval before customer sends, legal/finance decisions, or external writes.\n",
+        title = yaml_string(&args.title),
+        id = id,
+        record_type = args.record_type.record_type(),
+        template_name = yaml_string(template_name),
+        stage = yaml_string(stage),
+        status = yaml_string(&args.status),
+        owner = yaml_string(owner),
+        updated_at = updated_at,
+        next_action = yaml_string(next_action),
+        description = description,
+    ))
+}
+
+fn resolve_record_output_dir(path: &Path) -> Result<PathBuf> {
+    if path.is_absolute() {
+        Ok(path.to_path_buf())
+    } else {
+        Ok(env::current_dir()
+            .context("failed to read current directory")?
+            .join(path))
+    }
+}
+
+fn record_file_name(args: &RecordArgs) -> Result<String> {
+    let timestamp = timestamp_string()?;
+    Ok(format!(
+        "{}-{}-{}.md",
+        timestamp,
+        args.record_type.name(),
+        slugify(&args.title)
+    ))
+}
+
+fn create_github_issue(args: &RecordArgs, body: &str, local_path: Option<&Path>) -> Result<()> {
+    if !command_exists("gh") {
+        bail!("gh is required for --surface github-issue or both");
+    }
+
+    let body_path = match local_path {
+        Some(path) => path.to_path_buf(),
+        None => {
+            let path = env::temp_dir().join(format!(
+                "llm-bootstrap-record-{}-{}.md",
+                args.record_type.name(),
+                timestamp_string()?
+            ));
+            fs::write(&path, body)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+            path
+        }
+    };
+
+    let mut command = ProcessCommand::new("gh");
+    command.args(["issue", "create", "--title", &args.title, "--body-file"]);
+    command.arg(&body_path);
+    if let Some(repo) = &args.github_repo {
+        command.args(["--repo", repo]);
+    }
+    let output = command
+        .output()
+        .with_context(|| "failed while creating GitHub issue with gh")?;
+    if !output.status.success() {
+        bail!(
+            "gh issue create failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if stdout.is_empty() {
+        println!("github issue created");
+    } else {
+        println!("github issue created: {stdout}");
+    }
+    Ok(())
+}
+
+fn yaml_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+fn slugify(value: &str) -> String {
+    let mut slug = String::new();
+    let mut previous_dash = false;
+    for character in value.chars().flat_map(char::to_lowercase) {
+        if character.is_ascii_alphanumeric() {
+            slug.push(character);
+            previous_dash = false;
+        } else if !previous_dash {
+            slug.push('-');
+            previous_dash = true;
+        }
+    }
+    let slug = slug.trim_matches('-');
+    if slug.is_empty() {
+        "record".to_string()
+    } else {
+        slug.to_string()
+    }
 }
 
 fn provider_root(home: &Path, provider: Provider) -> PathBuf {
@@ -3493,6 +3684,47 @@ mod tests {
 
         assert_eq!(delivery, vec!["project-record".to_string()]);
         assert_eq!(ops, vec!["ops-record".to_string()]);
+    }
+
+    #[test]
+    fn record_with_writes_local_record() {
+        let home = temp_home();
+        let output_dir = home.join("records");
+        let args = super::RecordArgs {
+            record_type: crate::cli::RecordKind::Project,
+            title: "Build operating records".to_string(),
+            status: "active".to_string(),
+            owner: Some("owner".to_string()),
+            next_action: Some("verify record flow".to_string()),
+            surface: crate::cli::RecordSurface::LocalDocs,
+            output_dir: output_dir.clone(),
+            github_repo: None,
+            dry_run: false,
+        };
+
+        super::record_with(&args, &test_manifest()).unwrap();
+
+        let files = fs::read_dir(&output_dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect::<Vec<_>>();
+        assert_eq!(files.len(), 1);
+        let raw = fs::read_to_string(&files[0]).unwrap();
+        assert!(raw.contains("type: \"ProjectRecord\""));
+        assert!(raw.contains("template: \"project-record\""));
+        assert!(raw.contains("title: \"Build operating records\""));
+        assert!(raw.contains("next_action: \"verify record flow\""));
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn slugify_produces_stable_ascii_slug() {
+        assert_eq!(
+            super::slugify("Build Operating Records!"),
+            "build-operating-records"
+        );
+        assert_eq!(super::slugify("기록"), "record");
     }
 
     #[test]

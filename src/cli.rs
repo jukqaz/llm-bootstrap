@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Deserialize;
+use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
     name = "llm-bootstrap",
@@ -52,6 +53,7 @@ pub(crate) enum Command {
     Backups(BackupsArgs),
     Uninstall(UninstallArgs),
     Doctor(DoctorArgs),
+    Record(RecordArgs),
     Wizard(WizardArgs),
 }
 
@@ -144,6 +146,113 @@ pub(crate) struct DoctorArgs {
     pub(crate) without_rtk: bool,
     #[arg(long, help = "Emit doctor results as JSON")]
     pub(crate) json: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub(crate) enum RecordKind {
+    Opportunity,
+    Decision,
+    Project,
+    Task,
+    Support,
+    Growth,
+    Ops,
+    Risk,
+    Handoff,
+}
+
+impl RecordKind {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            RecordKind::Opportunity => "opportunity",
+            RecordKind::Decision => "decision",
+            RecordKind::Project => "project",
+            RecordKind::Task => "task",
+            RecordKind::Support => "support",
+            RecordKind::Growth => "growth",
+            RecordKind::Ops => "ops",
+            RecordKind::Risk => "risk",
+            RecordKind::Handoff => "handoff",
+        }
+    }
+
+    pub(crate) fn record_type(self) -> &'static str {
+        match self {
+            RecordKind::Opportunity => "OpportunityRecord",
+            RecordKind::Decision => "DecisionRecord",
+            RecordKind::Project => "ProjectRecord",
+            RecordKind::Task => "TaskRecord",
+            RecordKind::Support => "SupportRecord",
+            RecordKind::Growth => "GrowthRecord",
+            RecordKind::Ops => "OpsRecord",
+            RecordKind::Risk => "RiskRecord",
+            RecordKind::Handoff => "HandoffRecord",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub(crate) enum RecordSurface {
+    LocalDocs,
+    GithubIssue,
+    Both,
+}
+
+impl RecordSurface {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            RecordSurface::LocalDocs => "local-docs",
+            RecordSurface::GithubIssue => "github-issue",
+            RecordSurface::Both => "both",
+        }
+    }
+
+    pub(crate) fn includes_local_docs(self) -> bool {
+        matches!(self, RecordSurface::LocalDocs | RecordSurface::Both)
+    }
+
+    pub(crate) fn includes_github_issue(self) -> bool {
+        matches!(self, RecordSurface::GithubIssue | RecordSurface::Both)
+    }
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct RecordArgs {
+    #[arg(long = "type", value_enum, help = "Record type to create")]
+    pub(crate) record_type: RecordKind,
+    #[arg(long, help = "Record title")]
+    pub(crate) title: String,
+    #[arg(long, default_value = "draft", help = "Record status")]
+    pub(crate) status: String,
+    #[arg(long, help = "Record owner")]
+    pub(crate) owner: Option<String>,
+    #[arg(long = "next-action", help = "Next action to keep the work resumable")]
+    pub(crate) next_action: Option<String>,
+    #[arg(
+        long,
+        value_enum,
+        default_value = "local-docs",
+        help = "Where to write the record"
+    )]
+    pub(crate) surface: RecordSurface,
+    #[arg(
+        long = "output-dir",
+        default_value = ".llm-bootstrap/records",
+        help = "Directory for local record markdown files"
+    )]
+    pub(crate) output_dir: PathBuf,
+    #[arg(
+        long = "github-repo",
+        help = "Optional GitHub repo for issue creation, such as owner/repo"
+    )]
+    pub(crate) github_repo: Option<String>,
+    #[arg(
+        long,
+        help = "Show the record without writing local files or GitHub issues"
+    )]
+    pub(crate) dry_run: bool,
 }
 
 #[derive(clap::Args, Clone, Default)]

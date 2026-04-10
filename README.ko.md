@@ -4,7 +4,7 @@
 
 ## 설치
 
-현재 release: `v0.1.13`
+현재 release: `v0.1.14`
 
 기본 경로는 wizard 실행이다.
 
@@ -122,7 +122,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.13 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.14 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.
@@ -180,6 +180,8 @@ cargo run -- uninstall --providers codex,gemini --dry-run
 cargo run -- install --providers codex,gemini --preset normal
 cargo run -- install --providers codex,gemini,claude --preset full
 cargo run -- doctor --providers codex,gemini --preset company --json
+cargo run -- record --type project --title "MVP scope" --next-action "create first issue"
+cargo run -- record --type task --title "Build auth flow" --surface both --github-repo owner/repo
 ```
 
 세밀 제어가 필요하면 기존처럼 `--packs delivery-pack,incident-pack`를 직접 써도 된다.
@@ -250,6 +252,8 @@ cargo run -- wizard
 wizard는 다음을 묻는다.
 
 - provider 선택
+- preset 선택
+- record surface 선택
 - `merge` / `replace`
 - RTK 포함 여부
 - `EXA_API_KEY`

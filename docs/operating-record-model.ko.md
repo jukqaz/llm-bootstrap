@@ -164,13 +164,21 @@ wizard는 capability 선택 뒤 record surface를 묻는다.
 - Codex/Claude `record-work` skill
 - Gemini `record-work` command
 - `doctor`의 `active_record_templates`, `record_templates`, `record_readiness`
+- wizard의 record surface 선택 UI
+- `llm-bootstrap record` local docs 생성 명령
+- `llm-bootstrap record --surface github-issue|both` GitHub issue 생성 명령
 
 아직 구현하지 않은 것:
 
-- wizard의 record surface 선택 UI
-- local record 파일 생성 명령
-- GitHub issue 생성 자동화
 - 외부 connector write
+
+예시:
+
+```bash
+llm-bootstrap record --type project --title "MVP scope" --next-action "create first issue"
+llm-bootstrap record --type task --title "Build auth flow" --surface both --github-repo owner/repo
+llm-bootstrap record --type handoff --title "CRM setup" --surface github-issue --dry-run
+```
 
 ## Non-goals
 

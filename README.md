@@ -9,7 +9,7 @@ integration.
 
 ## Install
 
-Current release: `v0.1.13`
+Current release: `v0.1.14`
 
 Default path: run the wizard first.
 
@@ -195,7 +195,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.13 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.14 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
@@ -243,9 +243,11 @@ provider-native surfaces, not just metadata.
 - `RALPH_PLAN.md`
 - `FOUNDER_LOOP.md`
 - `OPERATING_REVIEW.md`
+- `OPERATING_RECORDS.md`
 - `CONNECTORS.md`
 - `AUTOMATIONS.md`
 - Codex skills, Gemini commands, and Claude skills for the company lanes
+- `record-work` Codex/Claude skill and Gemini command
 
 Examples:
 
@@ -253,6 +255,8 @@ Examples:
 cargo run -- install --providers codex,gemini --preset normal
 cargo run -- install --providers codex,gemini,claude --preset full
 cargo run -- doctor --providers codex,gemini --preset company --json
+cargo run -- record --type project --title "MVP scope" --next-action "create first issue"
+cargo run -- record --type task --title "Build auth flow" --surface both --github-repo owner/repo
 ```
 
 If you need exact control, continue to use `--packs delivery-pack,incident-pack`.
@@ -312,6 +316,7 @@ automations:
 - connectors: `runtime_owner`, `verification_mode`, `connection_status`, `next_step`
 - automations: `scheduler_owner`, `registration_status`, `next_step`
 - runtime queue: `runtime_handoff.connector_queue`, `runtime_handoff.automation_queue`, `runtime_handoff.next_steps`
+- records: `active_record_templates`, `record_templates`, `record_readiness`
 
 Mode examples:
 
@@ -340,6 +345,8 @@ cargo run -- wizard
 The wizard asks for:
 
 - target providers
+- preset
+- record surface
 - `merge` or `replace`
 - RTK on or off
 - `EXA_API_KEY`

@@ -7,6 +7,13 @@ Default record surfaces:
 - local docs
 - GitHub issues, PRs, releases, and repo docs
 
+CLI entrypoint:
+
+```bash
+llm-bootstrap record --type project --title "MVP scope" --next-action "create first issue"
+llm-bootstrap record --type task --title "Build auth flow" --surface both --github-repo owner/repo
+```
+
 External systems such as Linear, Gmail, Calendar, Drive, Figma, CRM, helpdesk,
 analytics, and accounting remain source of truth. Link to them instead of
 copying their data.
