@@ -1,6 +1,8 @@
 # llm-bootstrap
 
-Developer home bootstrap for `Codex`, `Gemini`, and optional `Claude Code`.
+`llm-bootstrap` first stabilizes provider-native baselines for `Codex`,
+`Gemini`, and optional `Claude Code`, then layers on optional capabilities for
+planning, execution, review, QA, and company operations.
 
 This repository configures user-scope LLM tooling on macOS without touching
 provider auth tokens or project-level files. It applies a small, reproducible
@@ -30,6 +32,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 English:
 - [README.md](README.md)
+- [docs/product-goal.md](docs/product-goal.md)
 - [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
 - [docs/direction-review.md](docs/direction-review.md)
 - [docs/business-ops-blueprint.md](docs/business-ops-blueprint.md)
@@ -46,6 +49,7 @@ English:
 
 Korean:
 - [README.ko.md](README.ko.md)
+- [docs/product-goal.ko.md](docs/product-goal.ko.md)
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
 - [docs/direction-review.ko.md](docs/direction-review.ko.md)
 - [docs/business-ops-blueprint.ko.md](docs/business-ops-blueprint.ko.md)
@@ -53,6 +57,7 @@ Korean:
 - [docs/provider-surface-strategy.ko.md](docs/provider-surface-strategy.ko.md)
 - [docs/oh-my-comparison-report.ko.md](docs/oh-my-comparison-report.ko.md)
 - [docs/reference-repo-backlog.ko.md](docs/reference-repo-backlog.ko.md)
+- [docs/reference-surface-matrix.ko.md](docs/reference-surface-matrix.ko.md)
 - [docs/superset-strategy.ko.md](docs/superset-strategy.ko.md)
 
 Reference data:
@@ -94,14 +99,17 @@ The default baseline is intentionally small.
 - Codex:
   - local `llm-dev-kit` plugin
   - workflow docs and skills
+  - `workflow-gate` skill for task-state transitions
 - Gemini:
   - `llm-bootstrap-dev` extension
   - native custom commands
   - workflow docs and lightweight agent pack
+  - `gate` command for task-state transitions
 - Claude Code:
   - official MCP registration
   - lightweight subagent docs
   - workflow skill pack
+  - `workflow-gate` skill for task-state transitions
 
 This repository does not ship project-specific MCP such as payment, internal,
 or app-specific tools. In `merge` mode, unmanaged MCP already present in a
@@ -213,9 +221,22 @@ cargo run -- install --providers codex
 cargo run -- install --providers gemini
 cargo run -- install --providers claude
 cargo run -- install --providers codex,gemini
+cargo run -- baseline --providers codex,gemini
 cargo run -- install --providers codex,gemini,claude
 cargo run -- install --providers codex,gemini --preset light
+cargo run -- sync --providers codex,gemini --preset full
 cargo run -- install --providers codex,gemini,claude --preset full
+cargo run -- install --providers codex,gemini,claude --preset orchestrator
+cargo run -- probe --providers codex,gemini,claude --preset normal
+```
+
+The orchestrator lane also ships thin workflow gates:
+
+```bash
+llm-bootstrap internal task-state begin --title "Review auth flow" --providers codex,gemini,claude --preset orchestrator --phase execute
+llm-bootstrap internal gate check --target-phase ship --json
+llm-bootstrap internal task-state advance --complete ownership,handoff,review,qa,verify
+llm-bootstrap internal gate apply --target-phase ship --json
 ```
 
 `doctor --json` now exposes both the requested preset state and the last
@@ -241,6 +262,8 @@ aliases over pack groups.
   - `delivery-pack`, `incident-pack`
 - `full`
   - `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
+- `orchestrator`
+  - `delivery-pack`, `incident-pack`, `team-pack`
 - `company`
   - `founder-pack`, `ops-pack`
 
@@ -261,6 +284,7 @@ Examples:
 ```bash
 cargo run -- install --providers codex,gemini --preset normal
 cargo run -- install --providers codex,gemini,claude --preset full
+cargo run -- install --providers codex,gemini,claude --preset orchestrator
 cargo run -- doctor --providers codex,gemini --preset company --json
 cargo run -- record --type project --title "MVP scope" --next-action "create first issue"
 cargo run -- record --type task --title "Build auth flow" --surface both --github-repo owner/repo
@@ -299,6 +323,14 @@ composition, not just a document bundle.
     - Codex: development and company skills
     - Gemini: development and company commands
     - Claude: development and company skills
+- `orchestrator`
+  - packs: `delivery-pack`, `incident-pack`, `team-pack`
+  - connector apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - surfaces:
+    - Codex: delivery, incident, and team skills
+    - Gemini: delivery, incident, and team commands
+    - Claude: delivery, incident, and team skills
 - `company`
   - packs: `founder-pack`, `ops-pack`
   - connector apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
