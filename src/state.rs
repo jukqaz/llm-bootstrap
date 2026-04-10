@@ -15,24 +15,25 @@ pub(crate) struct InstalledState {
     pub(crate) managed_paths: Vec<String>,
 }
 
+pub(crate) struct RequestedState<'a> {
+    pub(crate) active_preset: Option<&'a str>,
+    pub(crate) active_packs: &'a [String],
+    pub(crate) active_harnesses: &'a [String],
+    pub(crate) active_connectors: &'a [String],
+    pub(crate) active_automations: &'a [String],
+    pub(crate) active_surfaces: &'a [String],
+    pub(crate) managed_paths: &'a [String],
+}
+
 impl InstalledState {
-    pub(crate) fn mismatch(
-        &self,
-        requested_preset: Option<&str>,
-        requested_packs: &[String],
-        requested_harnesses: &[String],
-        requested_connectors: &[String],
-        requested_automations: &[String],
-        requested_surfaces: &[String],
-        requested_managed_paths: &[String],
-    ) -> bool {
-        self.active_preset.as_deref() != requested_preset
-            || self.active_packs != requested_packs
-            || self.active_harnesses != requested_harnesses
-            || self.active_connectors != requested_connectors
-            || self.active_automations != requested_automations
-            || self.active_surfaces != requested_surfaces
-            || self.managed_paths != requested_managed_paths
+    pub(crate) fn mismatch(&self, requested: &RequestedState<'_>) -> bool {
+        self.active_preset.as_deref() != requested.active_preset
+            || self.active_packs != requested.active_packs
+            || self.active_harnesses != requested.active_harnesses
+            || self.active_connectors != requested.active_connectors
+            || self.active_automations != requested.active_automations
+            || self.active_surfaces != requested.active_surfaces
+            || self.managed_paths != requested.managed_paths
     }
 }
 

@@ -20,7 +20,7 @@ use manifest::{BaselineMcp, BootstrapManifest, DistributionTarget};
 use providers::{claude, codex, gemini};
 use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root};
 use serde::Serialize;
-use state::{read_installed_state, write_installed_state};
+use state::{RequestedState, read_installed_state, write_installed_state};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
@@ -262,15 +262,16 @@ fn doctor_with(
             &resolved.distribution_state,
             &resolved.surfaces,
         );
-        let state_mismatch = installed_state.mismatch(
-            resolved.selection.preset.as_deref(),
-            &resolved.selection.packs,
-            &resolved.selection.harnesses,
-            &catalog_report.active_connectors,
-            &catalog_report.active_automations,
-            requested_surfaces,
-            &requested_managed_paths,
-        );
+        let requested_state = RequestedState {
+            active_preset: resolved.selection.preset.as_deref(),
+            active_packs: &resolved.selection.packs,
+            active_harnesses: &resolved.selection.harnesses,
+            active_connectors: &catalog_report.active_connectors,
+            active_automations: &catalog_report.active_automations,
+            active_surfaces: requested_surfaces,
+            managed_paths: &requested_managed_paths,
+        };
+        let state_mismatch = installed_state.mismatch(&requested_state);
         if !json {
             println!("[doctor] provider {}", provider.name());
             if state_mismatch {
@@ -2666,15 +2667,17 @@ mod tests {
             managed_paths: vec!["config.toml".to_string(), "AGENTS.md".to_string()],
         };
 
-        assert!(requested.mismatch(
-            Some("normal"),
-            &requested.active_packs,
-            &requested.active_harnesses,
-            &requested.active_connectors,
-            &requested.active_automations,
-            &requested.active_surfaces,
-            &["config.toml".to_string()],
-        ));
+        let requested_state = crate::state::RequestedState {
+            active_preset: Some("normal"),
+            active_packs: &requested.active_packs,
+            active_harnesses: &requested.active_harnesses,
+            active_connectors: &requested.active_connectors,
+            active_automations: &requested.active_automations,
+            active_surfaces: &requested.active_surfaces,
+            managed_paths: &["config.toml".to_string()],
+        };
+
+        assert!(requested.mismatch(&requested_state));
     }
 
     #[test]
