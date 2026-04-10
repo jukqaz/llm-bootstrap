@@ -48,6 +48,12 @@ default_enabled = true
 description = "Quality gate harness for review, tests, and verification."
 
 [[harnesses]]
+name = "parallel-build"
+category = "development"
+default_enabled = false
+description = "Optional multi-agent harness for planner, executor, reviewer, and verifier handoffs."
+
+[[harnesses]]
 name = "founder-loop"
 category = "company"
 default_enabled = false
@@ -82,6 +88,18 @@ codex_surfaces = ["llm-dev-kit", "incident-skills"]
 gemini_surfaces = ["llm-bootstrap-dev", "incident-commands"]
 claude_surfaces = ["claude-skills", "incident-skills"]
 description = "Core incident response and regression pack."
+
+[[packs]]
+name = "team-pack"
+scope = "development"
+lane = "advanced"
+harnesses = ["ralph-loop", "ralph-plan", "delivery", "parallel-build", "review-gate"]
+mcp_servers = ["chrome-devtools", "context7"]
+connectors = ["github", "linear"]
+codex_surfaces = ["llm-dev-kit", "delivery-skills", "team-skills"]
+gemini_surfaces = ["llm-bootstrap-dev", "delivery-commands", "team-commands"]
+claude_surfaces = ["claude-skills", "delivery-skills", "team-skills"]
+description = "Advanced multi-agent delivery pack with parallel build and verification lanes."
 
 [[packs]]
 name = "founder-pack"
@@ -123,9 +141,134 @@ packs = ["delivery-pack", "incident-pack", "founder-pack", "ops-pack"]
 description = "Development plus company operating packs."
 
 [[presets]]
+name = "orchestrator"
+packs = ["delivery-pack", "incident-pack", "team-pack"]
+description = "Development baseline with the advanced multi-agent team harness."
+
+[[presets]]
 name = "company"
 packs = ["founder-pack", "ops-pack"]
 description = "Company operating packs without the development delivery lane."
+
+[[surfaces]]
+name = "llm-dev-kit"
+kind = "baseline"
+runtime_owner = "bootstrap"
+default_lane = "core"
+distribution_target = "codex-plugin"
+description = "Codex plugin bundle that renders baseline skills and provider-native execution helpers."
+
+[[surfaces]]
+name = "delivery-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "codex-plugin"
+description = "Codex delivery entrypoints such as office-hours, autopilot, review, QA, ship, and retro."
+
+[[surfaces]]
+name = "incident-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "codex-plugin"
+description = "Codex incident and investigation entrypoints for regression response."
+
+[[surfaces]]
+name = "company-skills"
+kind = "company"
+runtime_owner = "provider-native"
+default_lane = "optional"
+distribution_target = "codex-plugin"
+description = "Codex founder and company operating entrypoints."
+
+[[surfaces]]
+name = "team-skills"
+kind = "team"
+runtime_owner = "provider-native"
+default_lane = "advanced"
+distribution_target = "codex-plugin"
+description = "Codex multi-agent team entrypoints for parallel build, review, and verify lanes."
+
+[[surfaces]]
+name = "llm-bootstrap-dev"
+kind = "baseline"
+runtime_owner = "bootstrap"
+default_lane = "core"
+distribution_target = "gemini-extension"
+description = "Gemini extension bundle that renders baseline commands, agents, and docs."
+
+[[surfaces]]
+name = "delivery-commands"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "gemini-extension"
+description = "Gemini delivery commands such as office-hours, intent, autopilot, review, QA, ship, and retro."
+
+[[surfaces]]
+name = "incident-commands"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "gemini-extension"
+description = "Gemini incident and investigation command lane."
+
+[[surfaces]]
+name = "company-commands"
+kind = "company"
+runtime_owner = "provider-native"
+default_lane = "optional"
+distribution_target = "gemini-extension"
+description = "Gemini founder and company operating command lane."
+
+[[surfaces]]
+name = "team-commands"
+kind = "team"
+runtime_owner = "provider-native"
+default_lane = "advanced"
+distribution_target = "gemini-extension"
+description = "Gemini multi-agent team commands for parallel build, review, and verification handoffs."
+
+[[surfaces]]
+name = "claude-skills"
+kind = "baseline"
+runtime_owner = "bootstrap"
+default_lane = "core"
+distribution_target = "claude-skills"
+description = "Claude user-scope skill and workflow baseline rendered through provider-native paths."
+
+[[surfaces]]
+name = "delivery-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "claude-skills"
+description = "Claude delivery entrypoints such as office-hours, autopilot, review, QA, ship, and retro."
+
+[[surfaces]]
+name = "incident-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "claude-skills"
+description = "Claude incident and investigation entrypoints."
+
+[[surfaces]]
+name = "company-skills"
+kind = "company"
+runtime_owner = "provider-native"
+default_lane = "optional"
+distribution_target = "claude-skills"
+description = "Claude founder and company operating entrypoints."
+
+[[surfaces]]
+name = "team-skills"
+kind = "team"
+runtime_owner = "provider-native"
+default_lane = "advanced"
+distribution_target = "claude-skills"
+description = "Claude multi-agent team entrypoints for parallel build, review, and verify lanes."
 
 [[connectors]]
 name = "github"

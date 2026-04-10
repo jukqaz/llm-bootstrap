@@ -48,11 +48,17 @@ impl Provider {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    Baseline(InstallArgs),
     Install(InstallArgs),
+    Sync(InstallArgs),
     Restore(RestoreArgs),
     Backups(BackupsArgs),
     Uninstall(UninstallArgs),
     Doctor(DoctorArgs),
+    Probe(ProbeArgs),
+    Internal(InternalArgs),
+    #[command(hide = true)]
+    TaskState(TaskStateArgs),
     Record(RecordArgs),
     Wizard(WizardArgs),
 }
@@ -157,6 +163,220 @@ pub(crate) struct DoctorArgs {
     )]
     pub(crate) record_surface: Option<RecordSurface>,
     #[arg(long, help = "Emit doctor results as JSON")]
+    pub(crate) json: bool,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct ProbeArgs {
+    #[command(flatten)]
+    pub(crate) provider_args: ProviderArgs,
+    #[command(flatten)]
+    pub(crate) pack_args: PackArgs,
+    #[arg(
+        long,
+        default_value = "Reply with exactly OK and nothing else.",
+        help = "Prompt used for provider runtime probe"
+    )]
+    pub(crate) prompt: String,
+    #[arg(long, help = "Emit probe results as JSON")]
+    pub(crate) json: bool,
+}
+
+#[derive(Subcommand, Clone)]
+pub(crate) enum TaskStateCommand {
+    Begin(TaskStateBeginArgs),
+    Advance(TaskStateAdvanceArgs),
+    Show(TaskStateShowArgs),
+    Clear,
+}
+
+#[derive(Subcommand, Clone)]
+pub(crate) enum GateCommand {
+    Check(GateCheckArgs),
+    Apply(GateApplyArgs),
+}
+
+#[derive(Subcommand, Clone)]
+pub(crate) enum InternalCommand {
+    TaskState(TaskStateArgs),
+    Gate(GateArgs),
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct InternalArgs {
+    #[command(subcommand)]
+    pub(crate) command: InternalCommand,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct GateArgs {
+    #[command(subcommand)]
+    pub(crate) command: GateCommand,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct TaskStateArgs {
+    #[command(subcommand)]
+    pub(crate) command: TaskStateCommand,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub(crate) enum TaskStatus {
+    Draft,
+    InProgress,
+    Blocked,
+    Ready,
+    Done,
+}
+
+impl TaskStatus {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            TaskStatus::Draft => "draft",
+            TaskStatus::InProgress => "in-progress",
+            TaskStatus::Blocked => "blocked",
+            TaskStatus::Ready => "ready",
+            TaskStatus::Done => "done",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub(crate) enum TaskPhase {
+    Discover,
+    Plan,
+    Execute,
+    Review,
+    Qa,
+    Ship,
+    Operate,
+}
+
+impl TaskPhase {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            TaskPhase::Discover => "discover",
+            TaskPhase::Plan => "plan",
+            TaskPhase::Execute => "execute",
+            TaskPhase::Review => "review",
+            TaskPhase::Qa => "qa",
+            TaskPhase::Ship => "ship",
+            TaskPhase::Operate => "operate",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub(crate) enum GateSignal {
+    Ownership,
+    Handoff,
+    Review,
+    Qa,
+    Verify,
+    Investigate,
+}
+
+impl GateSignal {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            GateSignal::Ownership => "ownership",
+            GateSignal::Handoff => "handoff",
+            GateSignal::Review => "review",
+            GateSignal::Qa => "qa",
+            GateSignal::Verify => "verify",
+            GateSignal::Investigate => "investigate",
+        }
+    }
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct TaskStateBeginArgs {
+    #[command(flatten)]
+    pub(crate) provider_args: ProviderArgs,
+    #[command(flatten)]
+    pub(crate) pack_args: PackArgs,
+    #[arg(long, help = "Task title")]
+    pub(crate) title: String,
+    #[arg(long, value_enum, default_value = "in-progress", help = "Task status")]
+    pub(crate) status: TaskStatus,
+    #[arg(long, value_enum, default_value = "plan", help = "Current task phase")]
+    pub(crate) phase: TaskPhase,
+    #[arg(long, help = "Task owner")]
+    pub(crate) owner: Option<String>,
+    #[arg(long = "next-action", help = "Next action to resume work")]
+    pub(crate) next_action: Option<String>,
+    #[arg(long, help = "Emit task state as JSON")]
+    pub(crate) json: bool,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct TaskStateAdvanceArgs {
+    #[arg(long, value_enum, help = "New task status")]
+    pub(crate) status: Option<TaskStatus>,
+    #[arg(long, value_enum, help = "New task phase")]
+    pub(crate) phase: Option<TaskPhase>,
+    #[arg(long = "next-action", help = "Next action to resume work")]
+    pub(crate) next_action: Option<String>,
+    #[arg(long, help = "Failure summary")]
+    pub(crate) failure: Option<String>,
+    #[arg(long, help = "Clear stored failure summary")]
+    pub(crate) clear_failure: bool,
+    #[arg(
+        long,
+        value_enum,
+        value_delimiter = ',',
+        help = "Mark completed gate signals"
+    )]
+    pub(crate) complete: Vec<GateSignal>,
+    #[arg(
+        long = "clear-complete",
+        value_enum,
+        value_delimiter = ',',
+        help = "Clear completed gate signals"
+    )]
+    pub(crate) clear_complete: Vec<GateSignal>,
+    #[arg(long, help = "Increment attempt counter")]
+    pub(crate) increment_attempt: bool,
+    #[arg(long, help = "Emit task state as JSON")]
+    pub(crate) json: bool,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct TaskStateShowArgs {
+    #[arg(long, help = "Emit task state as JSON")]
+    pub(crate) json: bool,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct GateCheckArgs {
+    #[arg(long, value_enum, help = "Evaluate the contract for a target phase")]
+    pub(crate) target_phase: Option<TaskPhase>,
+    #[arg(
+        long,
+        value_enum,
+        value_delimiter = ',',
+        help = "Additional completed gate signals to include in the evaluation"
+    )]
+    pub(crate) completed: Vec<GateSignal>,
+    #[arg(long, help = "Emit gate report as JSON")]
+    pub(crate) json: bool,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct GateApplyArgs {
+    #[arg(long, value_enum, help = "Advance the contract to a target phase")]
+    pub(crate) target_phase: Option<TaskPhase>,
+    #[arg(
+        long,
+        value_enum,
+        value_delimiter = ',',
+        help = "Completed gate signals to persist before applying the gate"
+    )]
+    pub(crate) completed: Vec<GateSignal>,
+    #[arg(long, help = "Emit gate report as JSON")]
     pub(crate) json: bool,
 }
 

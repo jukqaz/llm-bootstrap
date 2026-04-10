@@ -10,8 +10,11 @@ mod state;
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use cli::{
-    BackupsArgs, Cli, Command, DoctorArgs, InstallArgs, PackArgs, Provider, ProviderArgs,
-    RecordArgs, RecordSurface, RestoreArgs, UninstallArgs, WizardArgs,
+    BackupsArgs, Cli, Command, DoctorArgs, GateApplyArgs, GateArgs, GateCheckArgs, GateCommand,
+    GateSignal, InstallArgs, InternalArgs, InternalCommand, PackArgs, ProbeArgs, Provider,
+    ProviderArgs, RecordArgs, RecordSurface, RestoreArgs, TaskPhase, TaskStateAdvanceArgs,
+    TaskStateArgs, TaskStateBeginArgs, TaskStateCommand, TaskStateShowArgs, TaskStatus,
+    UninstallArgs, WizardArgs,
 };
 use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
 use fs_ops::{backup_relative, list_backup_entries, remove_if_exists};
@@ -20,8 +23,11 @@ use manifest::{BaselineMcp, BootstrapManifest, DistributionTarget};
 use providers::{claude, codex, gemini};
 use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root, timestamp_string};
 use serde::Serialize;
-use state::{RequestedState, read_installed_state, write_installed_state};
-use std::collections::BTreeMap;
+use state::{
+    RequestedState, TaskState, clear_task_state, read_installed_state, read_task_state,
+    write_installed_state, write_task_state,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::hash::Hash;
@@ -42,11 +48,16 @@ fn main() -> Result<()> {
     let manifest = load_manifest()?;
 
     match cli.command.unwrap_or_else(default_command) {
+        Command::Baseline(args) => install(args, &manifest),
         Command::Install(args) => install(args, &manifest),
+        Command::Sync(args) => install(args, &manifest),
         Command::Restore(args) => restore(args, &manifest),
         Command::Backups(args) => backups(args, &manifest),
         Command::Uninstall(args) => uninstall(args, &manifest),
         Command::Doctor(args) => doctor(args, &manifest),
+        Command::Probe(args) => probe(args, &manifest),
+        Command::Internal(args) => internal(args, &manifest),
+        Command::TaskState(args) => task_state(args, &manifest),
         Command::Record(args) => record(args, &manifest),
         Command::Wizard(args) => wizard(args, &manifest),
     }
@@ -174,6 +185,578 @@ fn doctor(args: DoctorArgs, manifest: &BootstrapManifest) -> Result<()> {
     )
 }
 
+fn probe(args: ProbeArgs, manifest: &BootstrapManifest) -> Result<()> {
+    let home = home_dir()?;
+    let providers = selected_providers(&args.provider_args, manifest);
+    let resolved = resolve_plan(manifest, &args.pack_args)?;
+    let mut reports = Vec::new();
+    let mut ok = true;
+
+    for provider in providers {
+        let files = provider_probe_paths(&home, provider, &resolved)
+            .into_iter()
+            .map(|path| ProbeFileCheck {
+                target: path.display().to_string(),
+                status: if path.exists() { "ok" } else { "missing" }.to_string(),
+            })
+            .collect::<Vec<_>>();
+        if files.iter().any(|check| check.status != "ok") {
+            ok = false;
+        }
+
+        let runtime_check = provider_runtime_check(provider);
+        let runtime = if runtime_check.status == "ok" {
+            run_provider_probe(&home, provider, &args.prompt)?
+        } else {
+            ok = false;
+            ProbeRuntimeResult {
+                status: "missing".to_string(),
+                command: runtime_check.target,
+                stdout: None,
+                stderr: runtime_check.detail,
+                detail: Some("provider runtime missing".to_string()),
+            }
+        };
+        if runtime.status != "ok" {
+            ok = false;
+        }
+
+        reports.push(ProbeProviderReport {
+            provider: provider.name().to_string(),
+            requested_surfaces: provider_surfaces(provider, &resolved.surfaces).to_vec(),
+            files,
+            runtime,
+        });
+    }
+
+    let report = ProbeReport {
+        ok,
+        providers: reports,
+    };
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else {
+        println!("[probe]");
+        for provider in &report.providers {
+            println!("[provider] {}", provider.provider);
+            println!(
+                "[surfaces] {}",
+                if provider.requested_surfaces.is_empty() {
+                    "-".to_string()
+                } else {
+                    provider.requested_surfaces.join(",")
+                }
+            );
+            for file in &provider.files {
+                println!("[{}] {}", file.status, file.target);
+            }
+            println!(
+                "[runtime:{}] {}",
+                provider.runtime.status, provider.runtime.command
+            );
+            if let Some(detail) = provider.runtime.detail.as_deref() {
+                println!("[detail] {}", detail);
+            }
+            if let Some(stdout) = provider.runtime.stdout.as_deref() {
+                println!("[stdout] {}", stdout);
+            }
+            if let Some(stderr) = provider.runtime.stderr.as_deref()
+                && !stderr.is_empty()
+            {
+                println!("[stderr] {}", stderr);
+            }
+        }
+        println!(
+            "[probe] complete: {}",
+            if report.ok {
+                "harness probe passed"
+            } else {
+                "blocking failure detected"
+            }
+        );
+    }
+
+    if report.ok {
+        Ok(())
+    } else {
+        bail!("probe found blocking failures")
+    }
+}
+
+fn internal(args: InternalArgs, manifest: &BootstrapManifest) -> Result<()> {
+    match args.command {
+        InternalCommand::TaskState(args) => task_state(args, manifest),
+        InternalCommand::Gate(args) => gate(args),
+    }
+}
+
+fn task_state(args: TaskStateArgs, manifest: &BootstrapManifest) -> Result<()> {
+    let home = home_dir()?;
+    match args.command {
+        TaskStateCommand::Begin(args) => task_state_begin(&home, manifest, args),
+        TaskStateCommand::Advance(args) => task_state_advance(&home, args),
+        TaskStateCommand::Show(args) => task_state_show(&home, args),
+        TaskStateCommand::Clear => {
+            clear_task_state(&home)?;
+            println!("task state cleared");
+            Ok(())
+        }
+    }
+}
+
+fn task_state_begin(
+    home: &Path,
+    manifest: &BootstrapManifest,
+    args: TaskStateBeginArgs,
+) -> Result<()> {
+    let providers = selected_providers(&args.provider_args, manifest);
+    let resolved = resolve_plan(manifest, &args.pack_args)?;
+    let state = TaskState {
+        id: format!("task_{}", timestamp_string()?),
+        title: args.title,
+        status: args.status.name().to_string(),
+        phase: args.phase.name().to_string(),
+        owner: args.owner,
+        next_action: args.next_action,
+        providers: providers
+            .iter()
+            .map(|provider| provider.name().to_string())
+            .collect(),
+        packs: resolved.selection.packs,
+        harnesses: resolved.selection.harnesses,
+        completed_signals: Vec::new(),
+        attempt_count: 0,
+        last_failure: None,
+        updated_at: timestamp_string()?,
+    };
+    write_task_state(home, &state)?;
+    print_task_state(&state, args.json)?;
+    Ok(())
+}
+
+fn task_state_advance(home: &Path, args: TaskStateAdvanceArgs) -> Result<()> {
+    let mut state = read_task_state(home)?.context("no active task state")?;
+    if let Some(status) = args.status {
+        state.status = status.name().to_string();
+    }
+    if let Some(phase) = args.phase {
+        state.phase = phase.name().to_string();
+    }
+    if let Some(next_action) = args.next_action {
+        state.next_action = Some(next_action);
+    }
+    if let Some(failure) = args.failure {
+        state.last_failure = Some(failure);
+    }
+    if args.clear_failure {
+        state.last_failure = None;
+    }
+    merge_completed_signal_names(&mut state.completed_signals, &args.complete);
+    remove_completed_signal_names(&mut state.completed_signals, &args.clear_complete);
+    if args.increment_attempt {
+        state.attempt_count += 1;
+    }
+    state.updated_at = timestamp_string()?;
+    write_task_state(home, &state)?;
+    print_task_state(&state, args.json)?;
+    Ok(())
+}
+
+fn task_state_show(home: &Path, args: TaskStateShowArgs) -> Result<()> {
+    let state = read_task_state(home)?;
+    if let Some(state) = state {
+        print_task_state(&state, args.json)?;
+    } else if args.json {
+        println!("null");
+    } else {
+        println!("no active task state");
+    }
+    Ok(())
+}
+
+fn print_task_state(state: &TaskState, json: bool) -> Result<()> {
+    if json {
+        let value = serde_json::json!({
+            "id": state.id,
+            "title": state.title,
+            "status": state.status,
+            "phase": state.phase,
+            "owner": state.owner,
+            "next_action": state.next_action,
+            "providers": state.providers,
+            "packs": state.packs,
+            "harnesses": state.harnesses,
+            "completed_signals": state.completed_signals,
+            "attempt_count": state.attempt_count,
+            "last_failure": state.last_failure,
+            "updated_at": state.updated_at,
+        });
+        println!("{}", serde_json::to_string_pretty(&value)?);
+    } else {
+        println!("id: {}", state.id);
+        println!("title: {}", state.title);
+        println!("status: {}", state.status);
+        println!("phase: {}", state.phase);
+        println!(
+            "providers: {}",
+            if state.providers.is_empty() {
+                "-".to_string()
+            } else {
+                state.providers.join(",")
+            }
+        );
+        println!(
+            "packs: {}",
+            if state.packs.is_empty() {
+                "-".to_string()
+            } else {
+                state.packs.join(",")
+            }
+        );
+        println!(
+            "harnesses: {}",
+            if state.harnesses.is_empty() {
+                "-".to_string()
+            } else {
+                state.harnesses.join(",")
+            }
+        );
+        println!(
+            "completed_signals: {}",
+            if state.completed_signals.is_empty() {
+                "-".to_string()
+            } else {
+                state.completed_signals.join(",")
+            }
+        );
+        println!("attempt_count: {}", state.attempt_count);
+        println!(
+            "next_action: {}",
+            state.next_action.as_deref().unwrap_or("")
+        );
+        println!(
+            "last_failure: {}",
+            state.last_failure.as_deref().unwrap_or("")
+        );
+        println!("updated_at: {}", state.updated_at);
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct GateReport {
+    allowed: bool,
+    task_id: String,
+    title: String,
+    current_phase: String,
+    target_phase: String,
+    status: String,
+    active_harnesses: Vec<String>,
+    completed_signals: Vec<String>,
+    required_signals: Vec<String>,
+    missing_signals: Vec<String>,
+    reasons: Vec<String>,
+    recommended_status: String,
+    recommended_next_action: Option<String>,
+}
+
+fn gate(args: GateArgs) -> Result<()> {
+    let home = home_dir()?;
+    match args.command {
+        GateCommand::Check(args) => gate_check(&home, args),
+        GateCommand::Apply(args) => gate_apply(&home, args),
+    }
+}
+
+fn gate_check(home: &Path, args: GateCheckArgs) -> Result<()> {
+    let state = read_task_state(home)?.context("no active task state")?;
+    let target_phase = args.target_phase.unwrap_or(parse_task_phase(&state.phase)?);
+    let report = evaluate_gate(&state, target_phase, &args.completed);
+    print_gate_report(&report, args.json)?;
+    if report.allowed {
+        Ok(())
+    } else {
+        bail!("gate contract blocked")
+    }
+}
+
+fn gate_apply(home: &Path, args: GateApplyArgs) -> Result<()> {
+    let mut state = read_task_state(home)?.context("no active task state")?;
+    merge_completed_signal_names(&mut state.completed_signals, &args.completed);
+    let target_phase = args.target_phase.unwrap_or(parse_task_phase(&state.phase)?);
+    let report = evaluate_gate(&state, target_phase, &[]);
+    if report.allowed {
+        if let Some(target_phase) = args.target_phase {
+            state.phase = target_phase.name().to_string();
+        }
+        state.status = match target_phase {
+            TaskPhase::Ship => TaskStatus::Ready.name().to_string(),
+            _ if state.status == TaskStatus::Blocked.name()
+                || state.status == TaskStatus::Draft.name() =>
+            {
+                TaskStatus::InProgress.name().to_string()
+            }
+            _ => state.status.clone(),
+        };
+        if state.next_action.as_deref() == report.recommended_next_action.as_deref() {
+            state.next_action = None;
+        }
+    } else {
+        state.status = TaskStatus::Blocked.name().to_string();
+        state.next_action = report.recommended_next_action.clone();
+    }
+    state.updated_at = timestamp_string()?;
+    write_task_state(home, &state)?;
+    let final_report = evaluate_gate(&state, target_phase, &[]);
+    print_gate_report(&final_report, args.json)?;
+    if final_report.allowed {
+        Ok(())
+    } else {
+        bail!("gate contract blocked")
+    }
+}
+
+fn evaluate_gate(
+    state: &TaskState,
+    target_phase: TaskPhase,
+    additional_completed: &[GateSignal],
+) -> GateReport {
+    let mut completed = BTreeSet::new();
+    completed.extend(state.completed_signals.iter().cloned());
+    completed.extend(
+        additional_completed
+            .iter()
+            .map(|signal| signal.name().to_string()),
+    );
+
+    let mut required = BTreeSet::new();
+    let mut reasons = Vec::new();
+    let parallel_build_enabled = state.harnesses.iter().any(|name| name == "parallel-build");
+    let review_gate_enabled = state.harnesses.iter().any(|name| name == "review-gate");
+    let incident_enabled = state.harnesses.iter().any(|name| name == "incident");
+
+    if parallel_build_enabled
+        && matches!(
+            target_phase,
+            TaskPhase::Execute | TaskPhase::Review | TaskPhase::Qa | TaskPhase::Ship
+        )
+    {
+        required.insert(GateSignal::Ownership.name().to_string());
+        reasons.push(
+            "parallel-build requires explicit ownership before execution moves forward".to_string(),
+        );
+    }
+
+    if parallel_build_enabled
+        && matches!(
+            target_phase,
+            TaskPhase::Review | TaskPhase::Qa | TaskPhase::Ship
+        )
+    {
+        required.insert(GateSignal::Handoff.name().to_string());
+        reasons.push("parallel-build requires a handoff record before review or ship".to_string());
+    }
+
+    if review_gate_enabled && matches!(target_phase, TaskPhase::Ship) {
+        required.insert(GateSignal::Review.name().to_string());
+        required.insert(GateSignal::Qa.name().to_string());
+        required.insert(GateSignal::Verify.name().to_string());
+        reasons.push("review-gate requires review, qa, and verification before ship".to_string());
+    }
+
+    if incident_enabled
+        && state.attempt_count >= 2
+        && matches!(
+            target_phase,
+            TaskPhase::Review | TaskPhase::Qa | TaskPhase::Ship
+        )
+    {
+        required.insert(GateSignal::Investigate.name().to_string());
+        reasons.push(
+            "incident harness requires investigation evidence after repeated failed attempts"
+                .to_string(),
+        );
+    }
+
+    let required_signals = required.into_iter().collect::<Vec<_>>();
+    let completed_signals = completed.into_iter().collect::<Vec<_>>();
+    let missing_signals = required_signals
+        .iter()
+        .filter(|signal| !completed_signals.contains(signal))
+        .cloned()
+        .collect::<Vec<_>>();
+    let allowed = missing_signals.is_empty();
+    let recommended_status = if allowed {
+        if target_phase == TaskPhase::Ship {
+            TaskStatus::Ready.name().to_string()
+        } else if state.status == TaskStatus::Blocked.name() {
+            TaskStatus::InProgress.name().to_string()
+        } else {
+            state.status.clone()
+        }
+    } else {
+        TaskStatus::Blocked.name().to_string()
+    };
+    let recommended_next_action = if allowed {
+        None
+    } else {
+        Some(format!(
+            "complete gate signals: {}",
+            missing_signals.join(", ")
+        ))
+    };
+
+    GateReport {
+        allowed,
+        task_id: state.id.clone(),
+        title: state.title.clone(),
+        current_phase: state.phase.clone(),
+        target_phase: target_phase.name().to_string(),
+        status: state.status.clone(),
+        active_harnesses: state.harnesses.clone(),
+        completed_signals,
+        required_signals,
+        missing_signals,
+        reasons,
+        recommended_status,
+        recommended_next_action,
+    }
+}
+
+fn print_gate_report(report: &GateReport, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(report)?);
+        return Ok(());
+    }
+
+    println!("allowed: {}", report.allowed);
+    println!("task_id: {}", report.task_id);
+    println!("title: {}", report.title);
+    println!("current_phase: {}", report.current_phase);
+    println!("target_phase: {}", report.target_phase);
+    println!("status: {}", report.status);
+    println!(
+        "active_harnesses: {}",
+        if report.active_harnesses.is_empty() {
+            "-".to_string()
+        } else {
+            report.active_harnesses.join(",")
+        }
+    );
+    println!(
+        "completed_signals: {}",
+        if report.completed_signals.is_empty() {
+            "-".to_string()
+        } else {
+            report.completed_signals.join(",")
+        }
+    );
+    println!(
+        "required_signals: {}",
+        if report.required_signals.is_empty() {
+            "-".to_string()
+        } else {
+            report.required_signals.join(",")
+        }
+    );
+    println!(
+        "missing_signals: {}",
+        if report.missing_signals.is_empty() {
+            "-".to_string()
+        } else {
+            report.missing_signals.join(",")
+        }
+    );
+    println!("recommended_status: {}", report.recommended_status);
+    println!(
+        "recommended_next_action: {}",
+        report.recommended_next_action.as_deref().unwrap_or("")
+    );
+    if !report.reasons.is_empty() {
+        println!("reasons:");
+        for reason in &report.reasons {
+            println!("- {}", reason);
+        }
+    }
+    Ok(())
+}
+
+fn parse_task_phase(phase: &str) -> Result<TaskPhase> {
+    match phase {
+        "discover" => Ok(TaskPhase::Discover),
+        "plan" => Ok(TaskPhase::Plan),
+        "execute" => Ok(TaskPhase::Execute),
+        "review" => Ok(TaskPhase::Review),
+        "qa" => Ok(TaskPhase::Qa),
+        "ship" => Ok(TaskPhase::Ship),
+        "operate" => Ok(TaskPhase::Operate),
+        other => bail!("unknown task phase '{}'", other),
+    }
+}
+
+fn merge_completed_signal_names(completed: &mut Vec<String>, additions: &[GateSignal]) {
+    if additions.is_empty() {
+        return;
+    }
+    let mut merged = completed.iter().cloned().collect::<BTreeSet<_>>();
+    merged.extend(additions.iter().map(|signal| signal.name().to_string()));
+    *completed = merged.into_iter().collect();
+}
+
+fn remove_completed_signal_names(completed: &mut Vec<String>, removals: &[GateSignal]) {
+    if removals.is_empty() {
+        return;
+    }
+    let removal_names = removals
+        .iter()
+        .map(|signal| signal.name())
+        .collect::<BTreeSet<_>>();
+    completed.retain(|name| !removal_names.contains(name.as_str()));
+}
+
+fn workflow_gate_contract_lines(harnesses: &[String]) -> Vec<String> {
+    let mut lines = Vec::new();
+    let has_parallel = harnesses.iter().any(|name| name == "parallel-build");
+    let has_review = harnesses.iter().any(|name| name == "review-gate");
+    let has_incident = harnesses.iter().any(|name| name == "incident");
+
+    if has_parallel {
+        lines.push(
+            "parallel-build: execute/review/qa/ship before handoff require ownership".to_string(),
+        );
+        lines.push("parallel-build: review/qa/ship require handoff".to_string());
+    }
+    if has_review {
+        lines.push("review-gate: ship requires review, qa, verify".to_string());
+    }
+    if has_incident {
+        lines.push(
+            "incident: after 2 failed attempts, review/qa/ship require investigate".to_string(),
+        );
+    }
+
+    lines
+}
+
+fn print_workflow_gate_summary(harnesses: &[String]) {
+    let lines = workflow_gate_contract_lines(harnesses);
+    if lines.is_empty() {
+        return;
+    }
+
+    println!("workflow_gates:");
+    for line in &lines {
+        println!("- {}", line);
+    }
+    println!("gate_commands:");
+    println!("- llm-bootstrap internal gate check --target-phase review|qa|ship --json");
+    println!(
+        "- llm-bootstrap internal task-state advance --complete ownership,handoff,review,qa,verify"
+    );
+    println!("- llm-bootstrap internal gate apply --target-phase ship --json");
+}
+
 fn record(args: RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
     record_with(&args, manifest)
 }
@@ -198,6 +781,7 @@ fn doctor_with(
         &resolved.requested_mcp,
         &resolved.enabled_mcp,
         &resolved.distribution_state,
+        &resolved.surfaces,
         record_surface.unwrap_or(RecordSurface::Both),
     );
     let codex_plugin_enabled = resolved
@@ -445,6 +1029,22 @@ fn doctor_with(
             "[ok] active distribution targets: {}",
             catalog_report.active_distribution_targets.join(",")
         );
+        for surface in &catalog_report.surfaces {
+            println!(
+                "[ok] surface {} (kind: {}, owner: {}, lane: {}, target: {}, active: {}, packs: {})",
+                surface.name,
+                surface.kind,
+                surface.runtime_owner,
+                surface.default_lane,
+                surface.distribution_target,
+                if surface.active { "yes" } else { "no" },
+                if surface.selected_by_packs.is_empty() {
+                    "-".to_string()
+                } else {
+                    surface.selected_by_packs.join(",")
+                }
+            );
+        }
         for harness in &catalog_report.harnesses {
             println!(
                 "[ok] harness {} (category: {}, default: {})",
@@ -702,6 +1302,7 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         if persist_gui { "yes" } else { "no" },
         if persist_cli { "yes" } else { "no" },
     );
+    print_workflow_gate_summary(&resolved.selection.harnesses);
 
     if apply_now {
         ensure_runtime_dependencies(rtk_enabled)?;
@@ -946,6 +1547,7 @@ fn print_install_plan(
     );
     println!("packs: {}", resolved.selection.packs.join(","));
     println!("harnesses: {}", resolved.selection.harnesses.join(","));
+    print_workflow_gate_summary(&resolved.selection.harnesses);
     println!("record_surface: {}", record_surface.name());
     println!(
         "requested_distribution_targets: {}",
@@ -1137,6 +1739,35 @@ struct DoctorEnvCheck {
 }
 
 #[derive(Serialize)]
+struct ProbeReport {
+    ok: bool,
+    providers: Vec<ProbeProviderReport>,
+}
+
+#[derive(Serialize)]
+struct ProbeProviderReport {
+    provider: String,
+    requested_surfaces: Vec<String>,
+    files: Vec<ProbeFileCheck>,
+    runtime: ProbeRuntimeResult,
+}
+
+#[derive(Serialize)]
+struct ProbeFileCheck {
+    target: String,
+    status: String,
+}
+
+#[derive(Serialize)]
+struct ProbeRuntimeResult {
+    status: String,
+    command: String,
+    stdout: Option<String>,
+    stderr: Option<String>,
+    detail: Option<String>,
+}
+
+#[derive(Serialize)]
 struct DoctorCatalogReport {
     default_preset: String,
     active_preset: Option<String>,
@@ -1149,6 +1780,7 @@ struct DoctorCatalogReport {
     active_record_templates: Vec<String>,
     requested_distribution_targets: Vec<String>,
     active_distribution_targets: Vec<String>,
+    surfaces: Vec<DoctorSurfaceReport>,
     harnesses: Vec<DoctorHarnessReport>,
     packs: Vec<DoctorPackReport>,
     presets: Vec<DoctorPresetReport>,
@@ -1284,6 +1916,18 @@ struct DoctorHarnessReport {
 }
 
 #[derive(Serialize)]
+struct DoctorSurfaceReport {
+    name: String,
+    kind: String,
+    runtime_owner: String,
+    default_lane: String,
+    distribution_target: String,
+    active: bool,
+    selected_by_packs: Vec<String>,
+    description: String,
+}
+
+#[derive(Serialize)]
 struct DoctorPackReport {
     name: String,
     scope: String,
@@ -1334,6 +1978,7 @@ fn doctor_catalog_report(
     requested_mcp: &[BaselineMcp],
     active_mcp: &[BaselineMcp],
     distribution_state: &ResolvedDistributionState,
+    surfaces: &ProviderSurfaces,
     record_surface: RecordSurface,
 ) -> DoctorCatalogReport {
     let active_connectors = selected_connector_names(manifest, &selection.packs);
@@ -1365,6 +2010,27 @@ fn doctor_catalog_report(
             .effective
             .iter()
             .map(|target| target.name().to_string())
+            .collect(),
+        surfaces: manifest
+            .surfaces
+            .iter()
+            .map(|surface| DoctorSurfaceReport {
+                name: surface.name.clone(),
+                kind: surface.kind.name().to_string(),
+                runtime_owner: surface.runtime_owner.name().to_string(),
+                default_lane: surface.default_lane.name().to_string(),
+                distribution_target: surface.distribution_target.name().to_string(),
+                active: provider_surfaces_for_target(surface.distribution_target, surfaces)
+                    .iter()
+                    .any(|active| active == &surface.name),
+                selected_by_packs: selected_packs_for_surface(
+                    manifest,
+                    &selection.packs,
+                    surface.distribution_target,
+                    &surface.name,
+                ),
+                description: surface.description.clone(),
+            })
             .collect(),
         harnesses: manifest
             .harnesses
@@ -1542,6 +2208,252 @@ fn provider_runtime_check(provider: Provider) -> DoctorCheck {
         Provider::Claude => {
             required_runtime_check("claude", "Claude Code CLI is required", Some("runtime=cli"))
         }
+    }
+}
+
+fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan) -> Vec<PathBuf> {
+    let root = provider_root(home, provider);
+    match provider {
+        Provider::Codex => {
+            let mut paths = vec![root.join("AGENTS.md"), root.join("config.toml")];
+            if resolved
+                .distribution_state
+                .enabled(DistributionTarget::CodexPlugin)
+            {
+                paths.push(root.join("plugins/llm-dev-kit/.codex-plugin/plugin.json"));
+            }
+            if resolved
+                .surfaces
+                .codex
+                .iter()
+                .any(|surface| surface == "delivery-skills")
+            {
+                paths.push(root.join("WORKFLOW.md"));
+                paths.push(root.join("plugins/llm-dev-kit/skills/autopilot/SKILL.md"));
+                paths.push(root.join("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .codex
+                .iter()
+                .any(|surface| surface == "team-skills")
+            {
+                paths.push(root.join("TEAM.md"));
+                paths.push(root.join("plugins/llm-dev-kit/skills/team/SKILL.md"));
+                paths.push(root.join("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .codex
+                .iter()
+                .any(|surface| surface == "incident-skills")
+            {
+                paths.push(root.join("plugins/llm-dev-kit/skills/investigate/SKILL.md"));
+                paths.push(root.join("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .codex
+                .iter()
+                .any(|surface| surface == "company-skills")
+            {
+                paths.push(root.join("FOUNDER_LOOP.md"));
+            }
+            paths
+        }
+        Provider::Gemini => {
+            let mut paths = vec![root.join("GEMINI.md"), root.join("settings.json")];
+            if resolved
+                .distribution_state
+                .enabled(DistributionTarget::GeminiExtension)
+            {
+                paths.push(root.join("extensions/llm-bootstrap-dev/gemini-extension.json"));
+            }
+            if resolved
+                .surfaces
+                .gemini
+                .iter()
+                .any(|surface| surface == "delivery-commands")
+            {
+                paths.push(root.join("WORKFLOW.md"));
+                paths.push(root.join("extensions/llm-bootstrap-dev/commands/autopilot.toml"));
+                paths.push(root.join("extensions/llm-bootstrap-dev/commands/gate.toml"));
+            }
+            if resolved
+                .surfaces
+                .gemini
+                .iter()
+                .any(|surface| surface == "team-commands")
+            {
+                paths.push(root.join("TEAM.md"));
+                paths.push(root.join("extensions/llm-bootstrap-dev/commands/team.toml"));
+                paths.push(root.join("extensions/llm-bootstrap-dev/commands/gate.toml"));
+            }
+            if resolved
+                .surfaces
+                .gemini
+                .iter()
+                .any(|surface| surface == "incident-commands")
+            {
+                paths.push(root.join("extensions/llm-bootstrap-dev/agents/triage.md"));
+                paths.push(root.join("extensions/llm-bootstrap-dev/commands/gate.toml"));
+            }
+            if resolved
+                .surfaces
+                .gemini
+                .iter()
+                .any(|surface| surface == "company-commands")
+            {
+                paths
+                    .push(root.join("extensions/llm-bootstrap-dev/commands/operating-review.toml"));
+            }
+            paths
+        }
+        Provider::Claude => {
+            let mut paths = vec![root.join("CLAUDE.md"), root.join("agents/planner.md")];
+            if resolved
+                .surfaces
+                .claude
+                .iter()
+                .any(|surface| surface == "delivery-skills")
+            {
+                paths.push(root.join("WORKFLOW.md"));
+                paths.push(root.join("skills/autopilot/SKILL.md"));
+                paths.push(root.join("skills/workflow-gate/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .claude
+                .iter()
+                .any(|surface| surface == "team-skills")
+            {
+                paths.push(root.join("TEAM.md"));
+                paths.push(root.join("skills/team/SKILL.md"));
+                paths.push(root.join("skills/workflow-gate/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .claude
+                .iter()
+                .any(|surface| surface == "incident-skills")
+            {
+                paths.push(root.join("skills/investigate/SKILL.md"));
+                paths.push(root.join("skills/workflow-gate/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .claude
+                .iter()
+                .any(|surface| surface == "company-skills")
+            {
+                paths.push(root.join("FOUNDER_LOOP.md"));
+            }
+            paths
+        }
+    }
+}
+
+fn run_provider_probe(home: &Path, provider: Provider, prompt: &str) -> Result<ProbeRuntimeResult> {
+    let attempts = provider_probe_attempts(provider, prompt);
+    let mut last_failure = None;
+
+    for (command, args) in attempts {
+        let output = ProcessCommand::new(&command)
+            .env("HOME", home)
+            .args(&args)
+            .output()
+            .with_context(|| format!("failed while probing {}", provider.name()))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let display_command = format!("{} {}", command, args.join(" "));
+
+        if output.status.success() {
+            if stdout == "OK" {
+                return Ok(ProbeRuntimeResult {
+                    status: "ok".to_string(),
+                    command: display_command,
+                    stdout: Some(stdout),
+                    stderr: if stderr.is_empty() {
+                        None
+                    } else {
+                        Some(stderr)
+                    },
+                    detail: None,
+                });
+            }
+            last_failure = Some(ProbeRuntimeResult {
+                status: "unexpected-output".to_string(),
+                command: display_command,
+                stdout: Some(stdout),
+                stderr: if stderr.is_empty() {
+                    None
+                } else {
+                    Some(stderr)
+                },
+                detail: Some("runtime responded but did not return exact OK".to_string()),
+            });
+            continue;
+        }
+
+        last_failure = Some(ProbeRuntimeResult {
+            status: "failed".to_string(),
+            command: display_command,
+            stdout: if stdout.is_empty() {
+                None
+            } else {
+                Some(stdout)
+            },
+            stderr: if stderr.is_empty() {
+                None
+            } else {
+                Some(stderr)
+            },
+            detail: Some("runtime command exited non-zero".to_string()),
+        });
+    }
+
+    Ok(last_failure.unwrap_or(ProbeRuntimeResult {
+        status: "failed".to_string(),
+        command: provider.name().to_string(),
+        stdout: None,
+        stderr: None,
+        detail: Some("no runtime probe attempt available".to_string()),
+    }))
+}
+
+fn provider_probe_attempts(provider: Provider, prompt: &str) -> Vec<(String, Vec<String>)> {
+    match provider {
+        Provider::Codex => vec![
+            (
+                "codex".to_string(),
+                vec![
+                    "exec".to_string(),
+                    "--skip-git-repo-check".to_string(),
+                    "--ephemeral".to_string(),
+                    prompt.to_string(),
+                ],
+            ),
+            (
+                "codex".to_string(),
+                vec![
+                    "exec".to_string(),
+                    "--ephemeral".to_string(),
+                    prompt.to_string(),
+                ],
+            ),
+            (
+                "codex".to_string(),
+                vec!["exec".to_string(), prompt.to_string()],
+            ),
+        ],
+        Provider::Gemini => vec![(
+            "gemini".to_string(),
+            vec!["-p".to_string(), prompt.to_string()],
+        )],
+        Provider::Claude => vec![(
+            "claude".to_string(),
+            vec!["-p".to_string(), prompt.to_string()],
+        )],
     }
 }
 
@@ -2002,6 +2914,42 @@ fn provider_surfaces(provider: Provider, surfaces: &ProviderSurfaces) -> &[Strin
     }
 }
 
+fn provider_surfaces_for_target(
+    target: DistributionTarget,
+    surfaces: &ProviderSurfaces,
+) -> &[String] {
+    match target {
+        DistributionTarget::CodexPlugin => &surfaces.codex,
+        DistributionTarget::GeminiExtension => &surfaces.gemini,
+        DistributionTarget::ClaudeSkills => &surfaces.claude,
+    }
+}
+
+fn selected_packs_for_surface(
+    manifest: &BootstrapManifest,
+    active_packs: &[String],
+    target: DistributionTarget,
+    surface_name: &str,
+) -> Vec<String> {
+    manifest
+        .packs
+        .iter()
+        .filter(|pack| active_packs.contains(&pack.name))
+        .filter(|pack| match target {
+            DistributionTarget::CodexPlugin => {
+                pack.codex_surfaces.iter().any(|s| s == surface_name)
+            }
+            DistributionTarget::GeminiExtension => {
+                pack.gemini_surfaces.iter().any(|s| s == surface_name)
+            }
+            DistributionTarget::ClaudeSkills => {
+                pack.claude_surfaces.iter().any(|s| s == surface_name)
+            }
+        })
+        .map(|pack| pack.name.clone())
+        .collect()
+}
+
 fn env_is_set(name: &str) -> bool {
     env_is_set_with(
         name,
@@ -2237,6 +3185,7 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
     let mut harness_names = IndexSet::new();
     let mut pack_names = IndexSet::new();
     let mut preset_names = IndexSet::new();
+    let mut surface_keys = IndexSet::new();
     let mut connector_names = IndexSet::new();
     let mut record_template_names = IndexSet::new();
 
@@ -2261,6 +3210,33 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
             && pack.claude_surfaces.is_empty()
         {
             errors.push(format!("pack {} has no provider surfaces", pack.name));
+        }
+        for surface in &pack.codex_surfaces {
+            validate_pack_surface_reference(
+                manifest,
+                &pack.name,
+                DistributionTarget::CodexPlugin,
+                surface,
+                &mut errors,
+            );
+        }
+        for surface in &pack.gemini_surfaces {
+            validate_pack_surface_reference(
+                manifest,
+                &pack.name,
+                DistributionTarget::GeminiExtension,
+                surface,
+                &mut errors,
+            );
+        }
+        for surface in &pack.claude_surfaces {
+            validate_pack_surface_reference(
+                manifest,
+                &pack.name,
+                DistributionTarget::ClaudeSkills,
+                surface,
+                &mut errors,
+            );
         }
         for harness in &pack.harnesses {
             if !harness_names.contains(harness) {
@@ -2297,6 +3273,13 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
                     preset.name, pack
                 ));
             }
+        }
+    }
+
+    for surface in &manifest.surfaces {
+        let key = format!("{}:{}", surface.distribution_target.name(), surface.name);
+        if !surface_keys.insert(key.clone()) {
+            errors.push(format!("duplicate surface: {}", key));
         }
     }
 
@@ -2386,6 +3369,27 @@ fn validate_manifest(manifest: &BootstrapManifest) -> Result<()> {
 
 fn is_rtk_enabled(without_rtk: bool, manifest: &BootstrapManifest) -> bool {
     manifest.external.rtk.enabled && !without_rtk
+}
+
+fn validate_pack_surface_reference(
+    manifest: &BootstrapManifest,
+    pack_name: &str,
+    target: DistributionTarget,
+    surface_name: &str,
+    errors: &mut Vec<String>,
+) {
+    if !manifest
+        .surfaces
+        .iter()
+        .any(|surface| surface.distribution_target == target && surface.name == surface_name)
+    {
+        errors.push(format!(
+            "pack {} references unknown surface {} for {}",
+            pack_name,
+            surface_name,
+            target.name()
+        ));
+    }
 }
 
 #[derive(Clone)]
@@ -2761,7 +3765,7 @@ fn build_resolved_plan(
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::ApplyMode;
+    use crate::cli::{ApplyMode, GateApplyArgs, GateCheckArgs, GateSignal, TaskPhase};
     use crate::fs_ops::render_tokens;
     use crate::json_ops::{
         cleanup_extension_enablement, merge_json, preserved_gemini_runtime_state,
@@ -2772,7 +3776,7 @@ mod tests {
         ConnectorAccess, ConnectorApproval, ConnectorCategory, ConnectorDefinition,
         ConnectorToolSource, DistributionTarget, EnvGatedMcp, ExternalSection, HarnessCategory,
         HarnessDefinition, McpSection, PackDefinition, PackLane, PackScope, PresetDefinition,
-        RecordTemplateDefinition, RtkSection,
+        RecordTemplateDefinition, RtkSection, SurfaceDefinition, SurfaceKind, SurfaceRuntimeOwner,
     };
     use crate::providers::{claude, codex, gemini};
     use serde_json::json;
@@ -2834,6 +3838,13 @@ mod tests {
                     description: "Review, QA, and verification gate.".to_string(),
                 },
                 HarnessDefinition {
+                    name: "parallel-build".to_string(),
+                    category: HarnessCategory::Development,
+                    default_enabled: false,
+                    description: "Multi-agent planner, executor, reviewer, and verifier harness."
+                        .to_string(),
+                },
+                HarnessDefinition {
                     name: "incident".to_string(),
                     category: HarnessCategory::Quality,
                     default_enabled: true,
@@ -2893,6 +3904,36 @@ mod tests {
                         "incident-skills".to_string(),
                     ],
                     description: "Incident response pack.".to_string(),
+                },
+                PackDefinition {
+                    name: "team-pack".to_string(),
+                    scope: PackScope::Development,
+                    lane: PackLane::Advanced,
+                    harnesses: vec![
+                        "ralph-loop".to_string(),
+                        "ralph-plan".to_string(),
+                        "delivery".to_string(),
+                        "parallel-build".to_string(),
+                        "review-gate".to_string(),
+                    ],
+                    mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
+                    connectors: vec!["github".to_string(), "linear".to_string()],
+                    codex_surfaces: vec![
+                        "llm-dev-kit".to_string(),
+                        "delivery-skills".to_string(),
+                        "team-skills".to_string(),
+                    ],
+                    gemini_surfaces: vec![
+                        "llm-bootstrap-dev".to_string(),
+                        "delivery-commands".to_string(),
+                        "team-commands".to_string(),
+                    ],
+                    claude_surfaces: vec![
+                        "claude-skills".to_string(),
+                        "delivery-skills".to_string(),
+                        "team-skills".to_string(),
+                    ],
+                    description: "Advanced multi-agent team delivery pack.".to_string(),
                 },
                 PackDefinition {
                     name: "founder-pack".to_string(),
@@ -2969,9 +4010,141 @@ mod tests {
                     description: "Development and company packs.".to_string(),
                 },
                 PresetDefinition {
+                    name: "orchestrator".to_string(),
+                    packs: vec![
+                        "delivery-pack".to_string(),
+                        "incident-pack".to_string(),
+                        "team-pack".to_string(),
+                    ],
+                    description: "Development baseline with advanced multi-agent delivery."
+                        .to_string(),
+                },
+                PresetDefinition {
                     name: "company".to_string(),
                     packs: vec!["founder-pack".to_string(), "ops-pack".to_string()],
                     description: "Company operating packs.".to_string(),
+                },
+            ],
+            surfaces: vec![
+                SurfaceDefinition {
+                    name: "llm-dev-kit".to_string(),
+                    kind: SurfaceKind::Baseline,
+                    runtime_owner: SurfaceRuntimeOwner::Bootstrap,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::CodexPlugin,
+                    description: "Codex baseline plugin bundle.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "delivery-skills".to_string(),
+                    kind: SurfaceKind::Entrypoint,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::CodexPlugin,
+                    description: "Codex delivery entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "incident-skills".to_string(),
+                    kind: SurfaceKind::Entrypoint,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::CodexPlugin,
+                    description: "Codex incident entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "company-skills".to_string(),
+                    kind: SurfaceKind::Company,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Optional,
+                    distribution_target: DistributionTarget::CodexPlugin,
+                    description: "Codex company entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "team-skills".to_string(),
+                    kind: SurfaceKind::Team,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Advanced,
+                    distribution_target: DistributionTarget::CodexPlugin,
+                    description: "Codex multi-agent team entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "llm-bootstrap-dev".to_string(),
+                    kind: SurfaceKind::Baseline,
+                    runtime_owner: SurfaceRuntimeOwner::Bootstrap,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::GeminiExtension,
+                    description: "Gemini extension baseline.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "delivery-commands".to_string(),
+                    kind: SurfaceKind::Entrypoint,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::GeminiExtension,
+                    description: "Gemini delivery commands.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "incident-commands".to_string(),
+                    kind: SurfaceKind::Entrypoint,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::GeminiExtension,
+                    description: "Gemini incident commands.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "company-commands".to_string(),
+                    kind: SurfaceKind::Company,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Optional,
+                    distribution_target: DistributionTarget::GeminiExtension,
+                    description: "Gemini company commands.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "team-commands".to_string(),
+                    kind: SurfaceKind::Team,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Advanced,
+                    distribution_target: DistributionTarget::GeminiExtension,
+                    description: "Gemini multi-agent team commands.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "claude-skills".to_string(),
+                    kind: SurfaceKind::Baseline,
+                    runtime_owner: SurfaceRuntimeOwner::Bootstrap,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::ClaudeSkills,
+                    description: "Claude baseline skills.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "delivery-skills".to_string(),
+                    kind: SurfaceKind::Entrypoint,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::ClaudeSkills,
+                    description: "Claude delivery entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "incident-skills".to_string(),
+                    kind: SurfaceKind::Entrypoint,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Core,
+                    distribution_target: DistributionTarget::ClaudeSkills,
+                    description: "Claude incident entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "company-skills".to_string(),
+                    kind: SurfaceKind::Company,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Optional,
+                    distribution_target: DistributionTarget::ClaudeSkills,
+                    description: "Claude company entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "team-skills".to_string(),
+                    kind: SurfaceKind::Team,
+                    runtime_owner: SurfaceRuntimeOwner::ProviderNative,
+                    default_lane: PackLane::Advanced,
+                    distribution_target: DistributionTarget::ClaudeSkills,
+                    description: "Claude multi-agent team entrypoints.".to_string(),
                 },
             ],
             connectors: vec![
@@ -3112,17 +4285,24 @@ mod tests {
         let requested_mcp = super::selected_pack_mcp_names(&manifest, &active_packs);
         let distribution_state =
             super::ResolvedDistributionState::resolve(&manifest, &active_packs);
+        let surfaces = super::ProviderSurfaces {
+            codex: super::selected_codex_surfaces(&manifest, &active_packs),
+            gemini: super::selected_gemini_surfaces(&manifest, &active_packs),
+            claude: super::selected_claude_surfaces(&manifest, &active_packs),
+        };
         let report = super::doctor_catalog_report(
             &manifest,
             &selection,
             &requested_mcp,
             &requested_mcp,
             &distribution_state,
+            &surfaces,
             crate::cli::RecordSurface::Both,
         );
 
-        assert_eq!(report.harnesses.len(), 7);
-        assert_eq!(report.packs.len(), 4);
+        assert_eq!(report.harnesses.len(), 8);
+        assert_eq!(report.packs.len(), 5);
+        assert_eq!(report.surfaces.len(), 15);
         assert_eq!(report.default_preset, "normal".to_string());
         assert_eq!(report.active_preset, Some("normal".to_string()));
         assert_eq!(report.active_packs, vec!["delivery-pack".to_string()]);
@@ -3331,12 +4511,18 @@ mod tests {
         );
         let distribution_state =
             super::ResolvedDistributionState::resolve(&manifest, &active_packs);
+        let surfaces = super::ProviderSurfaces {
+            codex: super::selected_codex_surfaces(&manifest, &active_packs),
+            gemini: super::selected_gemini_surfaces(&manifest, &active_packs),
+            claude: super::selected_claude_surfaces(&manifest, &active_packs),
+        };
         let report = super::doctor_catalog_report(
             &manifest,
             &selection,
             &requested_mcp,
             &active_mcp,
             &distribution_state,
+            &surfaces,
             crate::cli::RecordSurface::GithubIssue,
         );
 
@@ -3482,6 +4668,13 @@ mod tests {
                 .iter()
                 .any(|pack| pack.name == "founder-pack" && pack.scope == PackScope::Company)
         );
+        assert!(manifest.packs.iter().any(|pack| {
+            pack.name == "team-pack"
+                && pack.lane == PackLane::Advanced
+                && pack.harnesses.contains(&"parallel-build".to_string())
+                && pack.codex_surfaces.contains(&"team-skills".to_string())
+                && pack.gemini_surfaces.contains(&"team-commands".to_string())
+        }));
         assert!(
             manifest
                 .presets
@@ -3489,6 +4682,19 @@ mod tests {
                 .any(|preset| preset.name == "full"
                     && preset.packs.contains(&"ops-pack".to_string()))
         );
+        assert!(manifest.presets.iter().any(|preset| {
+            preset.name == "orchestrator" && preset.packs.contains(&"team-pack".to_string())
+        }));
+        assert!(manifest.surfaces.iter().any(|surface| {
+            surface.name == "delivery-commands"
+                && surface.distribution_target == DistributionTarget::GeminiExtension
+                && surface.kind == SurfaceKind::Entrypoint
+        }));
+        assert!(manifest.surfaces.iter().any(|surface| {
+            surface.name == "team-commands"
+                && surface.distribution_target == DistributionTarget::GeminiExtension
+                && surface.kind == SurfaceKind::Team
+        }));
         assert!(
             manifest
                 .connectors
@@ -3546,6 +4752,111 @@ mod tests {
             ));
         fs::create_dir_all(&path).unwrap();
         path
+    }
+
+    fn test_task_state(harnesses: &[&str]) -> crate::state::TaskState {
+        crate::state::TaskState {
+            id: "task_1".to_string(),
+            title: "Gate smoke".to_string(),
+            status: "in-progress".to_string(),
+            phase: "execute".to_string(),
+            owner: Some("codex".to_string()),
+            next_action: Some("continue".to_string()),
+            providers: vec!["codex".to_string(), "gemini".to_string()],
+            packs: vec!["delivery-pack".to_string(), "team-pack".to_string()],
+            harnesses: harnesses.iter().map(|value| value.to_string()).collect(),
+            completed_signals: Vec::new(),
+            attempt_count: 0,
+            last_failure: None,
+            updated_at: "123".to_string(),
+        }
+    }
+
+    #[test]
+    fn gate_check_requires_parallel_build_contract_signals() {
+        let state = test_task_state(&["parallel-build", "review-gate"]);
+        let report = super::evaluate_gate(&state, TaskPhase::Review, &[]);
+
+        assert!(!report.allowed);
+        assert_eq!(
+            report.missing_signals,
+            vec!["handoff".to_string(), "ownership".to_string()]
+        );
+        assert_eq!(report.recommended_status, "blocked");
+    }
+
+    #[test]
+    fn gate_check_requires_ship_review_signals() {
+        let mut state = test_task_state(&["parallel-build", "review-gate"]);
+        state.completed_signals = vec!["ownership".to_string(), "handoff".to_string()];
+        let report = super::evaluate_gate(&state, TaskPhase::Ship, &[]);
+
+        assert!(!report.allowed);
+        assert_eq!(
+            report.missing_signals,
+            vec!["qa".to_string(), "review".to_string(), "verify".to_string()]
+        );
+    }
+
+    #[test]
+    fn gate_check_requires_investigation_after_retries() {
+        let mut state = test_task_state(&["incident", "review-gate"]);
+        state.phase = "review".to_string();
+        state.attempt_count = 2;
+        let report = super::evaluate_gate(&state, TaskPhase::Qa, &[]);
+
+        assert!(!report.allowed);
+        assert_eq!(report.missing_signals, vec!["investigate".to_string()]);
+    }
+
+    #[test]
+    fn gate_apply_persists_signals_and_advances_phase() {
+        let home = temp_home();
+        let state = test_task_state(&["parallel-build", "review-gate"]);
+        crate::state::write_task_state(&home, &state).unwrap();
+
+        let blocked = super::gate_check(
+            &home,
+            GateCheckArgs {
+                target_phase: Some(TaskPhase::Ship),
+                completed: Vec::new(),
+                json: false,
+            },
+        );
+        assert!(blocked.is_err());
+
+        let applied = super::gate_apply(
+            &home,
+            GateApplyArgs {
+                target_phase: Some(TaskPhase::Ship),
+                completed: vec![
+                    GateSignal::Ownership,
+                    GateSignal::Handoff,
+                    GateSignal::Review,
+                    GateSignal::Qa,
+                    GateSignal::Verify,
+                ],
+                json: false,
+            },
+        );
+        assert!(applied.is_ok());
+
+        let loaded = crate::state::read_task_state(&home).unwrap().unwrap();
+        assert_eq!(loaded.phase, "ship");
+        assert_eq!(loaded.status, "ready");
+        assert_eq!(
+            loaded.completed_signals,
+            vec![
+                "handoff".to_string(),
+                "ownership".to_string(),
+                "qa".to_string(),
+                "review".to_string(),
+                "verify".to_string()
+            ]
+        );
+
+        crate::state::clear_task_state(&home).unwrap();
+        fs::remove_dir_all(home).unwrap();
     }
 
     #[test]
@@ -3799,6 +5110,136 @@ mod tests {
     }
 
     #[test]
+    fn provider_probe_attempts_cover_all_runtimes() {
+        let codex = super::provider_probe_attempts(
+            super::Provider::Codex,
+            "Reply with exactly OK and nothing else.",
+        );
+        assert_eq!(codex.len(), 3);
+        assert_eq!(codex[0].0, "codex");
+        assert!(codex[0].1.contains(&"--ephemeral".to_string()));
+
+        let gemini = super::provider_probe_attempts(super::Provider::Gemini, "ok");
+        assert_eq!(
+            gemini,
+            vec![(
+                "gemini".to_string(),
+                vec!["-p".to_string(), "ok".to_string()]
+            )]
+        );
+
+        let claude = super::provider_probe_attempts(super::Provider::Claude, "ok");
+        assert_eq!(
+            claude,
+            vec![(
+                "claude".to_string(),
+                vec!["-p".to_string(), "ok".to_string()]
+            )]
+        );
+    }
+
+    #[test]
+    fn provider_probe_paths_follow_selected_surfaces() {
+        let home = temp_home();
+        let resolved = super::resolve_plan(
+            &test_manifest(),
+            &super::PackArgs {
+                preset: Some("normal".to_string()),
+                packs: None,
+            },
+        )
+        .unwrap();
+
+        let codex_paths = super::provider_probe_paths(&home, super::Provider::Codex, &resolved);
+        assert!(codex_paths.iter().any(|path| path.ends_with("AGENTS.md")));
+        assert!(codex_paths.iter().any(|path| path.ends_with("WORKFLOW.md")));
+        assert!(
+            codex_paths
+                .iter()
+                .any(|path| path.ends_with("plugins/llm-dev-kit/skills/autopilot/SKILL.md"))
+        );
+
+        let gemini_paths = super::provider_probe_paths(&home, super::Provider::Gemini, &resolved);
+        assert!(gemini_paths.iter().any(|path| path.ends_with("GEMINI.md")));
+        assert!(
+            gemini_paths
+                .iter()
+                .any(|path| path.ends_with("extensions/llm-bootstrap-dev/commands/autopilot.toml"))
+        );
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn provider_probe_paths_include_team_surfaces_when_requested() {
+        let home = temp_home();
+        let resolved = super::resolve_plan(
+            &test_manifest(),
+            &super::PackArgs {
+                preset: Some("orchestrator".to_string()),
+                packs: None,
+            },
+        )
+        .unwrap();
+
+        let codex_paths = super::provider_probe_paths(&home, super::Provider::Codex, &resolved);
+        assert!(codex_paths.iter().any(|path| path.ends_with("TEAM.md")));
+        assert!(
+            codex_paths
+                .iter()
+                .any(|path| path.ends_with("plugins/llm-dev-kit/skills/team/SKILL.md"))
+        );
+        assert!(
+            codex_paths
+                .iter()
+                .any(|path| path.ends_with("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"))
+        );
+
+        let gemini_paths = super::provider_probe_paths(&home, super::Provider::Gemini, &resolved);
+        assert!(gemini_paths.iter().any(|path| path.ends_with("TEAM.md")));
+        assert!(
+            gemini_paths
+                .iter()
+                .any(|path| path.ends_with("extensions/llm-bootstrap-dev/commands/team.toml"))
+        );
+        assert!(
+            gemini_paths
+                .iter()
+                .any(|path| path.ends_with("extensions/llm-bootstrap-dev/commands/gate.toml"))
+        );
+
+        let claude_paths = super::provider_probe_paths(&home, super::Provider::Claude, &resolved);
+        assert!(claude_paths.iter().any(|path| path.ends_with("TEAM.md")));
+        assert!(
+            claude_paths
+                .iter()
+                .any(|path| path.ends_with("skills/team/SKILL.md"))
+        );
+        assert!(
+            claude_paths
+                .iter()
+                .any(|path| path.ends_with("skills/workflow-gate/SKILL.md"))
+        );
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn workflow_gate_contract_lines_reflect_active_harnesses() {
+        let lines = super::workflow_gate_contract_lines(&[
+            "parallel-build".to_string(),
+            "review-gate".to_string(),
+            "incident".to_string(),
+        ]);
+
+        assert_eq!(lines.len(), 4);
+        assert!(lines.iter().any(|line| line.contains("ownership")));
+        assert!(lines.iter().any(|line| line.contains("handoff")));
+        assert!(lines.iter().any(|line| line.contains("review, qa, verify")));
+        assert!(lines.iter().any(|line| line.contains("investigate")));
+    }
+
+    #[test]
     fn selected_automation_names_require_all_declared_packs() {
         let founder_only =
             super::selected_automation_names(&test_manifest(), &["founder-pack".to_string()]);
@@ -3986,6 +5427,19 @@ mod tests {
             err.to_string()
                 .contains("pack delivery-pack references unknown connector missing-connector")
         );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_unknown_pack_surface() {
+        let mut manifest = test_manifest();
+        manifest.packs[0]
+            .gemini_surfaces
+            .push("missing-surface".to_string());
+
+        let err = super::validate_manifest(&manifest).unwrap_err();
+        assert!(err.to_string().contains(
+            "pack delivery-pack references unknown surface missing-surface for gemini-extension"
+        ));
     }
 
     #[test]
@@ -4380,9 +5834,15 @@ mod tests {
         let codex_home = home.join(".codex");
         assert!(codex_home.join("config.toml").exists());
         assert!(codex_home.join("AGENTS.md").exists());
+        assert!(codex_home.join("REVIEW.md").exists());
         assert!(
             codex_home
                 .join("plugins/llm-dev-kit/.codex-plugin/plugin.json")
+                .exists()
+        );
+        assert!(
+            codex_home
+                .join("plugins/llm-dev-kit/skills/review/SKILL.md")
                 .exists()
         );
         assert!(!codex_home.join("RTK.md").exists());
@@ -4610,6 +6070,35 @@ mod tests {
     }
 
     #[test]
+    fn codex_install_renders_team_surface_assets() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let enabled = vec![BaselineMcp::ChromeDevtools];
+        let team_surfaces = vec!["delivery-skills".to_string(), "team-skills".to_string()];
+
+        codex::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &enabled,
+            false,
+            true,
+            &team_surfaces,
+        )
+        .unwrap();
+
+        let codex_home = home.join(".codex");
+        assert!(codex_home.join("TEAM.md").exists());
+        assert!(
+            codex_home
+                .join("plugins/llm-dev-kit/skills/team/SKILL.md")
+                .exists()
+        );
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn gemini_install_uninstall_round_trip_without_rtk_preserves_custom_hooks() {
         let home = temp_home();
         let manifest = test_manifest();
@@ -4643,6 +6132,21 @@ mod tests {
         assert!(
             gemini_home
                 .join("extensions/llm-bootstrap-dev/commands/autopilot.toml")
+                .exists()
+        );
+        assert!(
+            gemini_home
+                .join("extensions/llm-bootstrap-dev/commands/office-hours.toml")
+                .exists()
+        );
+        assert!(
+            gemini_home
+                .join("extensions/llm-bootstrap-dev/commands/qa.toml")
+                .exists()
+        );
+        assert!(
+            gemini_home
+                .join("extensions/llm-bootstrap-dev/commands/retro.toml")
                 .exists()
         );
         assert!(!gemini_home.join("hooks/rtk-hook-gemini.sh").exists());
@@ -4879,6 +6383,34 @@ mod tests {
             let raw = fs::read_to_string(enablement).unwrap();
             assert!(!raw.contains("llm-bootstrap-dev"));
         }
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_install_renders_team_surface_assets() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let team_surfaces = vec!["delivery-commands".to_string(), "team-commands".to_string()];
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &team_surfaces,
+        )
+        .unwrap();
+
+        let gemini_home = home.join(".gemini");
+        assert!(gemini_home.join("TEAM.md").exists());
+        assert!(
+            gemini_home
+                .join("extensions/llm-bootstrap-dev/commands/team.toml")
+                .exists()
+        );
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -5185,6 +6717,34 @@ mod tests {
         assert!(claude_home.join("CLAUDE.md").exists());
         assert!(!claude_home.join("skills/autopilot").exists());
         assert!(!claude_home.join("skills/review").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_install_renders_team_surface_assets() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let team_surfaces = vec!["delivery-skills".to_string(), "team-skills".to_string()];
+
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &team_surfaces,
+        )
+        .unwrap();
+
+        let claude_home = home.join(".claude");
+        assert!(claude_home.join("TEAM.md").exists());
+        assert!(claude_home.join("skills/team/SKILL.md").exists());
 
         fs::remove_dir_all(home).unwrap();
     }

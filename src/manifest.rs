@@ -13,6 +13,8 @@ pub(crate) struct BootstrapManifest {
     #[serde(default)]
     pub(crate) presets: Vec<PresetDefinition>,
     #[serde(default)]
+    pub(crate) surfaces: Vec<SurfaceDefinition>,
+    #[serde(default)]
     pub(crate) connectors: Vec<ConnectorDefinition>,
     #[serde(default)]
     pub(crate) automations: Vec<AutomationDefinition>,
@@ -89,6 +91,16 @@ pub(crate) struct PresetDefinition {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub(crate) struct SurfaceDefinition {
+    pub(crate) name: String,
+    pub(crate) kind: SurfaceKind,
+    pub(crate) runtime_owner: SurfaceRuntimeOwner,
+    pub(crate) default_lane: PackLane,
+    pub(crate) distribution_target: DistributionTarget,
+    pub(crate) description: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub(crate) struct ConnectorDefinition {
     pub(crate) name: String,
     pub(crate) category: ConnectorCategory,
@@ -137,6 +149,48 @@ impl DistributionTarget {
             DistributionTarget::CodexPlugin => "codex-plugin",
             DistributionTarget::GeminiExtension => "gemini-extension",
             DistributionTarget::ClaudeSkills => "claude-skills",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum SurfaceKind {
+    Baseline,
+    Entrypoint,
+    Hook,
+    Team,
+    Company,
+    ReviewAutomation,
+}
+
+impl SurfaceKind {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            SurfaceKind::Baseline => "baseline",
+            SurfaceKind::Entrypoint => "entrypoint",
+            SurfaceKind::Hook => "hook",
+            SurfaceKind::Team => "team",
+            SurfaceKind::Company => "company",
+            SurfaceKind::ReviewAutomation => "review-automation",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum SurfaceRuntimeOwner {
+    Bootstrap,
+    ProviderNative,
+    ExternalRuntime,
+}
+
+impl SurfaceRuntimeOwner {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            SurfaceRuntimeOwner::Bootstrap => "bootstrap",
+            SurfaceRuntimeOwner::ProviderNative => "provider-native",
+            SurfaceRuntimeOwner::ExternalRuntime => "external-runtime",
         }
     }
 }
