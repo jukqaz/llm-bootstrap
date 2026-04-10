@@ -4473,7 +4473,10 @@ mod tests {
 
         let config = fs::read_to_string(codex_home.join("config.toml")).unwrap();
         let parsed: toml::Value = config.parse().unwrap();
-        assert_eq!(parsed.get("model").and_then(toml::Value::as_str), Some("gpt-5.4"));
+        assert_eq!(
+            parsed.get("model").and_then(toml::Value::as_str),
+            Some("gpt-5.4")
+        );
         assert_eq!(
             parsed
                 .get("projects")
