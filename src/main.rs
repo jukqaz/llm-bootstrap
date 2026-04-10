@@ -925,10 +925,9 @@ fn evaluate_gate(
     } else {
         TaskStatus::Blocked.name().to_string()
     };
-    let recommended_next_action = if allowed {
-        retry_next_action(state)
-    } else if retry_status == "investigate"
-        && missing_signals == [GateSignal::Investigate.name().to_string()]
+    let recommended_next_action = if allowed
+        || (retry_status == "investigate"
+            && missing_signals == [GateSignal::Investigate.name().to_string()])
     {
         retry_next_action(state)
     } else {
