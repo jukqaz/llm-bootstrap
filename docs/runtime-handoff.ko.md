@@ -23,6 +23,14 @@ runtime이 책임지는 것:
 - 실제 inbox/calendar/design/project 데이터 접근
 - recurring automation 스케줄 등록과 실행
 
+record handoff:
+
+- 복잡한 업무는 record contract를 남긴 뒤 이어서 처리한다
+- record schema는 [operating-record-model.ko.md](operating-record-model.ko.md)를 따른다
+- GitHub, Linear, CRM, helpdesk, docs, analytics가 source of truth인 데이터는
+  `llm-bootstrap`가 복제하지 않는다
+- bootstrap은 어떤 record가 필요하고 어느 runtime이 소유하는지만 설치/표시한다
+
 ## Connector handoff
 
 ### App connectors

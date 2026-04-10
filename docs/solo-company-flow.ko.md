@@ -43,6 +43,12 @@
 따라서 실제 UX는 "지금 필요한 다음 행동"을 고르는 방식이어야 한다.
 문서의 12개 stage는 구현 후보 catalog이며, 기본 wizard는 더 짧은 흐름으로 보여준다.
 
+복잡한 업무는 한 번에 끝내려 하지 않는다.
+stage가 바뀌거나 외부 tool로 넘어갈 때는
+[operating-record-model.ko.md](operating-record-model.ko.md)의 record contract를 남긴다.
+record는 다음 실행을 재개하기 위한 결정, 다음 행동, 근거, 외부 링크만 담고,
+project management, CRM, helpdesk, docs 같은 실제 source of truth는 외부 tool에 둔다.
+
 ## 전체 흐름
 
 ```text
@@ -707,6 +713,7 @@ solo-company =
 
 wizard는 처음부터 기능 목록을 묻지 않는다.
 사업 단계와 목적을 먼저 묻는다.
+그다음 해당 stage의 기록을 어디에 남길지 묻는다.
 
 기본 wizard는 6단계만 보여준다.
 
@@ -750,7 +757,14 @@ advanced wizard에서만 세부 stage를 보여준다.
    - analytics
    - CRM/support inbox
 
-5. 쓰기 전 plan preview를 보여준다.
+5. record surface는 어디인가?
+   - local docs only
+   - GitHub issues + repo docs
+   - Linear + docs
+   - Drive/Docs + provider runtime
+   - CRM/helpdesk handoff
+
+6. 쓰기 전 plan preview를 보여준다.
 
 wizard의 결과는 내부적으로 아래 명령으로 해석된다.
 
@@ -774,6 +788,7 @@ support: needs Gmail or support inbox connector
 sales: not installed
 finance: manual CSV fallback
 company: weekly operating review not scheduled
+records: local docs only
 legacy: clean
 ```
 
@@ -790,6 +805,7 @@ legacy: clean
 6. `doctor`에 readiness와 runtime handoff를 분리해서 보여준다
 7. 실제 사용이 반복되는 영역만 `sales`, `success`, `analytics`, `finance`, `risk`로 분리한다
 8. 외부 SaaS가 더 잘하는 영역은 connector handoff로만 남긴다
+9. record surface는 먼저 `local docs only`와 `GitHub issues + repo docs`만 구현한다
 
 ## Minimal First Implementation
 
