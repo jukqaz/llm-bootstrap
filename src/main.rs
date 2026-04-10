@@ -601,6 +601,7 @@ fn task_state_begin(
         completed_signals: Vec::new(),
         attempt_count: 0,
         last_failure: None,
+        investigation_note: None,
         updated_at: timestamp_string()?,
     };
     write_task_state(home, &state)?;
@@ -609,6 +610,9 @@ fn task_state_begin(
 }
 
 fn task_state_advance(home: &Path, args: TaskStateAdvanceArgs) -> Result<()> {
+    let has_explicit_next_action = args.next_action.is_some();
+    let recorded_failure = args.failure.is_some();
+    let recorded_investigation = args.investigation_note.is_some();
     let mut state = read_task_state(home)?.context("no active task state")?;
     if let Some(status) = args.status {
         state.status = status.name().to_string();
@@ -625,10 +629,23 @@ fn task_state_advance(home: &Path, args: TaskStateAdvanceArgs) -> Result<()> {
     if args.clear_failure {
         state.last_failure = None;
     }
+    if let Some(note) = args.investigation_note {
+        state.investigation_note = Some(note);
+        merge_completed_signal_names(&mut state.completed_signals, &[GateSignal::Investigate]);
+    }
+    if args.clear_investigation {
+        state.investigation_note = None;
+        remove_completed_signal_names(&mut state.completed_signals, &[GateSignal::Investigate]);
+    }
     merge_completed_signal_names(&mut state.completed_signals, &args.complete);
     remove_completed_signal_names(&mut state.completed_signals, &args.clear_complete);
     if args.increment_attempt {
         state.attempt_count += 1;
+    }
+    if !has_explicit_next_action
+        && (recorded_failure || args.increment_attempt || recorded_investigation)
+    {
+        state.next_action = retry_next_action(&state);
     }
     state.updated_at = timestamp_string()?;
     write_task_state(home, &state)?;
@@ -663,6 +680,7 @@ fn print_task_state(state: &TaskState, json: bool) -> Result<()> {
             "completed_signals": state.completed_signals,
             "attempt_count": state.attempt_count,
             "last_failure": state.last_failure,
+            "investigation_note": state.investigation_note,
             "updated_at": state.updated_at,
         });
         println!("{}", serde_json::to_string_pretty(&value)?);
@@ -712,6 +730,10 @@ fn print_task_state(state: &TaskState, json: bool) -> Result<()> {
             "last_failure: {}",
             state.last_failure.as_deref().unwrap_or("")
         );
+        println!(
+            "investigation_note: {}",
+            state.investigation_note.as_deref().unwrap_or("")
+        );
         println!("updated_at: {}", state.updated_at);
     }
     Ok(())
@@ -732,6 +754,7 @@ struct GateReport {
     reasons: Vec<String>,
     attempt_count: u64,
     last_failure: Option<String>,
+    investigation_note: Option<String>,
     retry_status: String,
     recommended_status: String,
     recommended_next_action: Option<String>,
@@ -800,6 +823,9 @@ fn evaluate_gate(
 ) -> GateReport {
     let mut completed = BTreeSet::new();
     completed.extend(state.completed_signals.iter().cloned());
+    if state.investigation_note.is_some() {
+        completed.insert(GateSignal::Investigate.name().to_string());
+    }
     completed.extend(
         additional_completed
             .iter()
@@ -874,13 +900,7 @@ fn evaluate_gate(
         .cloned()
         .collect::<Vec<_>>();
     let allowed = missing_signals.is_empty();
-    let retry_status = if state.last_failure.is_none() {
-        "clean".to_string()
-    } else if state.attempt_count >= 2 {
-        "escalate".to_string()
-    } else {
-        "targeted-retry".to_string()
-    };
+    let retry_status = retry_status(state).to_string();
     let recommended_status = if allowed {
         if target_phase == TaskPhase::Ship {
             TaskStatus::Ready.name().to_string()
@@ -893,18 +913,11 @@ fn evaluate_gate(
         TaskStatus::Blocked.name().to_string()
     };
     let recommended_next_action = if allowed {
-        if retry_status == "targeted-retry" {
-            Some("apply one bounded fix, rerun verification, then clear or replace the recorded failure".to_string())
-        } else {
-            None
-        }
-    } else if retry_status == "escalate"
+        retry_next_action(state)
+    } else if retry_status == "investigate"
         && missing_signals == [GateSignal::Investigate.name().to_string()]
     {
-        Some(
-            "capture investigation evidence or move the task back to plan before another retry"
-                .to_string(),
-        )
+        retry_next_action(state)
     } else {
         None
     };
@@ -933,6 +946,7 @@ fn evaluate_gate(
         reasons,
         attempt_count: state.attempt_count,
         last_failure: state.last_failure.clone(),
+        investigation_note: state.investigation_note.clone(),
         retry_status,
         recommended_status,
         recommended_next_action,
@@ -989,6 +1003,10 @@ fn print_gate_report(report: &GateReport, json: bool) -> Result<()> {
         "last_failure: {}",
         report.last_failure.as_deref().unwrap_or("")
     );
+    println!(
+        "investigation_note: {}",
+        report.investigation_note.as_deref().unwrap_or("")
+    );
     println!("recommended_status: {}", report.recommended_status);
     println!(
         "recommended_next_action: {}",
@@ -1013,6 +1031,39 @@ fn parse_task_phase(phase: &str) -> Result<TaskPhase> {
         "ship" => Ok(TaskPhase::Ship),
         "operate" => Ok(TaskPhase::Operate),
         other => bail!("unknown task phase '{}'", other),
+    }
+}
+
+fn retry_status(state: &TaskState) -> &'static str {
+    if state.last_failure.is_none() {
+        "clean"
+    } else if state.attempt_count >= 2 {
+        if state.investigation_note.is_some() {
+            "investigated"
+        } else {
+            "investigate"
+        }
+    } else {
+        "targeted-retry"
+    }
+}
+
+fn retry_next_action(state: &TaskState) -> Option<String> {
+    match retry_status(state) {
+        "clean" => None,
+        "targeted-retry" => Some(
+            "apply one bounded fix, rerun verification, then clear or replace the recorded failure"
+                .to_string(),
+        ),
+        "investigate" => Some(
+            "capture investigation evidence or move the task back to plan before another retry"
+                .to_string(),
+        ),
+        "investigated" => Some(
+            "rerun verification with the investigation note attached, or move the task back to plan if the fix is no longer bounded"
+                .to_string(),
+        ),
+        _ => None,
     }
 }
 
@@ -3205,9 +3256,12 @@ fn render_record_body(
     let task_state_failure = task_state
         .and_then(|state| state.last_failure.as_deref())
         .unwrap_or("");
+    let task_state_investigation = task_state
+        .and_then(|state| state.investigation_note.as_deref())
+        .unwrap_or("");
 
     Ok(format!(
-        "# {title}\n\n```yaml\nid: \"{id}\"\ntype: \"{record_type}\"\ntemplate: \"{template_name}\"\nstage: \"{stage}\"\ntitle: \"{title}\"\nstatus: \"{status}\"\nsource: \"llm-bootstrap record\"\nowner: \"{owner}\"\nupdated_at: \"{updated_at}\"\nnext_action: \"{next_action}\"\nlinked_tools:\n  github: \"\"\n  linear: \"\"\n  figma: \"\"\n  docs: \"\"\n  calendar: \"\"\n  crm: \"\"\n  helpdesk: \"\"\n  analytics: \"\"\ncontext:\n  summary: \"\"\n  assumptions: []\n  task_state:\n    source: \"{task_state_source}\"\n    id: \"{task_state_id}\"\n    phase: \"{task_state_phase}\"\n    status: \"{task_state_status}\"\n    providers: {task_state_providers}\n    packs: {task_state_packs}\n    harnesses: {task_state_harnesses}\n    completed_signals: {task_state_completed}\n    attempt_count: {task_state_attempts}\n    last_failure: \"{task_state_failure}\"\ndecision:\n  chosen: \"\"\n  alternatives: []\n  rationale: \"\"\nevidence:\n  links: []\n  notes: []\napprovals:\n  required: false\n  reason: \"\"\n  approver: \"\"\nhandoff:\n  runtime_owner: \"\"\n  external_object_id: \"\"\n  next_step: \"\"\n```\n\n## Description\n\n{description}\n\n## Notes\n\n- Keep this record compact.\n- Link to external source-of-truth systems instead of copying their data.\n- If task-state is attached, keep this record aligned with the active lane before closing the loop.\n- Require approval before customer sends, legal/finance decisions, or external writes.\n",
+        "# {title}\n\n```yaml\nid: \"{id}\"\ntype: \"{record_type}\"\ntemplate: \"{template_name}\"\nstage: \"{stage}\"\ntitle: \"{title}\"\nstatus: \"{status}\"\nsource: \"llm-bootstrap record\"\nowner: \"{owner}\"\nupdated_at: \"{updated_at}\"\nnext_action: \"{next_action}\"\nlinked_tools:\n  github: \"\"\n  linear: \"\"\n  figma: \"\"\n  docs: \"\"\n  calendar: \"\"\n  crm: \"\"\n  helpdesk: \"\"\n  analytics: \"\"\ncontext:\n  summary: \"\"\n  assumptions: []\n  task_state:\n    source: \"{task_state_source}\"\n    id: \"{task_state_id}\"\n    phase: \"{task_state_phase}\"\n    status: \"{task_state_status}\"\n    providers: {task_state_providers}\n    packs: {task_state_packs}\n    harnesses: {task_state_harnesses}\n    completed_signals: {task_state_completed}\n    attempt_count: {task_state_attempts}\n    last_failure: \"{task_state_failure}\"\n    investigation_note: \"{task_state_investigation}\"\ndecision:\n  chosen: \"\"\n  alternatives: []\n  rationale: \"\"\nevidence:\n  links: []\n  notes: []\napprovals:\n  required: false\n  reason: \"\"\n  approver: \"\"\nhandoff:\n  runtime_owner: \"\"\n  external_object_id: \"\"\n  next_step: \"\"\n```\n\n## Description\n\n{description}\n\n## Notes\n\n- Keep this record compact.\n- Link to external source-of-truth systems instead of copying their data.\n- If task-state is attached, keep this record aligned with the active lane before closing the loop.\n- Require approval before customer sends, legal/finance decisions, or external writes.\n",
         title = yaml_string(&args.title),
         id = id,
         record_type = args.record_type.record_type(),
@@ -3227,6 +3281,7 @@ fn render_record_body(
         task_state_completed = task_state_completed,
         task_state_attempts = task_state_attempts,
         task_state_failure = yaml_string(task_state_failure),
+        task_state_investigation = yaml_string(task_state_investigation),
         description = description,
     ))
 }
@@ -5308,6 +5363,7 @@ mod tests {
             completed_signals: Vec::new(),
             attempt_count: 0,
             last_failure: None,
+            investigation_note: None,
             updated_at: "123".to_string(),
         }
     }
@@ -5368,7 +5424,27 @@ mod tests {
 
         assert!(!report.allowed);
         assert_eq!(report.missing_signals, vec!["investigate".to_string()]);
-        assert_eq!(report.retry_status, "escalate");
+        assert_eq!(report.retry_status, "investigate");
+    }
+
+    #[test]
+    fn gate_check_accepts_investigation_note_after_escalated_retry() {
+        let mut state = test_task_state(&[]);
+        state.phase = "review".to_string();
+        state.attempt_count = 2;
+        state.last_failure = Some("verification still failing".to_string());
+        state.investigation_note = Some("isolated flaky fixture".to_string());
+
+        let report = super::evaluate_gate(&state, TaskPhase::Qa, &[]);
+
+        assert!(report.allowed);
+        assert_eq!(report.retry_status, "investigated");
+        assert_eq!(
+            report.recommended_next_action.as_deref(),
+            Some(
+                "rerun verification with the investigation note attached, or move the task back to plan if the fix is no longer bounded"
+            )
+        );
     }
 
     #[test]
@@ -5460,6 +5536,48 @@ mod tests {
                 "apply one bounded fix, rerun verification, then clear or replace the recorded failure"
             )
         );
+    }
+
+    #[test]
+    fn task_state_advance_records_investigation_note_and_signal() {
+        let home = temp_home();
+        let mut state = test_task_state(&[]);
+        state.attempt_count = 2;
+        state.last_failure = Some("verification still failing".to_string());
+        crate::state::write_task_state(&home, &state).unwrap();
+
+        super::task_state_advance(
+            &home,
+            crate::cli::TaskStateAdvanceArgs {
+                status: None,
+                phase: None,
+                next_action: None,
+                failure: None,
+                clear_failure: false,
+                investigation_note: Some("isolated flaky fixture".to_string()),
+                clear_investigation: false,
+                complete: Vec::new(),
+                clear_complete: Vec::new(),
+                increment_attempt: false,
+                json: false,
+            },
+        )
+        .unwrap();
+
+        let loaded = crate::state::read_task_state(&home).unwrap().unwrap();
+        assert_eq!(
+            loaded.investigation_note.as_deref(),
+            Some("isolated flaky fixture")
+        );
+        assert_eq!(loaded.completed_signals, vec!["investigate".to_string()]);
+        assert_eq!(
+            loaded.next_action.as_deref(),
+            Some(
+                "rerun verification with the investigation note attached, or move the task back to plan if the fix is no longer bounded"
+            )
+        );
+
+        fs::remove_dir_all(home).unwrap();
     }
 
     #[test]
@@ -6085,6 +6203,8 @@ mod tests {
             dry_run: true,
         };
         let task_state = test_task_state(&["parallel-build", "review-gate"]);
+        let mut task_state = task_state;
+        task_state.investigation_note = Some("isolated flaky fixture".to_string());
         let body = super::render_record_body(
             &args,
             test_manifest()
@@ -6100,6 +6220,7 @@ mod tests {
         assert!(body.contains("harnesses: [\"parallel-build\", \"review-gate\"]"));
         assert!(body.contains("owner: \"codex\""));
         assert!(body.contains("next_action: \"continue\""));
+        assert!(body.contains("investigation_note: \"isolated flaky fixture\""));
     }
 
     #[test]

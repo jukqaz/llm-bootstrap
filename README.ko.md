@@ -222,6 +222,7 @@ llm-bootstrap internal task-state begin --title "Review auth flow" --providers c
 llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json
 llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify
 llm-bootstrap internal task-state advance --increment-attempt --failure "verification still failing"
+llm-bootstrap internal task-state advance --investigation-note "isolated flaky fixture and captured failing trace"
 llm-bootstrap internal gate apply --target-phase ship --json
 ```
 

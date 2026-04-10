@@ -36,7 +36,7 @@ Every lane follows the same loop:
 
 ### 1. `workflow-control-plane`
 
-Status: `in-progress`
+Status: `done`
 
 Goal:
 - make the thin local workflow contract strong enough to control phase movement
@@ -52,10 +52,7 @@ Done already:
 - `phase-gate` now covers `plan -> execute -> review -> qa -> ship`
 - ship-side review gate is already enforced
 - `record --from-task-state` can now attach the active task-state to record context and supply owner/next action fallbacks
-
-Still inside this lane:
-- add `ralph-retry`
-- tighten gate output so the next action is always resumable
+- `ralph-retry` now requires investigation evidence after repeated failures and keeps gate output resumable
 
 Verification:
 - `cargo test`
@@ -63,7 +60,7 @@ Verification:
 - install plus provider surface refresh
 
 Next slice:
-- implement `ralph-retry` and connect repeated failures to task-state evidence plus gate output
+- close the first live PR and release validation in `repo-automation-lane`
 
 ### 2. `repo-automation-lane`
 

@@ -128,6 +128,7 @@ pub(crate) struct TaskState {
     pub(crate) completed_signals: Vec<String>,
     pub(crate) attempt_count: u64,
     pub(crate) last_failure: Option<String>,
+    pub(crate) investigation_note: Option<String>,
     pub(crate) updated_at: String,
 }
 
@@ -183,6 +184,10 @@ pub(crate) fn read_task_state(home: &Path) -> Result<Option<TaskState>> {
             .get("last_failure")
             .and_then(Value::as_str)
             .map(ToOwned::to_owned),
+        investigation_note: value
+            .get("investigation_note")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
         updated_at: value
             .get("updated_at")
             .and_then(Value::as_str)
@@ -210,6 +215,7 @@ pub(crate) fn write_task_state(home: &Path, state: &TaskState) -> Result<()> {
         "completed_signals": state.completed_signals,
         "attempt_count": state.attempt_count,
         "last_failure": state.last_failure,
+        "investigation_note": state.investigation_note,
         "updated_at": state.updated_at,
     });
     fs::write(
@@ -277,6 +283,7 @@ mod tests {
             completed_signals: vec!["ownership".to_string(), "review".to_string()],
             attempt_count: 2,
             last_failure: Some("none".to_string()),
+            investigation_note: Some("captured failing trace".to_string()),
             updated_at: "123".to_string(),
         };
 

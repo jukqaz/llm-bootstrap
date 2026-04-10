@@ -13,7 +13,9 @@ is satisfied.
 1. Read the current task state.
 2. Check the target phase gate.
 3. Persist only the signals that are actually complete.
-4. Apply the gate and move the phase only after the report is clean.
+4. Record a failed bounded retry with `--increment-attempt --failure "..."`.
+5. After the second failed attempt, attach investigation evidence with `--investigation-note "..."`.
+6. Apply the gate and move the phase only after the report is clean.
 
 ## CLI
 
@@ -21,13 +23,14 @@ is satisfied.
 - `llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json`
 - `llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify`
 - `llm-bootstrap internal task-state advance --increment-attempt --failure "..."`
+- `llm-bootstrap internal task-state advance --investigation-note "..."`
 - `llm-bootstrap internal gate apply --target-phase ship --json`
 
 ## Rules
 
 - `phase-gate`: `spec` before plan
 - `phase-gate`: `plan` before execute
-- `ralph-retry`: repeated failures require `investigate`
+- `ralph-retry`: repeated failures require investigation evidence
 - `parallel-build`: `ownership`, then `handoff`
 - `review-gate`: `review`, `qa`, `verify` before ship
-- `incident`: `investigate` after repeated failed attempts
+- `incident`: investigation evidence after repeated failed attempts

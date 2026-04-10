@@ -16,16 +16,17 @@ evidence.
 3. Add missing signals with `llm-bootstrap internal task-state advance --complete ...`.
 4. Advance only after the gate report is clean with `llm-bootstrap internal gate apply --target-phase ... --json`.
 5. When verification fails, record the failure with `llm-bootstrap internal task-state advance --increment-attempt --failure "..."`.
+6. After the second failed attempt, attach investigation evidence with `llm-bootstrap internal task-state advance --investigation-note "..."`.
 
 ## Contract
 
 - `phase-gate` requires `spec` before plan.
 - `phase-gate` requires `plan` before execute.
-- `ralph-retry` requires `investigate` after repeated failed attempts.
+- `ralph-retry` requires investigation evidence after repeated failed attempts.
 - `parallel-build` requires `ownership` before execution moves forward.
 - `parallel-build` requires `handoff` before review, QA, or ship.
 - `review-gate` requires `review`, `qa`, and `verify` before ship.
-- `incident` requires `investigate` after repeated failed attempts.
+- `incident` requires investigation evidence after repeated failed attempts.
 
 ## Output
 

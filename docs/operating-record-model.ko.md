@@ -54,6 +54,7 @@ context:
     completed_signals: []
     attempt_count: 0
     last_failure: ""
+    investigation_note: ""
 decision:
   chosen: ""
   alternatives: []
@@ -75,7 +76,7 @@ provider별 command나 skill은 이 contract를 얇게 렌더링한다.
 필드가 비어 있으면 LLM이 질문을 던지거나, 외부 tool handoff로 남긴다.
 
 active local task-state가 있으면 `llm-bootstrap record --from-task-state`로
-owner, next action, lane context를 record에 붙일 수 있다.
+owner, next action, lane context, retry investigation evidence를 record에 붙일 수 있다.
 
 ## Record Type
 

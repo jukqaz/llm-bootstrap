@@ -6,15 +6,16 @@ Sequence:
 1. Read the current state with `llm-bootstrap internal task-state show --json`.
 2. Check the target phase with `llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json`.
 3. Add only completed signals with `llm-bootstrap internal task-state advance --complete ...`.
-4. Advance the phase with `llm-bootstrap internal gate apply --target-phase ... --json`.
-5. When a bounded fix fails, record it with `llm-bootstrap internal task-state advance --increment-attempt --failure "..."`.
+4. When a bounded fix fails, record it with `llm-bootstrap internal task-state advance --increment-attempt --failure "..."`.
+5. After the second failed attempt, attach investigation evidence with `llm-bootstrap internal task-state advance --investigation-note "..."`.
+6. Advance the phase with `llm-bootstrap internal gate apply --target-phase ... --json`.
 
 Contract:
 - `phase-gate` requires `spec` before plan.
 - `phase-gate` requires `plan` before execute.
-- `ralph-retry` requires `investigate` after repeated failed attempts.
+- `ralph-retry` requires investigation evidence after repeated failed attempts.
 - `parallel-build` requires `ownership` before execution moves forward.
 - `parallel-build` requires `handoff` before review, QA, or ship.
 - `review-gate` requires `review`, `qa`, and `verify` before ship.
-- `incident` requires `investigate` after repeated failed attempts.
+- `incident` requires investigation evidence after repeated failed attempts.
 """

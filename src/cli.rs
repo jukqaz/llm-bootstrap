@@ -381,6 +381,16 @@ pub(crate) struct TaskStateAdvanceArgs {
     #[arg(long, help = "Clear stored failure summary")]
     pub(crate) clear_failure: bool,
     #[arg(
+        long = "investigation-note",
+        help = "Investigation evidence or diagnosis summary for an escalated retry"
+    )]
+    pub(crate) investigation_note: Option<String>,
+    #[arg(
+        long,
+        help = "Clear stored investigation evidence and investigate signal"
+    )]
+    pub(crate) clear_investigation: bool,
+    #[arg(
         long,
         value_enum,
         value_delimiter = ',',
