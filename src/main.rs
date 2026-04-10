@@ -809,6 +809,18 @@ fn evaluate_gate(
     let review_gate_enabled = state.harnesses.iter().any(|name| name == "review-gate");
     let incident_enabled = state.harnesses.iter().any(|name| name == "incident");
 
+    if matches!(target_phase, TaskPhase::Plan) {
+        required.insert(GateSignal::Spec.name().to_string());
+        reasons.push(
+            "phase-gate requires a spec checkpoint before planning moves forward".to_string(),
+        );
+    }
+
+    if matches!(target_phase, TaskPhase::Execute) {
+        required.insert(GateSignal::Plan.name().to_string());
+        reasons.push("phase-gate requires a plan checkpoint before execution starts".to_string());
+    }
+
     if parallel_build_enabled
         && matches!(
             target_phase,
@@ -989,7 +1001,10 @@ fn remove_completed_signal_names(completed: &mut Vec<String>, removals: &[GateSi
 }
 
 fn workflow_gate_contract_lines(harnesses: &[String]) -> Vec<String> {
-    let mut lines = Vec::new();
+    let mut lines = vec![
+        "phase-gate: plan requires spec".to_string(),
+        "phase-gate: execute requires plan".to_string(),
+    ];
     let has_parallel = harnesses.iter().any(|name| name == "parallel-build");
     let has_review = harnesses.iter().any(|name| name == "review-gate");
     let has_incident = harnesses.iter().any(|name| name == "incident");
@@ -1023,9 +1038,11 @@ fn print_workflow_gate_summary(harnesses: &[String]) {
         println!("- {}", line);
     }
     println!("gate_commands:");
-    println!("- llm-bootstrap internal gate check --target-phase review|qa|ship --json");
     println!(
-        "- llm-bootstrap internal task-state advance --complete ownership,handoff,review,qa,verify"
+        "- llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json"
+    );
+    println!(
+        "- llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify"
     );
     println!("- llm-bootstrap internal gate apply --target-phase ship --json");
 }
@@ -5209,6 +5226,26 @@ mod tests {
     }
 
     #[test]
+    fn gate_check_requires_spec_before_plan() {
+        let mut state = test_task_state(&[]);
+        state.phase = "discover".to_string();
+        let report = super::evaluate_gate(&state, TaskPhase::Plan, &[]);
+
+        assert!(!report.allowed);
+        assert_eq!(report.missing_signals, vec!["spec".to_string()]);
+    }
+
+    #[test]
+    fn gate_check_requires_plan_before_execute() {
+        let mut state = test_task_state(&[]);
+        state.phase = "plan".to_string();
+        let report = super::evaluate_gate(&state, TaskPhase::Execute, &[]);
+
+        assert!(!report.allowed);
+        assert_eq!(report.missing_signals, vec!["plan".to_string()]);
+    }
+
+    #[test]
     fn gate_check_requires_ship_review_signals() {
         let mut state = test_task_state(&["parallel-build", "review-gate"]);
         state.completed_signals = vec!["ownership".to_string(), "handoff".to_string()];
@@ -5279,6 +5316,30 @@ mod tests {
         );
 
         crate::state::clear_task_state(&home).unwrap();
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gate_apply_advances_execute_after_plan_signal() {
+        let home = temp_home();
+        let mut state = test_task_state(&[]);
+        state.phase = "plan".to_string();
+        crate::state::write_task_state(&home, &state).unwrap();
+
+        let applied = super::gate_apply(
+            &home,
+            GateApplyArgs {
+                target_phase: Some(TaskPhase::Execute),
+                completed: vec![GateSignal::Plan],
+                json: false,
+            },
+        );
+        assert!(applied.is_ok());
+
+        let loaded = crate::state::read_task_state(&home).unwrap().unwrap();
+        assert_eq!(loaded.phase, "execute");
+        assert_eq!(loaded.completed_signals, vec!["plan".to_string()]);
+
         fs::remove_dir_all(home).unwrap();
     }
 
@@ -5655,7 +5716,13 @@ mod tests {
             "incident".to_string(),
         ]);
 
-        assert_eq!(lines.len(), 4);
+        assert_eq!(lines.len(), 6);
+        assert!(lines.iter().any(|line| line.contains("plan requires spec")));
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("execute requires plan"))
+        );
         assert!(lines.iter().any(|line| line.contains("ownership")));
         assert!(lines.iter().any(|line| line.contains("handoff")));
         assert!(lines.iter().any(|line| line.contains("review, qa, verify")));

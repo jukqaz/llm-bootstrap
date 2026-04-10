@@ -323,6 +323,8 @@ impl TaskPhase {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub(crate) enum GateSignal {
+    Spec,
+    Plan,
     Ownership,
     Handoff,
     Review,
@@ -334,6 +336,8 @@ pub(crate) enum GateSignal {
 impl GateSignal {
     pub(crate) fn name(self) -> &'static str {
         match self {
+            GateSignal::Spec => "spec",
+            GateSignal::Plan => "plan",
             GateSignal::Ownership => "ownership",
             GateSignal::Handoff => "handoff",
             GateSignal::Review => "review",

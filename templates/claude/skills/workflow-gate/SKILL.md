@@ -18,12 +18,14 @@ is satisfied.
 ## CLI
 
 - `llm-bootstrap internal task-state show --json`
-- `llm-bootstrap internal gate check --target-phase review|qa|ship --json`
-- `llm-bootstrap internal task-state advance --complete ownership,handoff,review,qa,verify`
+- `llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json`
+- `llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify`
 - `llm-bootstrap internal gate apply --target-phase ship --json`
 
 ## Rules
 
+- `phase-gate`: `spec` before plan
+- `phase-gate`: `plan` before execute
 - `parallel-build`: `ownership`, then `handoff`
 - `review-gate`: `review`, `qa`, `verify` before ship
 - `incident`: `investigate` after repeated failed attempts

@@ -214,8 +214,8 @@ orchestrator lane에는 얇은 workflow gate도 같이 들어간다.
 
 ```bash
 llm-bootstrap internal task-state begin --title "Review auth flow" --providers codex,gemini,claude --preset orchestrator --phase execute
-llm-bootstrap internal gate check --target-phase ship --json
-llm-bootstrap internal task-state advance --complete ownership,handoff,review,qa,verify
+llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json
+llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify
 llm-bootstrap internal gate apply --target-phase ship --json
 ```
 
