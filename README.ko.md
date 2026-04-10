@@ -297,6 +297,18 @@ runtime 경계:
 - repo automation queue: `runtime_handoff.repo_automation_queue`, `runtime_handoff.pending_repo_registration_count`
 - records: `active_record_templates`, `record_templates`, `record_readiness`
 
+선택형 repo automation scaffold:
+
+```bash
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-required-check check --release-required-check "check,pr-review-gate / gate"
+```
+
+이 명령은 target repo에 `.github/workflows/pr-review-gate.yml`,
+`.github/workflows/release-readiness-gate.yml`,
+`.github/llm-bootstrap/BRANCH_PROTECTION.md`를 생성한다. 기본 home bootstrap 경로에는
+repo-level workflow 생성을 섞지 않는다.
+
 ## wizard
 
 ```bash

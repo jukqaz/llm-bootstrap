@@ -12,12 +12,14 @@ use clap::Parser;
 use cli::{
     BackupsArgs, Cli, Command, DoctorArgs, GateApplyArgs, GateArgs, GateCheckArgs, GateCommand,
     GateSignal, InstallArgs, InternalArgs, InternalCommand, PackArgs, ProbeArgs, Provider,
-    ProviderArgs, RecordArgs, RecordSurface, RestoreArgs, TaskPhase, TaskStateAdvanceArgs,
-    TaskStateArgs, TaskStateBeginArgs, TaskStateCommand, TaskStateShowArgs, TaskStatus,
-    UninstallArgs, WizardArgs,
+    ProviderArgs, RecordArgs, RecordSurface, RepoAutomationArgs, RepoAutomationCommand,
+    RepoAutomationScaffoldArgs, RestoreArgs, TaskPhase, TaskStateAdvanceArgs, TaskStateArgs,
+    TaskStateBeginArgs, TaskStateCommand, TaskStateShowArgs, TaskStatus, UninstallArgs, WizardArgs,
 };
 use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
-use fs_ops::{backup_relative, list_backup_entries, remove_if_exists};
+use fs_ops::{
+    backup_relative, copy_render_file_with_extras, list_backup_entries, remove_if_exists,
+};
 use indexmap::IndexSet;
 use manifest::{BaselineMcp, BootstrapManifest, DistributionTarget};
 use providers::{claude, codex, gemini};
@@ -288,7 +290,278 @@ fn internal(args: InternalArgs, manifest: &BootstrapManifest) -> Result<()> {
     match args.command {
         InternalCommand::TaskState(args) => task_state(args, manifest),
         InternalCommand::Gate(args) => gate(args),
+        InternalCommand::RepoAutomation(args) => repo_automation(args),
     }
+}
+
+#[derive(Debug, Serialize)]
+struct RepoAutomationConfig {
+    managed_by: String,
+    default_branch: String,
+    pr_review_gate: RepoAutomationPrGateConfig,
+    release_readiness_gate: RepoAutomationReleaseGateConfig,
+}
+
+#[derive(Debug, Serialize)]
+struct RepoAutomationPrGateConfig {
+    required_checks: Vec<String>,
+    required_checklist: Vec<String>,
+    minimum_approvals: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct RepoAutomationReleaseGateConfig {
+    required_checks: Vec<String>,
+    require_default_branch_ancestor: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct RepoAutomationScaffoldReport {
+    repo_root: String,
+    default_branch: String,
+    pr_required_checks: Vec<String>,
+    release_required_checks: Vec<String>,
+    minimum_approvals: usize,
+    managed_files: Vec<String>,
+    dry_run: bool,
+    json: bool,
+    next_steps: Vec<String>,
+}
+
+fn repo_automation(args: RepoAutomationArgs) -> Result<()> {
+    match args.command {
+        RepoAutomationCommand::Scaffold(args) => repo_automation_scaffold(args),
+    }
+}
+
+fn repo_automation_scaffold(args: RepoAutomationScaffoldArgs) -> Result<()> {
+    let cwd = env::current_dir().context("failed to read current directory")?;
+    let target_root = if args.repo_root.is_absolute() {
+        args.repo_root.clone()
+    } else {
+        cwd.join(&args.repo_root)
+    };
+    let report = repo_automation_scaffold_with(&target_root, args)?;
+    print_repo_automation_scaffold_report(&report)?;
+    Ok(())
+}
+
+fn repo_automation_scaffold_with(
+    target_root: &Path,
+    args: RepoAutomationScaffoldArgs,
+) -> Result<RepoAutomationScaffoldReport> {
+    let target_root = target_root.to_path_buf();
+    let template_root = repo_root().join("templates/repo-automation/github");
+    let pr_required_checks = normalize_repo_check_names(&args.pr_required_checks);
+    let release_required_checks = if args.release_required_checks.is_empty() {
+        vec!["pr-review-gate / gate".to_string()]
+    } else {
+        normalize_repo_check_names(&args.release_required_checks)
+    };
+    let minimum_approvals = args.minimum_approvals.max(1);
+    let config = RepoAutomationConfig {
+        managed_by: "llm-bootstrap".to_string(),
+        default_branch: args.default_branch.clone(),
+        pr_review_gate: RepoAutomationPrGateConfig {
+            required_checks: pr_required_checks.clone(),
+            required_checklist: vec!["review".to_string(), "qa".to_string(), "verify".to_string()],
+            minimum_approvals,
+        },
+        release_readiness_gate: RepoAutomationReleaseGateConfig {
+            required_checks: release_required_checks.clone(),
+            require_default_branch_ancestor: true,
+        },
+    };
+
+    let config_path = target_root.join(".github/llm-bootstrap/review-automation.json");
+    let branch_doc_path = target_root.join(".github/llm-bootstrap/BRANCH_PROTECTION.md");
+    let pr_workflow_path = target_root.join(".github/workflows/pr-review-gate.yml");
+    let release_workflow_path = target_root.join(".github/workflows/release-readiness-gate.yml");
+    let managed_files = [
+        config_path.clone(),
+        branch_doc_path.clone(),
+        pr_workflow_path.clone(),
+        release_workflow_path.clone(),
+    ];
+
+    for path in &managed_files {
+        ensure_repo_automation_path(path, args.force)?;
+    }
+
+    if !args.dry_run {
+        fs::create_dir_all(target_root.join(".github/llm-bootstrap")).with_context(|| {
+            format!(
+                "failed to create {}",
+                target_root.join(".github/llm-bootstrap").display()
+            )
+        })?;
+        fs::create_dir_all(target_root.join(".github/workflows")).with_context(|| {
+            format!(
+                "failed to create {}",
+                target_root.join(".github/workflows").display()
+            )
+        })?;
+
+        let pr_check_lines = if pr_required_checks.is_empty() {
+            "- no repo-specific checks configured yet; add your CI check names in `review-automation.json`".to_string()
+        } else {
+            pr_required_checks
+                .iter()
+                .map(|name| format!("- `{name}`"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let release_check_lines = release_required_checks
+            .iter()
+            .map(|name| format!("- `{name}`"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let home = target_root.clone();
+        let pr_required_checks_json =
+            serde_json::to_string(&config.pr_review_gate.required_checks)?;
+        let release_required_checks_json =
+            serde_json::to_string(&config.release_readiness_gate.required_checks)?;
+        copy_render_file_with_extras(
+            &template_root.join("review-automation.json"),
+            &config_path,
+            false,
+            &home,
+            &[
+                ("__DEFAULT_BRANCH__", &args.default_branch),
+                ("__PR_REQUIRED_CHECKS_JSON__", &pr_required_checks_json),
+                (
+                    "__RELEASE_REQUIRED_CHECKS_JSON__",
+                    &release_required_checks_json,
+                ),
+                ("__MINIMUM_APPROVALS__", &minimum_approvals.to_string()),
+            ],
+        )?;
+        copy_render_file_with_extras(
+            &template_root.join("BRANCH_PROTECTION.md"),
+            &branch_doc_path,
+            false,
+            &home,
+            &[
+                ("__DEFAULT_BRANCH__", &args.default_branch),
+                ("__PR_REQUIRED_CHECK_LINES__", &pr_check_lines),
+                ("__RELEASE_REQUIRED_CHECK_LINES__", &release_check_lines),
+                ("__MINIMUM_APPROVALS__", &minimum_approvals.to_string()),
+            ],
+        )?;
+        copy_render_file_with_extras(
+            &template_root.join("pr-review-gate.yml"),
+            &pr_workflow_path,
+            false,
+            &home,
+            &[],
+        )?;
+        copy_render_file_with_extras(
+            &template_root.join("release-readiness-gate.yml"),
+            &release_workflow_path,
+            false,
+            &home,
+            &[("__DEFAULT_BRANCH__", &args.default_branch)],
+        )?;
+    }
+
+    let mut next_steps = vec![
+        format!(
+            "commit the generated workflow files under {}/.github",
+            target_root.display()
+        ),
+        format!(
+            "add `pr-review-gate / gate` as a required status check for `{}`",
+            args.default_branch
+        ),
+    ];
+    if !pr_required_checks.is_empty() {
+        next_steps.push(
+            "keep `.github/llm-bootstrap/review-automation.json` aligned with the repo CI check names"
+                .to_string(),
+        );
+    }
+    next_steps.push(
+        "open one pull request and one workflow_dispatch release run to validate the gate end to end"
+            .to_string(),
+    );
+
+    Ok(RepoAutomationScaffoldReport {
+        repo_root: target_root.display().to_string(),
+        default_branch: args.default_branch,
+        pr_required_checks,
+        release_required_checks,
+        minimum_approvals,
+        managed_files: managed_files
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect(),
+        dry_run: args.dry_run,
+        json: args.json,
+        next_steps,
+    })
+}
+
+fn normalize_repo_check_names(raw: &[String]) -> Vec<String> {
+    let mut seen = IndexSet::new();
+    for item in raw {
+        let trimmed = item.trim();
+        if !trimmed.is_empty() {
+            seen.insert(trimmed.to_string());
+        }
+    }
+    seen.into_iter().collect()
+}
+
+fn ensure_repo_automation_path(path: &Path, force: bool) -> Result<()> {
+    if !path.exists() || force {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(path).unwrap_or_default();
+    let managed = raw.contains("# managed by llm-bootstrap")
+        || raw.contains("\"managed_by\": \"llm-bootstrap\"");
+    if managed {
+        return Ok(());
+    }
+    bail!(
+        "refusing to overwrite unmanaged repo automation file {}; pass --force to replace it",
+        path.display()
+    )
+}
+
+fn print_repo_automation_scaffold_report(report: &RepoAutomationScaffoldReport) -> Result<()> {
+    if report.json {
+        println!("{}", serde_json::to_string_pretty(report)?);
+        return Ok(());
+    }
+    if report.dry_run {
+        println!("[dry-run] repo automation scaffold");
+    } else {
+        println!("[ok] repo automation scaffold");
+    }
+    println!("repo_root: {}", report.repo_root);
+    println!("default_branch: {}", report.default_branch);
+    println!(
+        "pr_required_checks: {}",
+        if report.pr_required_checks.is_empty() {
+            "-".to_string()
+        } else {
+            report.pr_required_checks.join(",")
+        }
+    );
+    println!(
+        "release_required_checks: {}",
+        report.release_required_checks.join(",")
+    );
+    println!("minimum_approvals: {}", report.minimum_approvals);
+    println!("managed_files:");
+    for path in &report.managed_files {
+        println!("- {}", path);
+    }
+    println!("next_steps:");
+    for step in &report.next_steps {
+        println!("- {}", step);
+    }
+    Ok(())
 }
 
 fn task_state(args: TaskStateArgs, manifest: &BootstrapManifest) -> Result<()> {
@@ -5443,6 +5716,68 @@ mod tests {
                 .iter()
                 .any(|step| step.contains("repository workflow"))
         );
+    }
+
+    #[test]
+    fn repo_automation_scaffold_writes_managed_files() {
+        let repo = temp_home();
+        let args = crate::cli::RepoAutomationScaffoldArgs {
+            repo_root: repo.clone(),
+            pr_required_checks: vec!["check".to_string()],
+            release_required_checks: vec!["check".to_string(), "pr-review-gate / gate".to_string()],
+            minimum_approvals: 1,
+            default_branch: "main".to_string(),
+            force: false,
+            dry_run: false,
+            json: false,
+        };
+
+        let report = super::repo_automation_scaffold_with(&repo, args).unwrap();
+
+        assert_eq!(report.pr_required_checks, vec!["check".to_string()]);
+        assert_eq!(
+            report.release_required_checks,
+            vec!["check".to_string(), "pr-review-gate / gate".to_string()]
+        );
+        assert!(
+            repo.join(".github/llm-bootstrap/review-automation.json")
+                .exists()
+        );
+        assert!(repo.join(".github/workflows/pr-review-gate.yml").exists());
+        assert!(
+            repo.join(".github/workflows/release-readiness-gate.yml")
+                .exists()
+        );
+        let config =
+            fs::read_to_string(repo.join(".github/llm-bootstrap/review-automation.json")).unwrap();
+        assert!(config.contains("\"managed_by\": \"llm-bootstrap\""));
+        assert!(config.contains("\"check\""));
+
+        fs::remove_dir_all(repo).unwrap();
+    }
+
+    #[test]
+    fn repo_automation_scaffold_refuses_unmanaged_overwrite() {
+        let repo = temp_home();
+        let workflow = repo.join(".github/workflows/pr-review-gate.yml");
+        fs::create_dir_all(workflow.parent().unwrap()).unwrap();
+        fs::write(&workflow, "name: custom\n").unwrap();
+
+        let args = crate::cli::RepoAutomationScaffoldArgs {
+            repo_root: repo.clone(),
+            pr_required_checks: vec![],
+            release_required_checks: vec![],
+            minimum_approvals: 1,
+            default_branch: "main".to_string(),
+            force: false,
+            dry_run: false,
+            json: false,
+        };
+
+        let err = super::repo_automation_scaffold_with(&repo, args).unwrap_err();
+        assert!(err.to_string().contains("refusing to overwrite unmanaged"));
+
+        fs::remove_dir_all(repo).unwrap();
     }
 
     #[test]

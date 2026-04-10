@@ -370,6 +370,18 @@ automations:
 - repo automation queue: `runtime_handoff.repo_automation_queue`, `runtime_handoff.pending_repo_registration_count`
 - records: `active_record_templates`, `record_templates`, `record_readiness`
 
+Optional repo automation scaffolding:
+
+```bash
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-required-check check --release-required-check "check,pr-review-gate / gate"
+```
+
+This writes `.github/workflows/pr-review-gate.yml`,
+`.github/workflows/release-readiness-gate.yml`, and
+`.github/llm-bootstrap/BRANCH_PROTECTION.md` into the target repository without
+making repo-level workflow generation part of the default home bootstrap path.
+
 Mode examples:
 
 ```bash

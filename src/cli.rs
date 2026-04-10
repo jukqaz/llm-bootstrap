@@ -200,6 +200,7 @@ pub(crate) enum GateCommand {
 pub(crate) enum InternalCommand {
     TaskState(TaskStateArgs),
     Gate(GateArgs),
+    RepoAutomation(RepoAutomationArgs),
 }
 
 #[derive(clap::Args, Clone)]
@@ -212,6 +213,57 @@ pub(crate) struct InternalArgs {
 pub(crate) struct GateArgs {
     #[command(subcommand)]
     pub(crate) command: GateCommand,
+}
+
+#[derive(Subcommand, Clone)]
+pub(crate) enum RepoAutomationCommand {
+    Scaffold(RepoAutomationScaffoldArgs),
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct RepoAutomationArgs {
+    #[command(subcommand)]
+    pub(crate) command: RepoAutomationCommand,
+}
+
+#[derive(clap::Args, Clone)]
+pub(crate) struct RepoAutomationScaffoldArgs {
+    #[arg(
+        long,
+        default_value = ".",
+        help = "Target repository root that receives workflow and branch protection assets"
+    )]
+    pub(crate) repo_root: PathBuf,
+    #[arg(
+        long = "pr-required-check",
+        value_delimiter = ',',
+        help = "Check names that must succeed before the PR review gate passes"
+    )]
+    pub(crate) pr_required_checks: Vec<String>,
+    #[arg(
+        long = "release-required-check",
+        value_delimiter = ',',
+        help = "Check names that must succeed before the release readiness gate passes"
+    )]
+    pub(crate) release_required_checks: Vec<String>,
+    #[arg(
+        long,
+        default_value_t = 1,
+        help = "Minimum approving reviews required before the PR gate passes"
+    )]
+    pub(crate) minimum_approvals: usize,
+    #[arg(
+        long,
+        default_value = "main",
+        help = "Default branch referenced in branch protection guidance"
+    )]
+    pub(crate) default_branch: String,
+    #[arg(long, help = "Overwrite existing unmanaged workflow assets")]
+    pub(crate) force: bool,
+    #[arg(long, help = "Show the planned repo automation files without writing")]
+    pub(crate) dry_run: bool,
+    #[arg(long, help = "Emit scaffold results as JSON")]
+    pub(crate) json: bool,
 }
 
 #[derive(clap::Args, Clone)]
