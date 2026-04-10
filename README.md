@@ -9,7 +9,7 @@ integration.
 
 ## Install
 
-Current release: `v0.1.10`
+Current release: `v0.1.11`
 
 Default path: run the wizard first.
 
@@ -111,7 +111,8 @@ user's local home stays intact.
 
 - backups are created before `install`, `replace`, `restore`, and `uninstall`
 - `merge` preserves unmanaged assets
-- `replace` resets managed assets
+- `replace` resets managed assets and removes known legacy `omx`, `omc`, `omg`,
+  and `oh-my-*` user-level artifacts after backing them up
 - `restore` replays a selected backup after creating a fresh backup first
 - env-gated MCP stay disabled until the required env is available
 
@@ -192,7 +193,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.10 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.11 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
@@ -362,10 +363,13 @@ Wizard env reuse order:
 - removes managed bootstrap files first
 - keeps only the current baseline MCP set
 - preserves known auth or session state where supported
+- removes known legacy `omx`, `omc`, `omg`, and `oh-my-*` user-level artifacts
+  after backing them up
 
 ## Backup and restore
 
 Every `install`, `replace`, and `uninstall` creates provider-level backups first.
+Home-level legacy cleanup creates `~/.llm-bootstrap-legacy-backups/*` backups.
 
 Restore the latest backup for selected providers:
 

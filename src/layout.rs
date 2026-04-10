@@ -36,6 +36,33 @@ pub(crate) const GEMINI_BASE_PATHS: &[&str] = &[
     "extensions/extension-enablement.json",
 ];
 
+pub(crate) const HOME_LEGACY_CLEANUP_PATHS: &[&str] = &[
+    ".omx",
+    ".omc",
+    ".omg",
+    ".config/omx",
+    ".config/omc",
+    ".config/omg",
+    ".config/oh-my-codex",
+    ".config/oh-my-gemini",
+    ".config/oh-my-claudecode",
+];
+
+pub(crate) const CODEX_LEGACY_CLEANUP_PATHS: &[&str] = &["vendor_imports/skills", ".tmp/plugins"];
+
+pub(crate) const GEMINI_LEGACY_CLEANUP_PATHS: &[&str] =
+    &["extensions/oh-my-gemini-cli", "extensions/oh-my-gemini"];
+
+pub(crate) const CLAUDE_LEGACY_CLEANUP_PATHS: &[&str] = &[
+    "plugins/oh-my-claudecode",
+    "plugins/cache/omc",
+    "plugins/data/oh-my-claudecode-omc",
+    "plugins/marketplaces/omc",
+    ".omc",
+    ".omc-config.json",
+    "hud/omc-hud.mjs",
+];
+
 pub(crate) fn managed_paths(
     base: &[&'static str],
     rtk_path: &'static str,

@@ -4,7 +4,7 @@
 
 ## 설치
 
-현재 release: `v0.1.10`
+현재 release: `v0.1.11`
 
 기본 경로는 wizard 실행이다.
 
@@ -84,7 +84,8 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 - `install`, `replace`, `restore`, `uninstall` 전에 항상 backup을 만든다
 - `merge`는 unmanaged 자산을 유지한다
-- `replace`는 managed 자산을 다시 만든다
+- `replace`는 managed 자산을 다시 만들고, 알려진 `omx`, `omc`, `omg`,
+  `oh-my-*` 사용자 레벨 흔적을 backup한 뒤 제거한다
 - `restore`는 현재 상태를 다시 backup한 뒤 선택한 backup을 복구한다
 - env가 없는 선택 MCP는 disabled 상태로 남는다
 
@@ -116,7 +117,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 ```bash
 curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/install-release.sh | \
-  LLM_BOOTSTRAP_VERSION=v0.1.10 bash -s -- --providers codex,gemini
+  LLM_BOOTSTRAP_VERSION=v0.1.11 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.
@@ -279,10 +280,12 @@ cargo test
 
 `replace`
 - bootstrap 관리 자산을 다시 쓴다
+- 알려진 `omx`, `omc`, `omg`, `oh-my-*` 사용자 레벨 흔적을 backup한 뒤 제거한다
 
 ## backup과 복구
 
 모든 `install`, `replace`, `uninstall`은 provider별 backup을 먼저 만든다.
+home 레벨 legacy cleanup은 `~/.llm-bootstrap-legacy-backups/*`에 backup을 만든다.
 
 선택한 provider의 최신 backup을 복구하려면:
 

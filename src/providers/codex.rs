@@ -1,13 +1,13 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
-    backup_relative, copy_render_dir, copy_render_file, copy_render_file_with_extras,
-    copy_render_relative_entries, copy_selected_scripts, create_backup_root, remove_if_exists,
-    resolve_backup_root, restore_relative, toml_table_key,
+    backup_and_remove_relative_paths, backup_relative, copy_render_dir, copy_render_file,
+    copy_render_file_with_extras, copy_render_relative_entries, copy_selected_scripts,
+    create_backup_root, remove_if_exists, resolve_backup_root, restore_relative, toml_table_key,
 };
 use crate::layout::{
-    all_codex_bundle_doc_paths, all_codex_bundle_plugin_asset_paths, all_codex_plugin_asset_paths,
-    codex_bundle_doc_paths, codex_bundle_plugin_asset_paths, codex_managed_paths,
-    codex_managed_paths_for, codex_plugin_asset_paths,
+    CODEX_LEGACY_CLEANUP_PATHS, all_codex_bundle_doc_paths, all_codex_bundle_plugin_asset_paths,
+    all_codex_plugin_asset_paths, codex_bundle_doc_paths, codex_bundle_plugin_asset_paths,
+    codex_managed_paths, codex_managed_paths_for, codex_plugin_asset_paths,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
@@ -102,6 +102,7 @@ pub(crate) fn install(
         for relative in codex_managed_paths() {
             remove_if_exists(&root.join(relative))?;
         }
+        remove_legacy_paths(&root, &backup_root)?;
     }
 
     if rtk_enabled {
@@ -226,6 +227,7 @@ pub(crate) fn uninstall(home: &Path, rtk_enabled: bool) -> Result<()> {
     for relative in &uninstall_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
+    remove_legacy_paths(&root, &backup_root)?;
 
     if rtk_enabled {
         run_rtk_uninstall(home)?;
@@ -236,6 +238,14 @@ pub(crate) fn uninstall(home: &Path, rtk_enabled: bool) -> Result<()> {
     }
 
     println!("[codex] uninstalled {}", root.display());
+    Ok(())
+}
+
+fn remove_legacy_paths(root: &Path, backup_root: &Path) -> Result<()> {
+    let removed = backup_and_remove_relative_paths(root, backup_root, CODEX_LEGACY_CLEANUP_PATHS)?;
+    if !removed.is_empty() {
+        println!("[codex] removed legacy paths: {}", removed.join(","));
+    }
     Ok(())
 }
 

@@ -1,13 +1,14 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
-    backup_relative, copy_render_dir, copy_render_file_with_extras, copy_render_relative_entries,
-    copy_selected_scripts, create_backup_root, remove_if_exists, resolve_backup_root,
-    restore_named_entry, restore_relative,
+    backup_and_remove_relative_paths, backup_relative, copy_render_dir,
+    copy_render_file_with_extras, copy_render_relative_entries, copy_selected_scripts,
+    create_backup_root, remove_if_exists, resolve_backup_root, restore_named_entry,
+    restore_relative,
 };
 use crate::json_ops::{cleanup_claude_settings, read_json_or_empty};
 use crate::layout::{
-    all_claude_harness_doc_paths, all_claude_skill_paths, claude_harness_doc_paths,
-    claude_managed_paths_for, claude_skill_paths,
+    CLAUDE_LEGACY_CLEANUP_PATHS, all_claude_harness_doc_paths, all_claude_skill_paths,
+    claude_harness_doc_paths, claude_managed_paths_for, claude_skill_paths,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
@@ -133,6 +134,7 @@ pub(crate) fn install(
         for relative in CLAUDE_MANAGED_SKILL_PATHS {
             remove_if_exists(&root.join(relative))?;
         }
+        remove_legacy_paths(&root, &backup_root)?;
         remove_all_registered_mcp(home)?;
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("hooks"))?;
@@ -234,6 +236,7 @@ pub(crate) fn uninstall(
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
     backup_home_file(home, &backup_root, ".claude.json", "claude.json")?;
+    remove_legacy_paths(&root, &backup_root)?;
 
     remove_managed_mcp(home, &managed_mcp_names(&root)?)?;
 
@@ -252,6 +255,14 @@ pub(crate) fn uninstall(
     }
 
     println!("[claude] uninstalled {}", root.display());
+    Ok(())
+}
+
+fn remove_legacy_paths(root: &Path, backup_root: &Path) -> Result<()> {
+    let removed = backup_and_remove_relative_paths(root, backup_root, CLAUDE_LEGACY_CLEANUP_PATHS)?;
+    if !removed.is_empty() {
+        println!("[claude] removed legacy paths: {}", removed.join(","));
+    }
     Ok(())
 }
 

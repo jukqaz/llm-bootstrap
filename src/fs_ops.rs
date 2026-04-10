@@ -49,6 +49,27 @@ pub(crate) fn backup_relative(root: &Path, backup_root: &Path, relative: &Path) 
     Ok(())
 }
 
+pub(crate) fn backup_and_remove_relative_paths(
+    root: &Path,
+    backup_root: &Path,
+    relatives: &[&str],
+) -> Result<Vec<String>> {
+    let existing = relatives
+        .iter()
+        .copied()
+        .filter(|relative| root.join(relative).exists())
+        .collect::<Vec<_>>();
+
+    for relative in &existing {
+        backup_relative(root, backup_root, Path::new(relative))?;
+    }
+    for relative in &existing {
+        remove_if_exists(&root.join(relative))?;
+    }
+
+    Ok(existing.into_iter().map(ToOwned::to_owned).collect())
+}
+
 pub(crate) fn remove_if_exists(path: &Path) -> Result<()> {
     if !path.exists() {
         return Ok(());

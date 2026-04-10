@@ -14,11 +14,11 @@ use cli::{
     RestoreArgs, UninstallArgs, WizardArgs,
 };
 use dialoguer::{Confirm, MultiSelect, Password, Select, theme::ColorfulTheme};
-use fs_ops::list_backup_entries;
+use fs_ops::{backup_relative, list_backup_entries, remove_if_exists};
 use indexmap::IndexSet;
 use manifest::{BaselineMcp, BootstrapManifest, DistributionTarget};
 use providers::{claude, codex, gemini};
-use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root};
+use runtime::{command_exists, ensure_runtime_dependencies, home_dir, repo_root, timestamp_string};
 use serde::Serialize;
 use state::{RequestedState, read_installed_state, write_installed_state};
 use std::collections::BTreeMap;
@@ -28,7 +28,10 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 
-use crate::layout::{claude_managed_paths_for, codex_managed_paths_for, gemini_managed_paths_for};
+use crate::layout::{
+    HOME_LEGACY_CLEANUP_PATHS, claude_managed_paths_for, codex_managed_paths_for,
+    gemini_managed_paths_for,
+};
 
 const ZSHRC_MARKER_START: &str = "# >>> llm-bootstrap env >>>";
 const ZSHRC_MARKER_END: &str = "# <<< llm-bootstrap env <<<";
@@ -86,6 +89,8 @@ fn uninstall(args: UninstallArgs, manifest: &BootstrapManifest) -> Result<()> {
         print_uninstall_plan(&home, &providers, rtk_enabled, &enabled_mcp);
         return Ok(());
     }
+
+    cleanup_home_legacy_artifacts(&home)?;
 
     for provider in &providers {
         match *provider {
@@ -645,6 +650,9 @@ fn install_with(
         .enabled(DistributionTarget::ClaudeSkills);
     let active_connectors = selected_connector_names(manifest, &resolved.selection.packs);
     let active_automations = selected_automation_names(manifest, &resolved.selection.packs);
+    if mode == cli::ApplyMode::Replace {
+        cleanup_home_legacy_artifacts(home)?;
+    }
     for provider in providers {
         match *provider {
             Provider::Codex => codex::install(
@@ -716,6 +724,42 @@ fn install_with(
             .map(|target| target.name())
             .collect::<Vec<_>>()
             .join(","),
+    );
+    Ok(())
+}
+
+fn cleanup_home_legacy_artifacts(home: &std::path::Path) -> Result<()> {
+    let existing = HOME_LEGACY_CLEANUP_PATHS
+        .iter()
+        .copied()
+        .filter(|relative| home.join(relative).exists())
+        .collect::<Vec<_>>();
+    if existing.is_empty() {
+        return Ok(());
+    }
+
+    let backups_dir = home.join(".llm-bootstrap-legacy-backups");
+    let timestamp = timestamp_string()?;
+    let mut backup_root = backups_dir.join(format!("legacy-cleanup-{timestamp}"));
+    let mut suffix = 1usize;
+    while backup_root.exists() {
+        backup_root = backups_dir.join(format!("legacy-cleanup-{timestamp}-{suffix}"));
+        suffix += 1;
+    }
+    fs::create_dir_all(&backup_root)
+        .with_context(|| format!("failed to create {}", backup_root.display()))?;
+
+    for relative in &existing {
+        backup_relative(home, &backup_root, Path::new(relative))?;
+    }
+    for relative in &existing {
+        remove_if_exists(&home.join(relative))?;
+    }
+
+    println!(
+        "[legacy] removed home paths: {} (backup: {})",
+        existing.join(","),
+        backup_root.display()
     );
     Ok(())
 }
@@ -2898,6 +2942,40 @@ mod tests {
     }
 
     #[test]
+    fn home_legacy_cleanup_removes_old_omx_omc_omg_without_touching_history() {
+        let home = temp_home();
+        fs::create_dir_all(home.join(".omx/cache")).unwrap();
+        fs::write(home.join(".omx/cache/state.json"), "{}").unwrap();
+        fs::create_dir_all(home.join(".omg")).unwrap();
+        fs::write(home.join(".omg/config.json"), "{}").unwrap();
+        fs::create_dir_all(home.join(".config/omc")).unwrap();
+        fs::write(home.join(".config/omc/state.json"), "{}").unwrap();
+        fs::create_dir_all(home.join(".codex/sessions")).unwrap();
+        fs::write(home.join(".codex/sessions/session.jsonl"), "keep").unwrap();
+
+        super::cleanup_home_legacy_artifacts(&home).unwrap();
+
+        assert!(!home.join(".omx").exists());
+        assert!(!home.join(".omg").exists());
+        assert!(!home.join(".config/omc").exists());
+        assert_eq!(
+            fs::read_to_string(home.join(".codex/sessions/session.jsonl")).unwrap(),
+            "keep"
+        );
+        let backup_root = fs::read_dir(home.join(".llm-bootstrap-legacy-backups"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        assert!(backup_root.join(".omx/cache/state.json").exists());
+        assert!(backup_root.join(".omg/config.json").exists());
+        assert!(backup_root.join(".config/omc/state.json").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn merge_json_overwrites_scalars_and_keeps_unknown_keys() {
         let mut target = json!({
             "general": {
@@ -3555,10 +3633,38 @@ mod tests {
                 .exists()
         );
         assert!(!codex_home.join("RTK.md").exists());
+        fs::create_dir_all(codex_home.join("vendor_imports/skills/old")).unwrap();
+        fs::write(codex_home.join("vendor_imports/skills/old/SKILL.md"), "old").unwrap();
 
         codex::uninstall(&home, false).unwrap();
         assert!(!codex_home.join("config.toml").exists());
         assert!(!codex_home.join("AGENTS.md").exists());
+        assert!(!codex_home.join("vendor_imports/skills").exists());
+        assert!(codex_home.join("backups").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn codex_replace_removes_legacy_plugin_cache() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let codex_home = home.join(".codex");
+        fs::create_dir_all(codex_home.join(".tmp/plugins/omx")).unwrap();
+        fs::write(codex_home.join(".tmp/plugins/omx/plugin.json"), "{}").unwrap();
+
+        codex::install(
+            &home,
+            ApplyMode::Replace,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+
+        assert!(!codex_home.join(".tmp/plugins").exists());
         assert!(codex_home.join("backups").exists());
 
         fs::remove_dir_all(home).unwrap();
@@ -3738,12 +3844,19 @@ mod tests {
                 .exists()
         );
         assert!(!gemini_home.join("hooks/rtk-hook-gemini.sh").exists());
+        fs::create_dir_all(gemini_home.join("extensions/oh-my-gemini")).unwrap();
+        fs::write(
+            gemini_home.join("extensions/oh-my-gemini/gemini-extension.json"),
+            "{}",
+        )
+        .unwrap();
 
         gemini::uninstall(&home, &manifest, false).unwrap();
         let uninstalled = fs::read_to_string(gemini_home.join("settings.json")).unwrap();
         assert!(uninstalled.contains("/tmp/custom-run-shell.sh"));
         assert!(!gemini_home.join("GEMINI.md").exists());
         assert!(!gemini_home.join("extensions/llm-bootstrap-dev").exists());
+        assert!(!gemini_home.join("extensions/oh-my-gemini").exists());
         assert!(gemini_home.join("backups").exists());
 
         fs::remove_dir_all(home).unwrap();
@@ -3797,6 +3910,12 @@ mod tests {
         let manifest = test_manifest();
         let gemini_home = home.join(".gemini");
         fs::create_dir_all(&gemini_home).unwrap();
+        fs::create_dir_all(gemini_home.join("extensions/oh-my-gemini-cli")).unwrap();
+        fs::write(
+            gemini_home.join("extensions/oh-my-gemini-cli/gemini-extension.json"),
+            "{}",
+        )
+        .unwrap();
         fs::write(
             gemini_home.join("settings.json"),
             "{\n  \"mcpServers\": {\n    \"legacy-memory\": {\"command\": \"legacy-memory\"},\n    \"manual-tool\": {\"command\": \"manual-tool\"}\n  },\n  \"selectedAuthType\": \"oauth-personal\",\n  \"security\": {\n    \"auth\": {\n      \"selectedType\": \"oauth-personal\"\n    }\n  }\n}\n",
@@ -3858,6 +3977,7 @@ mod tests {
             after["security"]["auth"]["selectedType"],
             json!("oauth-personal")
         );
+        assert!(!gemini_home.join("extensions/oh-my-gemini-cli").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -3990,11 +4110,14 @@ mod tests {
 
         let mcp = claude::claude_user_mcp(&home).unwrap();
         assert!(mcp["mcpServers"].get("chrome-devtools").is_some());
+        fs::create_dir_all(claude_home.join("plugins/cache/omc")).unwrap();
+        fs::write(claude_home.join("plugins/cache/omc/state.json"), "{}").unwrap();
 
         claude::uninstall(&home, &enabled, false).unwrap();
         assert!(!claude_home.join("CLAUDE.md").exists());
         assert!(!claude_home.join("scripts").exists());
         assert!(!claude_home.join("skills/autopilot").exists());
+        assert!(!claude_home.join("plugins/cache/omc").exists());
         assert!(claude_home.join("backups").exists());
 
         fs::remove_dir_all(home).unwrap();

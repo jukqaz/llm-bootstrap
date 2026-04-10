@@ -1,17 +1,17 @@
 use crate::cli::ApplyMode;
 use crate::fs_ops::{
-    backup_relative, copy_render_file_with_extras, copy_render_relative_entries,
-    copy_selected_scripts, create_backup_root, remove_if_exists, resolve_backup_root,
-    restore_relative,
+    backup_and_remove_relative_paths, backup_relative, copy_render_file_with_extras,
+    copy_render_relative_entries, copy_selected_scripts, create_backup_root, remove_if_exists,
+    resolve_backup_root, restore_relative,
 };
 use crate::json_ops::{
     cleanup_extension_enablement, cleanup_gemini_settings, merge_json,
     preserved_gemini_runtime_state, prune_rtk_gemini_hooks, read_json_or_empty, write_json_pretty,
 };
 use crate::layout::{
-    all_gemini_bundle_doc_paths, all_gemini_extension_asset_paths, gemini_bundle_doc_paths,
-    gemini_extension_asset_paths, gemini_extension_enablement_path, gemini_managed_paths,
-    gemini_managed_paths_for,
+    GEMINI_LEGACY_CLEANUP_PATHS, all_gemini_bundle_doc_paths, all_gemini_extension_asset_paths,
+    gemini_bundle_doc_paths, gemini_extension_asset_paths, gemini_extension_enablement_path,
+    gemini_managed_paths, gemini_managed_paths_for,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
@@ -88,6 +88,7 @@ pub(crate) fn install(
         for relative in gemini_managed_paths() {
             remove_if_exists(&root.join(relative))?;
         }
+        remove_legacy_paths(&root, &backup_root)?;
         fs::create_dir_all(root.join("hooks"))?;
         fs::create_dir_all(root.join("scripts"))?;
         fs::create_dir_all(root.join("extensions"))?;
@@ -205,6 +206,7 @@ pub(crate) fn uninstall(
     for relative in &uninstall_paths {
         backup_relative(&root, &backup_root, Path::new(relative))?;
     }
+    remove_legacy_paths(&root, &backup_root)?;
 
     if rtk_enabled {
         run_rtk_uninstall(home)?;
@@ -221,6 +223,14 @@ pub(crate) fn uninstall(
     cleanup_extension_enablement(&root.join("extensions/extension-enablement.json"))?;
 
     println!("[gemini] uninstalled {}", root.display());
+    Ok(())
+}
+
+fn remove_legacy_paths(root: &Path, backup_root: &Path) -> Result<()> {
+    let removed = backup_and_remove_relative_paths(root, backup_root, GEMINI_LEGACY_CLEANUP_PATHS)?;
+    if !removed.is_empty() {
+        println!("[gemini] removed legacy paths: {}", removed.join(","));
+    }
     Ok(())
 }
 
