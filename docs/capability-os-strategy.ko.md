@@ -23,6 +23,10 @@
 3. `Company OS`: KPI, 파이프라인, 재무 light review, 전략, 운영 리뷰를 붙인다
 4. `Solo Company OS`: 한 사람이 AI들과 함께 회사 전 영역을 운영한다
 
+실제 사업 흐름은 [solo-company-flow.ko.md](solo-company-flow.ko.md)를 기준으로 한다.
+이 문서는 capability 구조를 정의하고, `solo-company-flow`는 시장조사에서 회사 운영까지
+업무가 이어지는 순서를 정의한다.
+
 ## 명령 모델
 
 기존 `install --preset`은 호환 경로로 남긴다.
@@ -161,6 +165,10 @@ Artifacts:
 
 Harness:
 
+- `market-scan`
+- `idea-brainstorm`
+- `idea-score`
+- `validation-plan`
 - `market-research`
 - `positioning`
 - `landing-copy`
@@ -173,6 +181,9 @@ Harness:
 
 Artifacts:
 
+- market scan memo
+- idea backlog
+- validation report
 - positioning memo
 - landing page copy
 - content calendar
@@ -214,10 +225,11 @@ Harness:
 - `weekly-operating-review`
 - `pipeline-review`
 - `finance-lite`
+- `risk-review`
 - `hiring-review`
 - `investor-update`
 - `strategy-memo`
-- `risk-review`
+- `decision-log`
 
 Artifacts:
 
@@ -227,6 +239,7 @@ Artifacts:
 - pipeline report
 - investor update
 - decision memo
+- decision log
 - risk register
 
 ### `solo-company`
@@ -381,7 +394,15 @@ bootstrap은 필요한 connector와 next step을 알려준다.
 `llm-bootstrap-state.json`은 설치 상태다.
 나중에 task-state를 넣더라도 별도 advanced lane이어야 한다.
 
-### 규칙 6. 기본값은 작게, opt-in은 강하게
+### 규칙 6. 사업 lifecycle을 capability 목록으로 쪼개지 않는다
+
+사용자는 "마케팅 capability"를 고르고 싶은 것이 아니라
+"지금 시장조사 중인지, MVP 개발 중인지, 출시 중인지"를 고르고 싶다.
+
+따라서 wizard와 문서는 business stage를 먼저 보여주고,
+내부적으로 stage를 capability/harness에 매핑한다.
+
+### 규칙 7. 기본값은 작게, opt-in은 강하게
 
 기본 설치는 lean해야 한다.
 강한 capability는 `add`와 wizard 선택으로 켠다.
