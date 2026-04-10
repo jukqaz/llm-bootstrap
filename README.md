@@ -266,6 +266,8 @@ aliases over pack groups.
   - `delivery-pack`, `incident-pack`, `team-pack`
 - `company`
   - `founder-pack`, `ops-pack`
+- `review-automation`
+  - `review-automation-pack`
 
 `company` and `full` now render actual company-operation assets into the
 provider-native surfaces, not just metadata.
@@ -339,6 +341,15 @@ composition, not just a document bundle.
     - Codex: company skills
     - Gemini: company commands
     - Claude: company skills
+- `review-automation`
+  - packs: `review-automation-pack`
+  - connector apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - automations: `pr-review-gate`, `release-readiness-gate`
+  - surfaces:
+    - Codex: `review-automation-skills`
+    - Gemini: `review-automation-commands`
+    - Claude: `review-automation-skills`
 
 `doctor --json` exposes the same pack mapping directly. It now also records the
 installed preset state per provider, including connectors, automations,
@@ -347,14 +358,16 @@ surfaces, and pack-projected managed paths.
 Runtime boundaries:
 
 - app connector auth is owned by the provider runtime and reported as `runtime-managed`
-- automation contracts are rendered into installed state, while recurring scheduler registration remains runtime-managed
+- runtime scheduler automation contracts are rendered into installed state, while recurring scheduler registration remains runtime-managed
+- repo automation contracts are rendered into installed state, while repository workflow and branch protection registration remain repo-managed
 
 `doctor --json` now also exposes runtime handoff hints for active connectors and
 automations:
 
 - connectors: `runtime_owner`, `verification_mode`, `connection_status`, `next_step`
-- automations: `scheduler_owner`, `registration_status`, `next_step`
+- automations: `lane`, `scheduler_owner`, `registration_status`, `next_step`
 - runtime queue: `runtime_handoff.connector_queue`, `runtime_handoff.automation_queue`, `runtime_handoff.next_steps`
+- repo automation queue: `runtime_handoff.repo_automation_queue`, `runtime_handoff.pending_repo_registration_count`
 - records: `active_record_templates`, `record_templates`, `record_readiness`
 
 Mode examples:

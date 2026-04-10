@@ -115,6 +115,8 @@ pub(crate) struct ConnectorDefinition {
 pub(crate) struct AutomationDefinition {
     pub(crate) name: String,
     pub(crate) cadence: AutomationCadence,
+    #[serde(default = "default_automation_lane")]
+    pub(crate) lane: AutomationLane,
     #[serde(default)]
     pub(crate) packs: Vec<String>,
     #[serde(default)]
@@ -327,6 +329,26 @@ impl AutomationCadence {
             AutomationCadence::OnDemand => "on-demand",
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum AutomationLane {
+    RuntimeScheduler,
+    RepoAutomation,
+}
+
+impl AutomationLane {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            AutomationLane::RuntimeScheduler => "runtime-scheduler",
+            AutomationLane::RepoAutomation => "repo-automation",
+        }
+    }
+}
+
+fn default_automation_lane() -> AutomationLane {
+    AutomationLane::RuntimeScheduler
 }
 
 impl PackLane {

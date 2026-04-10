@@ -102,6 +102,18 @@ claude_surfaces = ["claude-skills", "delivery-skills", "team-skills"]
 description = "Advanced multi-agent delivery pack with parallel build and verification lanes."
 
 [[packs]]
+name = "review-automation-pack"
+scope = "development"
+lane = "advanced"
+harnesses = ["delivery", "review-gate"]
+mcp_servers = ["chrome-devtools", "context7"]
+connectors = ["github", "linear"]
+codex_surfaces = ["llm-dev-kit", "review-automation-skills"]
+gemini_surfaces = ["llm-bootstrap-dev", "review-automation-commands"]
+claude_surfaces = ["claude-skills", "review-automation-skills"]
+description = "Optional repository automation lane for PR review and release gate contracts."
+
+[[packs]]
 name = "founder-pack"
 scope = "company"
 lane = "optional"
@@ -150,6 +162,11 @@ name = "company"
 packs = ["founder-pack", "ops-pack"]
 description = "Company operating packs without the development delivery lane."
 
+[[presets]]
+name = "review-automation"
+packs = ["review-automation-pack"]
+description = "Optional repository PR and release gate lane."
+
 [[surfaces]]
 name = "llm-dev-kit"
 kind = "baseline"
@@ -189,6 +206,14 @@ runtime_owner = "provider-native"
 default_lane = "advanced"
 distribution_target = "codex-plugin"
 description = "Codex multi-agent team entrypoints for parallel build, review, and verify lanes."
+
+[[surfaces]]
+name = "review-automation-skills"
+kind = "review-automation"
+runtime_owner = "external-runtime"
+default_lane = "advanced"
+distribution_target = "codex-plugin"
+description = "Codex review automation entrypoints for repository workflow and PR gate contracts."
 
 [[surfaces]]
 name = "llm-bootstrap-dev"
@@ -231,6 +256,14 @@ distribution_target = "gemini-extension"
 description = "Gemini multi-agent team commands for parallel build, review, and verification handoffs."
 
 [[surfaces]]
+name = "review-automation-commands"
+kind = "review-automation"
+runtime_owner = "external-runtime"
+default_lane = "advanced"
+distribution_target = "gemini-extension"
+description = "Gemini review automation entrypoints for repository workflow and PR gate contracts."
+
+[[surfaces]]
 name = "claude-skills"
 kind = "baseline"
 runtime_owner = "bootstrap"
@@ -269,6 +302,14 @@ runtime_owner = "provider-native"
 default_lane = "advanced"
 distribution_target = "claude-skills"
 description = "Claude multi-agent team entrypoints for parallel build, review, and verify lanes."
+
+[[surfaces]]
+name = "review-automation-skills"
+kind = "review-automation"
+runtime_owner = "external-runtime"
+default_lane = "advanced"
+distribution_target = "claude-skills"
+description = "Claude review automation entrypoints for repository workflow and PR gate contracts."
 
 [[connectors]]
 name = "github"
@@ -364,6 +405,24 @@ packs = ["ops-pack"]
 connectors = ["linear", "gmail", "calendar", "drive"]
 artifact = "Pipeline Review"
 description = "Summarize active pipeline, follow-ups, and schedule risk for the next operating week."
+
+[[automations]]
+name = "pr-review-gate"
+cadence = "on-demand"
+lane = "repo-automation"
+packs = ["review-automation-pack"]
+connectors = ["github", "linear"]
+artifact = "PR Review Gate"
+description = "Register review, QA, verification, and branch protection checks for pull request delivery."
+
+[[automations]]
+name = "release-readiness-gate"
+cadence = "on-demand"
+lane = "repo-automation"
+packs = ["review-automation-pack"]
+connectors = ["github", "linear"]
+artifact = "Release Readiness Gate"
+description = "Register release readiness checks and approval gates before ship or tagged release."
 
 [[record_templates]]
 name = "opportunity-record"

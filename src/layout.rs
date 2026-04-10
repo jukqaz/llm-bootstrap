@@ -18,6 +18,7 @@ pub(crate) const CODEX_BASE_PATHS: &[&str] = &[
     "INVESTIGATE.md",
     "AUTOPILOT.md",
     "TEAM.md",
+    "REVIEW_AUTOMATION.md",
     "RETRO.md",
 ];
 
@@ -32,6 +33,7 @@ pub(crate) const GEMINI_BASE_PATHS: &[&str] = &[
     "WORKFLOW.md",
     "SHIP_CHECKLIST.md",
     "TEAM.md",
+    "REVIEW_AUTOMATION.md",
     "settings.json",
     "scripts",
     "extensions/llm-bootstrap-dev",
@@ -228,9 +230,11 @@ const DEV_SURFACES: &[&str] = &[
     "delivery-skills",
     "incident-skills",
     "team-skills",
+    "review-automation-skills",
     "delivery-commands",
     "incident-commands",
     "team-commands",
+    "review-automation-commands",
 ];
 const COMPANY_SURFACES: &[&str] = &["company-skills", "company-commands"];
 const CODEX_BUNDLE_DOC_PATHS: &[&str] = &[
@@ -246,6 +250,7 @@ const CODEX_BUNDLE_DOC_PATHS: &[&str] = &[
     "INVESTIGATE.md",
     "AUTOPILOT.md",
     "TEAM.md",
+    "REVIEW_AUTOMATION.md",
     "REVIEW.md",
     "QA.md",
     "SHIP.md",
@@ -263,6 +268,7 @@ const CODEX_PLUGIN_ASSET_PATHS: &[&str] = &[
     "skills/office-hours/SKILL.md",
     "skills/workflow-gate/SKILL.md",
     "skills/team/SKILL.md",
+    "skills/review-automation/SKILL.md",
     "skills/review/SKILL.md",
     "skills/qa/SKILL.md",
     "skills/ship/SKILL.md",
@@ -276,6 +282,7 @@ const GEMINI_EXTENSION_ASSET_PATHS: &[&str] = &[
     "extensions/llm-bootstrap-dev/OFFICE_HOURS.md",
     "extensions/llm-bootstrap-dev/AUTOPILOT.md",
     "extensions/llm-bootstrap-dev/TEAM.md",
+    "extensions/llm-bootstrap-dev/REVIEW_AUTOMATION.md",
     "extensions/llm-bootstrap-dev/REVIEW.md",
     "extensions/llm-bootstrap-dev/QA.md",
     "extensions/llm-bootstrap-dev/SHIP.md",
@@ -294,6 +301,7 @@ const GEMINI_EXTENSION_ASSET_PATHS: &[&str] = &[
     "extensions/llm-bootstrap-dev/commands/office-hours.toml",
     "extensions/llm-bootstrap-dev/commands/gate.toml",
     "extensions/llm-bootstrap-dev/commands/team.toml",
+    "extensions/llm-bootstrap-dev/commands/review-automation.toml",
     "extensions/llm-bootstrap-dev/commands/operating-review.toml",
     "extensions/llm-bootstrap-dev/commands/qa.toml",
     "extensions/llm-bootstrap-dev/commands/ralph-plan.toml",
@@ -316,6 +324,7 @@ const CLAUDE_HARNESS_DOC_PATHS: &[&str] = &[
     "INVESTIGATE.md",
     "AUTOPILOT.md",
     "TEAM.md",
+    "REVIEW_AUTOMATION.md",
     "RETRO.md",
     "REVIEW.md",
     "QA.md",
@@ -335,6 +344,7 @@ const CLAUDE_SKILL_PATHS: &[&str] = &[
     "skills/office-hours",
     "skills/workflow-gate",
     "skills/team",
+    "skills/review-automation",
 ];
 
 pub(crate) fn provider_surface_enabled(active_surfaces: &[String]) -> bool {
@@ -369,6 +379,9 @@ pub(crate) fn codex_bundle_doc_paths(active_surfaces: &[String]) -> Vec<&'static
     }
     if has_any_surface(active_surfaces, &["team-skills"]) {
         paths.push("TEAM.md");
+    }
+    if has_any_surface(active_surfaces, &["review-automation-skills"]) {
+        paths.push("REVIEW_AUTOMATION.md");
     }
     if has_any_surface(active_surfaces, &["incident-skills"]) {
         paths.push("INVESTIGATE.md");
@@ -414,6 +427,9 @@ pub(crate) fn codex_plugin_asset_paths(active_surfaces: &[String]) -> Vec<&'stat
     if has_any_surface(active_surfaces, &["team-skills"]) {
         paths.push("skills/workflow-gate/SKILL.md");
         paths.push("skills/team/SKILL.md");
+    }
+    if has_any_surface(active_surfaces, &["review-automation-skills"]) {
+        paths.push("skills/review-automation/SKILL.md");
     }
     if has_any_surface(active_surfaces, &["incident-skills"]) {
         paths.push("skills/workflow-gate/SKILL.md");
@@ -467,6 +483,9 @@ pub(crate) fn gemini_bundle_doc_paths(active_surfaces: &[String]) -> Vec<&'stati
     if has_any_surface(active_surfaces, &["team-commands"]) {
         paths.push("TEAM.md");
     }
+    if has_any_surface(active_surfaces, &["review-automation-commands"]) {
+        paths.push("REVIEW_AUTOMATION.md");
+    }
     paths
 }
 
@@ -475,6 +494,7 @@ pub(crate) fn all_gemini_bundle_doc_paths() -> &'static [&'static str] {
         "WORKFLOW.md",
         "SHIP_CHECKLIST.md",
         "TEAM.md",
+        "REVIEW_AUTOMATION.md",
         "RALPH_PLAN.md",
         "OPERATING_RECORDS.md",
         "FOUNDER_LOOP.md",
@@ -516,6 +536,10 @@ pub(crate) fn gemini_extension_asset_paths(active_surfaces: &[String]) -> Vec<&'
         paths.push("extensions/llm-bootstrap-dev/TEAM.md");
         paths.push("extensions/llm-bootstrap-dev/commands/gate.toml");
         paths.push("extensions/llm-bootstrap-dev/commands/team.toml");
+    }
+    if has_any_surface(active_surfaces, &["review-automation-commands"]) {
+        paths.push("extensions/llm-bootstrap-dev/REVIEW_AUTOMATION.md");
+        paths.push("extensions/llm-bootstrap-dev/commands/review-automation.toml");
     }
     if has_any_surface(active_surfaces, &["incident-commands"]) {
         paths.push("extensions/llm-bootstrap-dev/commands/gate.toml");
@@ -572,6 +596,9 @@ pub(crate) fn claude_harness_doc_paths(active_surfaces: &[String]) -> Vec<&'stat
     if has_any_surface(active_surfaces, &["team-skills"]) {
         paths.push("TEAM.md");
     }
+    if has_any_surface(active_surfaces, &["review-automation-skills"]) {
+        paths.push("REVIEW_AUTOMATION.md");
+    }
     if has_any_surface(active_surfaces, &["incident-skills"]) {
         paths.push("INVESTIGATE.md");
     }
@@ -619,6 +646,9 @@ pub(crate) fn claude_skill_paths(active_surfaces: &[String]) -> Vec<&'static str
     if has_any_surface(active_surfaces, &["team-skills"]) {
         paths.push("skills/workflow-gate");
         paths.push("skills/team");
+    }
+    if has_any_surface(active_surfaces, &["review-automation-skills"]) {
+        paths.push("skills/review-automation");
     }
     if has_any_surface(active_surfaces, &["incident-skills"]) {
         paths.push("skills/workflow-gate");

@@ -184,6 +184,8 @@ cargo run -- uninstall --providers codex,gemini --dry-run
   - `delivery-pack`, `incident-pack`, `team-pack`
 - `company`
   - `founder-pack`, `ops-pack`
+- `review-automation`
+  - `review-automation-pack`
 
 `company`와 `full`은 이제 개발 surface를 끄는 수준이 아니라,
 실제로 아래 회사운영 자산을 provider native surface에 렌더링한다.
@@ -266,6 +268,15 @@ llm-bootstrap internal gate apply --target-phase ship --json
     - Codex: company skills
     - Gemini: company commands
     - Claude: company skills
+- `review-automation`
+  - packs: `review-automation-pack`
+  - connector apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - automations: `pr-review-gate`, `release-readiness-gate`
+  - surfaces:
+    - Codex: `review-automation-skills`
+    - Gemini: `review-automation-commands`
+    - Claude: `review-automation-skills`
 
 `doctor --json`은 이 조합을 pack별로 그대로 노출한다. 이제 provider별로
 설치된 preset state 안에 connectors, automations, surfaces, managed paths도 같이
@@ -274,14 +285,16 @@ llm-bootstrap internal gate apply --target-phase ship --json
 runtime 경계:
 
 - app connector auth는 provider runtime이 소유하므로 `runtime-managed`로 보고한다
-- automation contract는 설치 state에 렌더링하지만 반복 스케줄 등록은 runtime이 맡는다
+- runtime scheduler automation contract는 설치 state에 렌더링하지만 반복 스케줄 등록은 runtime이 맡는다
+- repo automation contract는 설치 state에 렌더링하지만 repository workflow와 branch protection 등록은 repo가 맡는다
 
 `doctor --json`은 active connector와 automation에 대해 runtime handoff 힌트도
 같이 보여준다.
 
 - connector: `runtime_owner`, `verification_mode`, `connection_status`, `next_step`
-- automation: `scheduler_owner`, `registration_status`, `next_step`
+- automation: `lane`, `scheduler_owner`, `registration_status`, `next_step`
 - runtime queue: `runtime_handoff.connector_queue`, `runtime_handoff.automation_queue`, `runtime_handoff.next_steps`
+- repo automation queue: `runtime_handoff.repo_automation_queue`, `runtime_handoff.pending_repo_registration_count`
 - records: `active_record_templates`, `record_templates`, `record_readiness`
 
 ## wizard

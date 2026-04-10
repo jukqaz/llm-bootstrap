@@ -1,0 +1,10 @@
+description = "Prepare repository PR and release gate contracts for review automation."
+prompt = """
+Use this command lane when `review-gate` should be enforced by repository workflow.
+
+Sequence:
+1. Identify whether the contract is for PR review, release readiness, or both.
+2. Keep the contract in markdown first.
+3. Register required checks in the repository workflow or branch protection lane.
+4. Report the remaining external setup clearly.
+"""

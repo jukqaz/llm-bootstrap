@@ -99,12 +99,15 @@ record handoff:
 - `weekly-market-scan`
 - `weekly-operating-review`
 - `weekly-pipeline-review`
+- `pr-review-gate`
+- `release-readiness-gate`
 
 활성 automation contract는 `doctor`에서 다음처럼 보인다.
 
 - `status = rendered`
-- `scheduler_owner = runtime-managed`
-- `registration_status = not-registered`
+- `lane = runtime-scheduler` 또는 `lane = repo-automation`
+- `scheduler_owner = runtime-managed` 또는 `scheduler_owner = repo-managed`
+- `registration_status = not-registered` 또는 `registration_status = not-configured`
 
 비활성 automation contract는 다음처럼 보인다.
 
@@ -116,14 +119,16 @@ record handoff:
 
 - 어떤 automation이 active인지
 - 어떤 pack/connectors/artifact를 쓰는지는 bootstrap이 설치한다
-- 하지만 실제 recurring scheduler 등록은 runtime이나 외부 automation 계층이 맡는다
+- 하지만 `runtime-scheduler` lane의 실제 recurring scheduler 등록은 runtime이나 외부 automation 계층이 맡는다
+- `repo-automation` lane의 실제 workflow, required check, branch protection 등록은 repository 쪽이 맡는다
 
 운영 체크리스트:
 
 1. active automation 목록을 `doctor --json`으로 확인한다
-2. 해당 runtime에서 예약 기능 또는 automation 기능이 있는지 확인한다
-3. 필요한 cadence로 실제 스케줄을 등록한다
-4. 첫 실행 결과가 artifact 계약과 맞는지 확인한다
+2. `doctor --json`에서 automation lane을 확인한다
+3. `runtime-scheduler`면 해당 runtime에서 예약 기능이 있는지 확인하고 필요한 cadence로 실제 스케줄을 등록한다
+4. `repo-automation`이면 target repository workflow, required check, branch protection에 gate를 등록한다
+5. 첫 실행 결과가 artifact 계약과 맞는지 확인한다
 
 ## Preset별 handoff
 
@@ -162,16 +167,25 @@ record handoff:
   - `weekly-operating-review`
   - `weekly-pipeline-review`
 
+### `review-automation`
+
+- focus: repository PR + release gate
+- connector handoff: `github`, `linear`
+- automation handoff:
+  - `pr-review-gate`
+  - `release-readiness-gate`
+
 ## 실무적으로 보면
 
 지금 남은 일은 bootstrap 버그가 아니라 운영 handoff다.
 
 - app connector는 실제로 로그인돼 있어야 한다
-- automation은 실제로 등록돼 있어야 돈다
+- runtime automation은 실제로 등록돼 있어야 돈다
+- repo automation lane은 실제 repository workflow나 branch protection에 연결돼 있어야 돈다
 
 즉 bootstrap 완료 뒤 다음 단계는:
 
 1. provider runtime 열기
 2. connector 연결 확인
-3. scheduler 등록
+3. scheduler 또는 repository gate 등록
 4. 첫 실행 검증

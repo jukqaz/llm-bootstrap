@@ -1796,9 +1796,13 @@ struct DoctorRuntimeHandoffReport {
     active_app_connector_count: usize,
     pending_app_verification_count: usize,
     active_automation_count: usize,
+    active_runtime_automation_count: usize,
+    active_repo_automation_count: usize,
     pending_scheduler_registration_count: usize,
+    pending_repo_registration_count: usize,
     connector_queue: Vec<String>,
     automation_queue: Vec<String>,
+    repo_automation_queue: Vec<String>,
     next_steps: Vec<String>,
 }
 
@@ -1833,6 +1837,7 @@ struct DoctorConnectorReport {
 struct DoctorAutomationReport {
     name: String,
     cadence: String,
+    lane: String,
     packs: Vec<String>,
     connectors: Vec<String>,
     artifact: String,
@@ -2106,12 +2111,13 @@ fn doctor_catalog_report(
             .map(|automation| DoctorAutomationReport {
                 name: automation.name.clone(),
                 cadence: automation.cadence.name().to_string(),
+                lane: automation.lane.name().to_string(),
                 packs: automation.packs.clone(),
                 connectors: automation.connectors.clone(),
                 artifact: automation.artifact.clone(),
                 active: active_automations.contains(&automation.name),
                 status: automation_status(automation, &active_automations).to_string(),
-                scheduler_owner: automation_scheduler_owner().to_string(),
+                scheduler_owner: automation_scheduler_owner(automation).to_string(),
                 registration_status: automation_registration_status(
                     automation,
                     &active_automations,
@@ -2246,6 +2252,15 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .surfaces
                 .codex
                 .iter()
+                .any(|surface| surface == "review-automation-skills")
+            {
+                paths.push(root.join("REVIEW_AUTOMATION.md"));
+                paths.push(root.join("plugins/llm-dev-kit/skills/review-automation/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .codex
+                .iter()
                 .any(|surface| surface == "incident-skills")
             {
                 paths.push(root.join("plugins/llm-dev-kit/skills/investigate/SKILL.md"));
@@ -2293,6 +2308,17 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .surfaces
                 .gemini
                 .iter()
+                .any(|surface| surface == "review-automation-commands")
+            {
+                paths.push(root.join("REVIEW_AUTOMATION.md"));
+                paths.push(
+                    root.join("extensions/llm-bootstrap-dev/commands/review-automation.toml"),
+                );
+            }
+            if resolved
+                .surfaces
+                .gemini
+                .iter()
                 .any(|surface| surface == "incident-commands")
             {
                 paths.push(root.join("extensions/llm-bootstrap-dev/agents/triage.md"));
@@ -2330,6 +2356,15 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 paths.push(root.join("TEAM.md"));
                 paths.push(root.join("skills/team/SKILL.md"));
                 paths.push(root.join("skills/workflow-gate/SKILL.md"));
+            }
+            if resolved
+                .surfaces
+                .claude
+                .iter()
+                .any(|surface| surface == "review-automation-skills")
+            {
+                paths.push(root.join("REVIEW_AUTOMATION.md"));
+                paths.push(root.join("skills/review-automation/SKILL.md"));
             }
             if resolved
                 .surfaces
@@ -2522,6 +2557,14 @@ fn doctor_runtime_handoff_report(
         .automations
         .iter()
         .filter(|automation| active_automations.contains(&automation.name))
+        .filter(|automation| automation.lane == manifest::AutomationLane::RuntimeScheduler)
+        .map(|automation| automation.name.clone())
+        .collect::<Vec<_>>();
+    let repo_automation_queue = manifest
+        .automations
+        .iter()
+        .filter(|automation| active_automations.contains(&automation.name))
+        .filter(|automation| automation.lane == manifest::AutomationLane::RepoAutomation)
         .map(|automation| automation.name.clone())
         .collect::<Vec<_>>();
 
@@ -2538,6 +2581,12 @@ fn doctor_runtime_handoff_report(
                 .to_string(),
         );
     }
+    if !repo_automation_queue.is_empty() {
+        next_steps.push(
+            "register active review automation contracts in the target repository workflow or branch protection lane before expecting PR gates"
+                .to_string(),
+        );
+    }
     if next_steps.is_empty() {
         next_steps.push("no runtime handoff work is pending for the active preset".to_string());
     }
@@ -2545,10 +2594,14 @@ fn doctor_runtime_handoff_report(
     DoctorRuntimeHandoffReport {
         active_app_connector_count: connector_queue.len(),
         pending_app_verification_count: connector_queue.len(),
-        active_automation_count: automation_queue.len(),
+        active_automation_count: automation_queue.len() + repo_automation_queue.len(),
+        active_runtime_automation_count: automation_queue.len(),
+        active_repo_automation_count: repo_automation_queue.len(),
         pending_scheduler_registration_count: automation_queue.len(),
+        pending_repo_registration_count: repo_automation_queue.len(),
         connector_queue,
         automation_queue,
+        repo_automation_queue,
         next_steps,
     }
 }
@@ -2667,8 +2720,11 @@ fn automation_status(
     }
 }
 
-fn automation_scheduler_owner() -> &'static str {
-    "runtime-managed"
+fn automation_scheduler_owner(automation: &manifest::AutomationDefinition) -> &'static str {
+    match automation.lane {
+        manifest::AutomationLane::RuntimeScheduler => "runtime-managed",
+        manifest::AutomationLane::RepoAutomation => "repo-managed",
+    }
 }
 
 fn automation_registration_status(
@@ -2679,7 +2735,10 @@ fn automation_registration_status(
         return "not-requested";
     }
 
-    "not-registered"
+    match automation.lane {
+        manifest::AutomationLane::RuntimeScheduler => "not-registered",
+        manifest::AutomationLane::RepoAutomation => "not-configured",
+    }
 }
 
 fn automation_next_step(
@@ -2690,10 +2749,16 @@ fn automation_next_step(
         return None;
     }
 
-    Some(format!(
-        "register {} in the target runtime scheduler if you want recurring execution",
-        automation.name
-    ))
+    Some(match automation.lane {
+        manifest::AutomationLane::RuntimeScheduler => format!(
+            "register {} in the target runtime scheduler if you want recurring execution",
+            automation.name
+        ),
+        manifest::AutomationLane::RepoAutomation => format!(
+            "register {} in the target repository workflow or branch protection lane before expecting review gates",
+            automation.name
+        ),
+    })
 }
 
 fn automation_detail(
@@ -2704,10 +2769,16 @@ fn automation_detail(
         return None;
     }
 
-    Some(
-        "automation contract is rendered into the installed runtime state; recurring scheduler registration stays runtime-managed"
-            .to_string(),
-    )
+    Some(match automation.lane {
+        manifest::AutomationLane::RuntimeScheduler => {
+            "automation contract is rendered into the installed runtime state; recurring scheduler registration stays runtime-managed"
+                .to_string()
+        }
+        manifest::AutomationLane::RepoAutomation => {
+            "automation contract is rendered into the installed runtime state; repository workflow or branch protection registration stays external"
+                .to_string()
+        }
+    })
 }
 
 fn record_with(args: &RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
@@ -3772,11 +3843,12 @@ mod tests {
         prune_rtk_claude_hooks, prune_rtk_gemini_hooks, remove_baseline_mcp_servers,
     };
     use crate::manifest::{
-        AutomationCadence, AutomationDefinition, BaselineMcp, BootstrapManifest, BootstrapSection,
-        ConnectorAccess, ConnectorApproval, ConnectorCategory, ConnectorDefinition,
-        ConnectorToolSource, DistributionTarget, EnvGatedMcp, ExternalSection, HarnessCategory,
-        HarnessDefinition, McpSection, PackDefinition, PackLane, PackScope, PresetDefinition,
-        RecordTemplateDefinition, RtkSection, SurfaceDefinition, SurfaceKind, SurfaceRuntimeOwner,
+        AutomationCadence, AutomationDefinition, AutomationLane, BaselineMcp, BootstrapManifest,
+        BootstrapSection, ConnectorAccess, ConnectorApproval, ConnectorCategory,
+        ConnectorDefinition, ConnectorToolSource, DistributionTarget, EnvGatedMcp, ExternalSection,
+        HarnessCategory, HarnessDefinition, McpSection, PackDefinition, PackLane, PackScope,
+        PresetDefinition, RecordTemplateDefinition, RtkSection, SurfaceDefinition, SurfaceKind,
+        SurfaceRuntimeOwner,
     };
     use crate::providers::{claude, codex, gemini};
     use serde_json::json;
@@ -3936,6 +4008,27 @@ mod tests {
                     description: "Advanced multi-agent team delivery pack.".to_string(),
                 },
                 PackDefinition {
+                    name: "review-automation-pack".to_string(),
+                    scope: PackScope::Development,
+                    lane: PackLane::Advanced,
+                    harnesses: vec!["delivery".to_string(), "review-gate".to_string()],
+                    mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
+                    connectors: vec!["github".to_string(), "linear".to_string()],
+                    codex_surfaces: vec![
+                        "llm-dev-kit".to_string(),
+                        "review-automation-skills".to_string(),
+                    ],
+                    gemini_surfaces: vec![
+                        "llm-bootstrap-dev".to_string(),
+                        "review-automation-commands".to_string(),
+                    ],
+                    claude_surfaces: vec![
+                        "claude-skills".to_string(),
+                        "review-automation-skills".to_string(),
+                    ],
+                    description: "Repository automation pack.".to_string(),
+                },
+                PackDefinition {
                     name: "founder-pack".to_string(),
                     scope: PackScope::Company,
                     lane: PackLane::Optional,
@@ -4024,6 +4117,11 @@ mod tests {
                     packs: vec!["founder-pack".to_string(), "ops-pack".to_string()],
                     description: "Company operating packs.".to_string(),
                 },
+                PresetDefinition {
+                    name: "review-automation".to_string(),
+                    packs: vec!["review-automation-pack".to_string()],
+                    description: "Repository review automation lane.".to_string(),
+                },
             ],
             surfaces: vec![
                 SurfaceDefinition {
@@ -4067,6 +4165,14 @@ mod tests {
                     description: "Codex multi-agent team entrypoints.".to_string(),
                 },
                 SurfaceDefinition {
+                    name: "review-automation-skills".to_string(),
+                    kind: SurfaceKind::ReviewAutomation,
+                    runtime_owner: SurfaceRuntimeOwner::ExternalRuntime,
+                    default_lane: PackLane::Advanced,
+                    distribution_target: DistributionTarget::CodexPlugin,
+                    description: "Codex review automation entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
                     name: "llm-bootstrap-dev".to_string(),
                     kind: SurfaceKind::Baseline,
                     runtime_owner: SurfaceRuntimeOwner::Bootstrap,
@@ -4107,6 +4213,14 @@ mod tests {
                     description: "Gemini multi-agent team commands.".to_string(),
                 },
                 SurfaceDefinition {
+                    name: "review-automation-commands".to_string(),
+                    kind: SurfaceKind::ReviewAutomation,
+                    runtime_owner: SurfaceRuntimeOwner::ExternalRuntime,
+                    default_lane: PackLane::Advanced,
+                    distribution_target: DistributionTarget::GeminiExtension,
+                    description: "Gemini review automation commands.".to_string(),
+                },
+                SurfaceDefinition {
                     name: "claude-skills".to_string(),
                     kind: SurfaceKind::Baseline,
                     runtime_owner: SurfaceRuntimeOwner::Bootstrap,
@@ -4145,6 +4259,14 @@ mod tests {
                     default_lane: PackLane::Advanced,
                     distribution_target: DistributionTarget::ClaudeSkills,
                     description: "Claude multi-agent team entrypoints.".to_string(),
+                },
+                SurfaceDefinition {
+                    name: "review-automation-skills".to_string(),
+                    kind: SurfaceKind::ReviewAutomation,
+                    runtime_owner: SurfaceRuntimeOwner::ExternalRuntime,
+                    default_lane: PackLane::Advanced,
+                    distribution_target: DistributionTarget::ClaudeSkills,
+                    description: "Claude review automation entrypoints.".to_string(),
                 },
             ],
             connectors: vec![
@@ -4216,6 +4338,7 @@ mod tests {
                 AutomationDefinition {
                     name: "daily-founder-brief".to_string(),
                     cadence: AutomationCadence::Daily,
+                    lane: AutomationLane::RuntimeScheduler,
                     packs: vec!["founder-pack".to_string()],
                     connectors: vec![
                         "linear".to_string(),
@@ -4229,6 +4352,7 @@ mod tests {
                 AutomationDefinition {
                     name: "weekly-operating-review".to_string(),
                     cadence: AutomationCadence::Weekly,
+                    lane: AutomationLane::RuntimeScheduler,
                     packs: vec!["founder-pack".to_string(), "ops-pack".to_string()],
                     connectors: vec![
                         "linear".to_string(),
@@ -4238,6 +4362,24 @@ mod tests {
                     ],
                     artifact: "Operating Review".to_string(),
                     description: "Weekly operating review.".to_string(),
+                },
+                AutomationDefinition {
+                    name: "pr-review-gate".to_string(),
+                    cadence: AutomationCadence::OnDemand,
+                    lane: AutomationLane::RepoAutomation,
+                    packs: vec!["review-automation-pack".to_string()],
+                    connectors: vec!["github".to_string(), "linear".to_string()],
+                    artifact: "PR Review Gate".to_string(),
+                    description: "PR review gate.".to_string(),
+                },
+                AutomationDefinition {
+                    name: "release-readiness-gate".to_string(),
+                    cadence: AutomationCadence::OnDemand,
+                    lane: AutomationLane::RepoAutomation,
+                    packs: vec!["review-automation-pack".to_string()],
+                    connectors: vec!["github".to_string(), "linear".to_string()],
+                    artifact: "Release Readiness Gate".to_string(),
+                    description: "Release readiness gate.".to_string(),
                 },
             ],
             record_templates: vec![
@@ -4301,8 +4443,8 @@ mod tests {
         );
 
         assert_eq!(report.harnesses.len(), 8);
-        assert_eq!(report.packs.len(), 5);
-        assert_eq!(report.surfaces.len(), 15);
+        assert_eq!(report.packs.len(), 6);
+        assert_eq!(report.surfaces.len(), 18);
         assert_eq!(report.default_preset, "normal".to_string());
         assert_eq!(report.active_preset, Some("normal".to_string()));
         assert_eq!(report.active_packs, vec!["delivery-pack".to_string()]);
@@ -4356,19 +4498,23 @@ mod tests {
         assert_eq!(report.packs[0].lane, "core");
         assert!(report.packs[0].selected);
         assert_eq!(report.connectors.len(), 7);
-        assert_eq!(report.automations.len(), 2);
+        assert_eq!(report.automations.len(), 4);
         assert_eq!(report.runtime_handoff.active_app_connector_count, 2);
         assert_eq!(report.runtime_handoff.pending_app_verification_count, 2);
         assert_eq!(report.runtime_handoff.active_automation_count, 0);
+        assert_eq!(report.runtime_handoff.active_runtime_automation_count, 0);
+        assert_eq!(report.runtime_handoff.active_repo_automation_count, 0);
         assert_eq!(
             report.runtime_handoff.pending_scheduler_registration_count,
             0
         );
+        assert_eq!(report.runtime_handoff.pending_repo_registration_count, 0);
         assert_eq!(
             report.runtime_handoff.connector_queue,
             vec!["github".to_string(), "linear".to_string()]
         );
         assert!(report.runtime_handoff.automation_queue.is_empty());
+        assert!(report.runtime_handoff.repo_automation_queue.is_empty());
         assert_eq!(
             report.active_record_templates,
             vec!["project-record".to_string()]
@@ -4684,6 +4830,10 @@ mod tests {
         );
         assert!(manifest.presets.iter().any(|preset| {
             preset.name == "orchestrator" && preset.packs.contains(&"team-pack".to_string())
+        }));
+        assert!(manifest.presets.iter().any(|preset| {
+            preset.name == "review-automation"
+                && preset.packs.contains(&"review-automation-pack".to_string())
         }));
         assert!(manifest.surfaces.iter().any(|surface| {
             surface.name == "delivery-commands"
@@ -5255,6 +5405,43 @@ mod tests {
                 "daily-founder-brief".to_string(),
                 "weekly-operating-review".to_string()
             ]
+        );
+    }
+
+    #[test]
+    fn review_automation_pack_routes_repo_automation_queue() {
+        let manifest = test_manifest();
+        let active_packs = vec!["review-automation-pack".to_string()];
+        let active_connectors = super::selected_connector_names(&manifest, &active_packs);
+        let active_automations = super::selected_automation_names(&manifest, &active_packs);
+        let handoff = super::doctor_runtime_handoff_report(
+            &manifest,
+            &active_connectors,
+            &active_automations,
+        );
+
+        assert_eq!(
+            active_automations,
+            vec![
+                "pr-review-gate".to_string(),
+                "release-readiness-gate".to_string()
+            ]
+        );
+        assert_eq!(handoff.active_runtime_automation_count, 0);
+        assert_eq!(handoff.active_repo_automation_count, 2);
+        assert_eq!(handoff.pending_repo_registration_count, 2);
+        assert_eq!(
+            handoff.repo_automation_queue,
+            vec![
+                "pr-review-gate".to_string(),
+                "release-readiness-gate".to_string()
+            ]
+        );
+        assert!(
+            handoff
+                .next_steps
+                .iter()
+                .any(|step| step.contains("repository workflow"))
         );
     }
 
