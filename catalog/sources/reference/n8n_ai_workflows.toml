@@ -1,0 +1,36 @@
+id = "n8n_ai_workflows"
+name = "n8n AI Workflows"
+source_type = "reference"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["automation", "business-ops", "support", "growth", "connectors"]
+weight = "optional"
+summary = "Reference for combining AI agents with workflow automation and connector-based business operations."
+
+urls = [
+  "https://docs.n8n.io/advanced-ai/intro-tutorial/"
+]
+
+capabilities = [
+  "AI agent workflow nodes",
+  "business automation with connectors",
+  "tool-calling workflows",
+  "human-in-the-loop automation patterns"
+]
+
+adoptable_parts = [
+  "automation handoff model for growth, support, and company capabilities",
+  "connector-first workflow design",
+  "human approval points for business operations"
+]
+
+do_not_copy = [
+  "n8n runtime into local baseline",
+  "external workflow execution ownership inside bootstrap",
+  "always-on business automations without explicit scheduling"
+]
+
+[[evidence]]
+label = "n8n AI workflow tutorial"
+url = "https://docs.n8n.io/advanced-ai/intro-tutorial/"
+note = "n8n documents AI agent workflows with tools and automation nodes."

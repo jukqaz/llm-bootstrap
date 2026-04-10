@@ -1,5 +1,8 @@
 # llm-bootstrap 슈퍼셋 전략
 
+> 최신 제품 기준선은 [capability-os-strategy.ko.md](capability-os-strategy.ko.md)를 따른다.
+> 이 문서는 참고 레포의 기능을 중복 없이 흡수하기 위한 초기 분류 문서로 유지한다.
+
 이 문서는 참고 레포와 공식 문서에서 "좋은 것만" 가져와
 `llm-bootstrap`용 슈퍼셋 구조를 정의한다.
 

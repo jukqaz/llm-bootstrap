@@ -1,0 +1,36 @@
+id = "bmad_method"
+name = "BMAD Method"
+source_type = "reference"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["workflow-contract", "agile", "role-system", "artifact-flow"]
+weight = "optional"
+summary = "Reference for role-based agile agent workflows that move from product definition through architecture, stories, development, and QA."
+
+urls = [
+  "https://github.com/bmad-code-org/BMAD-METHOD"
+]
+
+capabilities = [
+  "PM, architect, developer, and QA role flow",
+  "artifact-first agile planning",
+  "agent menu and command UX",
+  "expansion pack model"
+]
+
+adoptable_parts = [
+  "PRD to architecture to story to implementation to QA contract",
+  "role responsibilities as harness metadata",
+  "expansion-pack thinking for optional capabilities"
+]
+
+do_not_copy = [
+  "large persona catalog into baseline",
+  "host-specific command model as global policy",
+  "full agile ceremony overhead for small tasks"
+]
+
+[[evidence]]
+label = "BMAD Method README"
+url = "https://github.com/bmad-code-org/BMAD-METHOD"
+note = "BMAD presents a role-based agile method for AI-assisted planning, development, QA, and expansion packs."

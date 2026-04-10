@@ -1,5 +1,8 @@
 # Direction Review
 
+> 최신 제품 기준선은 [capability-os-strategy.ko.md](capability-os-strategy.ko.md)를 따른다.
+> 이 문서는 당시 방향 검토의 근거와 위험 판단을 보관한다.
+
 이 문서는 지금까지 검토한 내부 문서, 외부 레퍼런스, 현재 구현을 한 번에 묶어서
 `llm-bootstrap`의 다음 방향이 맞는지 판단한 체크포인트다.
 
@@ -201,4 +204,3 @@ Claude 전략은 최종 판단상 `subagent/MCP/hook-first`가 맞다.
 즉 지금의 최적 문장은 이것이다.
 
 > `llm-bootstrap`는 작은 bootstrap이 아니라, provider-native 표면 위에 공통 하네스를 얹는 설치기여야 한다.
-

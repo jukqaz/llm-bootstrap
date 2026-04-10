@@ -1,0 +1,36 @@
+id = "superclaude"
+name = "SuperClaude Framework"
+source_type = "reference"
+status = "active"
+provider_scope = ["claude", "cross-provider"]
+categories = ["command-ux", "personas", "mcp", "workflow-contract"]
+weight = "optional"
+summary = "Reference for command, persona, and MCP packaging around Claude Code style workflows."
+
+urls = [
+  "https://github.com/SuperClaude-Org/SuperClaude_Framework"
+]
+
+capabilities = [
+  "slash-command workflow UX",
+  "persona activation",
+  "MCP integration patterns",
+  "task-specific command bundles"
+]
+
+adoptable_parts = [
+  "short command names for high-frequency workflow entrypoints",
+  "persona ideas as optional harness role metadata",
+  "MCP-aware command packaging"
+]
+
+do_not_copy = [
+  "all commands and personas into baseline",
+  "Claude-specific framework as the cross-provider runtime",
+  "large always-on persona context"
+]
+
+[[evidence]]
+label = "SuperClaude README"
+url = "https://github.com/SuperClaude-Org/SuperClaude_Framework"
+note = "SuperClaude packages commands, personas, and MCP integrations for Claude Code workflows."

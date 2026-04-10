@@ -1,0 +1,37 @@
+id = "openai_agentkit"
+name = "OpenAI AgentKit"
+source_type = "reference"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["agent-builder", "connectors", "guardrails", "evals", "support", "growth"]
+weight = "optional"
+summary = "Reference for connector registry, guardrails, evaluation, and business-agent patterns such as support and growth workflows."
+
+urls = [
+  "https://openai.com/index/introducing-agentkit/"
+]
+
+capabilities = [
+  "agent builder",
+  "connector registry",
+  "guardrails",
+  "evaluation loops",
+  "support and growth agent examples"
+]
+
+adoptable_parts = [
+  "connector registry thinking for growth, support, and company capabilities",
+  "guardrail and eval concepts for high-risk workflows",
+  "business-agent patterns beyond software delivery"
+]
+
+do_not_copy = [
+  "external runtime into baseline",
+  "account login ownership inside bootstrap",
+  "write automation without runtime handoff and approval boundaries"
+]
+
+[[evidence]]
+label = "OpenAI AgentKit announcement"
+url = "https://openai.com/index/introducing-agentkit/"
+note = "AgentKit describes builder, connectors, guardrails, and evals for production agent workflows."

@@ -29,6 +29,7 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 한국어:
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
+- [docs/capability-os-strategy.ko.md](docs/capability-os-strategy.ko.md)
 - [docs/direction-review.ko.md](docs/direction-review.ko.md)
 - [docs/business-ops-blueprint.ko.md](docs/business-ops-blueprint.ko.md)
 - [docs/dev-company-operating-model.ko.md](docs/dev-company-operating-model.ko.md)

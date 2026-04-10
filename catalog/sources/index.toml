@@ -43,8 +43,32 @@ source_type = "reference"
 priority = 20
 
 [[entry]]
+id = "bmad_method"
+file = "reference/bmad_method.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
+id = "superclaude"
+file = "reference/superclaude.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
 id = "openclaw"
 file = "reference/openclaw.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
+id = "openai_agentkit"
+file = "reference/openai_agentkit.toml"
+source_type = "reference"
+priority = 20
+
+[[entry]]
+id = "n8n_ai_workflows"
+file = "reference/n8n_ai_workflows.toml"
 source_type = "reference"
 priority = 20
 

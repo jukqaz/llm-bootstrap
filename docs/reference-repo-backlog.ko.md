@@ -1,5 +1,9 @@
 # 참고 레포 확장 백로그
 
+> 최신 제품 기준선과 capability 구조는
+> [capability-os-strategy.ko.md](capability-os-strategy.ko.md)를 따른다.
+> 이 문서는 개별 참고 레포의 backlog 판단을 보관하는 보조 문서다.
+
 이 문서는 기존 `oh-my-*`, `gstack`, `spec-kit`, `GitHub Agentic Workflows` 외에
 추가로 살펴본 참고 레포를 `llm-bootstrap` 계획에 어떻게 반영할지 정리한다.
 
