@@ -730,6 +730,9 @@ struct GateReport {
     required_signals: Vec<String>,
     missing_signals: Vec<String>,
     reasons: Vec<String>,
+    attempt_count: u64,
+    last_failure: Option<String>,
+    retry_status: String,
     recommended_status: String,
     recommended_next_action: Option<String>,
 }
@@ -807,7 +810,12 @@ fn evaluate_gate(
     let mut reasons = Vec::new();
     let parallel_build_enabled = state.harnesses.iter().any(|name| name == "parallel-build");
     let review_gate_enabled = state.harnesses.iter().any(|name| name == "review-gate");
-    let incident_enabled = state.harnesses.iter().any(|name| name == "incident");
+    let retry_escalated = state.attempt_count >= 2
+        && state.last_failure.is_some()
+        && matches!(
+            target_phase,
+            TaskPhase::Execute | TaskPhase::Review | TaskPhase::Qa | TaskPhase::Ship
+        );
 
     if matches!(target_phase, TaskPhase::Plan) {
         required.insert(GateSignal::Spec.name().to_string());
@@ -850,16 +858,10 @@ fn evaluate_gate(
         reasons.push("review-gate requires review, qa, and verification before ship".to_string());
     }
 
-    if incident_enabled
-        && state.attempt_count >= 2
-        && matches!(
-            target_phase,
-            TaskPhase::Review | TaskPhase::Qa | TaskPhase::Ship
-        )
-    {
+    if retry_escalated {
         required.insert(GateSignal::Investigate.name().to_string());
         reasons.push(
-            "incident harness requires investigation evidence after repeated failed attempts"
+            "ralph-retry requires investigation evidence after repeated failed attempts"
                 .to_string(),
         );
     }
@@ -872,6 +874,13 @@ fn evaluate_gate(
         .cloned()
         .collect::<Vec<_>>();
     let allowed = missing_signals.is_empty();
+    let retry_status = if state.last_failure.is_none() {
+        "clean".to_string()
+    } else if state.attempt_count >= 2 {
+        "escalate".to_string()
+    } else {
+        "targeted-retry".to_string()
+    };
     let recommended_status = if allowed {
         if target_phase == TaskPhase::Ship {
             TaskStatus::Ready.name().to_string()
@@ -884,6 +893,24 @@ fn evaluate_gate(
         TaskStatus::Blocked.name().to_string()
     };
     let recommended_next_action = if allowed {
+        if retry_status == "targeted-retry" {
+            Some("apply one bounded fix, rerun verification, then clear or replace the recorded failure".to_string())
+        } else {
+            None
+        }
+    } else if retry_status == "escalate"
+        && missing_signals == [GateSignal::Investigate.name().to_string()]
+    {
+        Some(
+            "capture investigation evidence or move the task back to plan before another retry"
+                .to_string(),
+        )
+    } else {
+        None
+    };
+    let recommended_next_action = if recommended_next_action.is_some() {
+        recommended_next_action
+    } else if allowed {
         None
     } else {
         Some(format!(
@@ -904,6 +931,9 @@ fn evaluate_gate(
         required_signals,
         missing_signals,
         reasons,
+        attempt_count: state.attempt_count,
+        last_failure: state.last_failure.clone(),
+        retry_status,
         recommended_status,
         recommended_next_action,
     }
@@ -952,6 +982,12 @@ fn print_gate_report(report: &GateReport, json: bool) -> Result<()> {
         } else {
             report.missing_signals.join(",")
         }
+    );
+    println!("attempt_count: {}", report.attempt_count);
+    println!("retry_status: {}", report.retry_status);
+    println!(
+        "last_failure: {}",
+        report.last_failure.as_deref().unwrap_or("")
     );
     println!("recommended_status: {}", report.recommended_status);
     println!(
@@ -1004,10 +1040,11 @@ fn workflow_gate_contract_lines(harnesses: &[String]) -> Vec<String> {
     let mut lines = vec![
         "phase-gate: plan requires spec".to_string(),
         "phase-gate: execute requires plan".to_string(),
+        "ralph-retry: after 2 failed attempts, execute/review/qa/ship require investigate"
+            .to_string(),
     ];
     let has_parallel = harnesses.iter().any(|name| name == "parallel-build");
     let has_review = harnesses.iter().any(|name| name == "review-gate");
-    let has_incident = harnesses.iter().any(|name| name == "incident");
 
     if has_parallel {
         lines.push(
@@ -1017,11 +1054,6 @@ fn workflow_gate_contract_lines(harnesses: &[String]) -> Vec<String> {
     }
     if has_review {
         lines.push("review-gate: ship requires review, qa, verify".to_string());
-    }
-    if has_incident {
-        lines.push(
-            "incident: after 2 failed attempts, review/qa/ship require investigate".to_string(),
-        );
     }
 
     lines
@@ -1044,6 +1076,7 @@ fn print_workflow_gate_summary(harnesses: &[String]) {
     println!(
         "- llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify"
     );
+    println!("- llm-bootstrap internal task-state advance --increment-attempt --failure \"...\"");
     println!("- llm-bootstrap internal gate apply --target-phase ship --json");
 }
 
@@ -5259,14 +5292,16 @@ mod tests {
     }
 
     #[test]
-    fn gate_check_requires_investigation_after_retries() {
-        let mut state = test_task_state(&["incident", "review-gate"]);
+    fn gate_check_requires_investigation_after_recorded_retries() {
+        let mut state = test_task_state(&["review-gate"]);
         state.phase = "review".to_string();
         state.attempt_count = 2;
+        state.last_failure = Some("verification still failing".to_string());
         let report = super::evaluate_gate(&state, TaskPhase::Qa, &[]);
 
         assert!(!report.allowed);
         assert_eq!(report.missing_signals, vec!["investigate".to_string()]);
+        assert_eq!(report.retry_status, "escalate");
     }
 
     #[test]
@@ -5341,6 +5376,23 @@ mod tests {
         assert_eq!(loaded.completed_signals, vec!["plan".to_string()]);
 
         fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gate_report_marks_targeted_retry_after_first_failure() {
+        let mut state = test_task_state(&[]);
+        state.completed_signals = vec!["spec".to_string()];
+        state.last_failure = Some("unit test still failing".to_string());
+        state.attempt_count = 1;
+        let report = super::evaluate_gate(&state, TaskPhase::Plan, &[]);
+
+        assert_eq!(report.retry_status, "targeted-retry");
+        assert_eq!(
+            report.recommended_next_action.as_deref(),
+            Some(
+                "apply one bounded fix, rerun verification, then clear or replace the recorded failure"
+            )
+        );
     }
 
     #[test]

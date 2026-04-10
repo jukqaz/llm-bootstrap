@@ -27,4 +27,5 @@ __RTK_GEMINI_RULE__
 
 - Use `llm-bootstrap internal task-state begin|advance|show` to keep the thin local task-state current.
 - Use `llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json` before advancing a gated phase.
+- Use `llm-bootstrap internal task-state advance --increment-attempt --failure "..."` after a bounded retry fails.
 - Use the extension `gate` command when the session should reason from the gate report first.

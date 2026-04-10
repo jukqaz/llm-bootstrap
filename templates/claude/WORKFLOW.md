@@ -14,4 +14,5 @@ Use this Claude Code lane for a compact plan -> review -> QA -> ship loop.
 
 - Keep `llm-bootstrap internal task-state begin|advance|show` current for multi-phase work.
 - Check `llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json` before advancing.
+- Record a failed bounded retry with `llm-bootstrap internal task-state advance --increment-attempt --failure "..."`.
 - Use the `workflow-gate` skill when the session should reason from gate evidence first.

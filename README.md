@@ -32,7 +32,9 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 English:
 - [README.md](README.md)
+- [RALPH_PLAN.md](RALPH_PLAN.md)
 - [docs/product-goal.md](docs/product-goal.md)
+- [docs/ralph-loop-program-plan.md](docs/ralph-loop-program-plan.md)
 - [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
 - [docs/direction-review.md](docs/direction-review.md)
 - [docs/business-ops-blueprint.md](docs/business-ops-blueprint.md)
@@ -49,6 +51,7 @@ English:
 
 Korean:
 - [README.ko.md](README.ko.md)
+- [docs/ralph-loop-program-plan.ko.md](docs/ralph-loop-program-plan.ko.md)
 - [docs/product-goal.ko.md](docs/product-goal.ko.md)
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
 - [docs/direction-review.ko.md](docs/direction-review.ko.md)
@@ -236,6 +239,7 @@ The orchestrator lane also ships thin workflow gates:
 llm-bootstrap internal task-state begin --title "Review auth flow" --providers codex,gemini,claude --preset orchestrator --phase execute
 llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json
 llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify
+llm-bootstrap internal task-state advance --increment-attempt --failure "verification still failing"
 llm-bootstrap internal gate apply --target-phase ship --json
 ```
 
