@@ -226,5 +226,9 @@ pub(crate) fn preserved_gemini_runtime_state(existing: &Value) -> Value {
         }
     }
 
+    if let Some(auth) = existing.pointer("/security/auth") {
+        preserved["security"] = json!({ "auth": auth.clone() });
+    }
+
     preserved
 }

@@ -3294,6 +3294,12 @@ mod tests {
     fn preserved_gemini_runtime_state_keeps_auth_shape_only() {
         let existing = json!({
             "selectedAuthType": "oauth-personal",
+            "security": {
+                "auth": {
+                    "selectedType": "oauth-personal"
+                },
+                "unmanagedPolicy": true
+            },
             "accounts": [{"email": "dev@example.com"}],
             "general": {"defaultApprovalMode": "plan"},
             "mcpServers": {"legacy": {"command": "noop"}}
@@ -3302,7 +3308,12 @@ mod tests {
         let preserved = preserved_gemini_runtime_state(&existing);
 
         assert_eq!(preserved["selectedAuthType"], json!("oauth-personal"));
+        assert_eq!(
+            preserved["security"]["auth"]["selectedType"],
+            json!("oauth-personal")
+        );
         assert_eq!(preserved["accounts"][0]["email"], json!("dev@example.com"));
+        assert!(preserved["security"].get("unmanagedPolicy").is_none());
         assert!(preserved.get("general").is_none());
         assert!(preserved.get("mcpServers").is_none());
     }
