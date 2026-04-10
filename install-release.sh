@@ -25,7 +25,7 @@ resolve_command() {
   fi
 
   case "$1" in
-    install|wizard|doctor|restore|backups|uninstall|record|help|--help|-h)
+    install|wizard|doctor|restore|backups|uninstall|record|help|--help|-h|--version|-V)
       printf '%s' "$1"
       ;;
     *)
