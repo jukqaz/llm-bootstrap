@@ -79,11 +79,13 @@ Scope:
 - scaffold 명령이 있다
 - workflow template가 있다
 - 이 repo가 생성된 gate 파일을 직접 dogfood한다
+- live PR 검증으로 gate가 `check`를 기다린 뒤 외부 승인 부족에서만 멈추는 것까지 확인했다
 
 이 lane 안에 아직 남은 것:
 - PR checklist와 repo contract ergonomics 보강
 - 수동 GitHub 설정 문서를 더 명확히 정리
-- 실제 PR flow와 release-dispatch flow를 한 번씩 검증
+- 작성자가 아닌 승인 1건으로 PR gate를 다시 검증
+- workflow가 `main`에 올라간 뒤 첫 `workflow_dispatch` release 검증 실행
 
 Verification:
 - `cargo test`
@@ -92,7 +94,7 @@ Verification:
 - 가능할 때 실제 GitHub Actions 검증 1회
 
 Next slice:
-- repo-facing checklist 또는 template 지원을 추가하고 첫 live run을 검증한다
+- repo automation workflow를 `main`에 올린 뒤 승인된 PR 1회와 release-dispatch 1회를 검증한다
 
 ### 3. `entrypoint-layer`
 

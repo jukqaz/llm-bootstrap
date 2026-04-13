@@ -79,11 +79,13 @@ Done already:
 - scaffold command exists
 - workflow templates exist
 - this repo already dogfoods the generated gate files
+- live PR validation now proves the gate waits for `check` and then stops only on the external approval requirement
 
 Still inside this lane:
 - tighten PR checklist and repo contract ergonomics
 - document required manual GitHub settings more sharply
-- validate one real PR flow and one release-dispatch flow
+- rerun PR gate with a non-author approval
+- run the first live `workflow_dispatch` release validation after the workflow lands on `main`
 
 Verification:
 - `cargo test`
@@ -92,7 +94,7 @@ Verification:
 - one real GitHub Actions validation pass when available
 
 Next slice:
-- add repo-facing checklist or template support and validate the first live run
+- land the repo automation workflows on `main`, then validate one approved PR run and one release-dispatch run
 
 ### 3. `entrypoint-layer`
 
