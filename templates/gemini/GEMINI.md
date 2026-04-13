@@ -22,3 +22,11 @@ __RTK_GEMINI_RULE__
 
 - Run the smallest credible verification that proves the claim.
 - If verification is partial, state the gap plainly.
+
+## Workflow gates
+
+- Use `llm-bootstrap internal task-state begin|advance|show` to keep the thin local task-state current.
+- Use `llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json` before advancing a gated phase.
+- Use `llm-bootstrap internal task-state advance --increment-attempt --failure "..."` after a bounded retry fails.
+- After the second failed attempt, use `llm-bootstrap internal task-state advance --investigation-note "..."` before another gated retry.
+- Use the extension `gate` command when the session should reason from the gate report first.

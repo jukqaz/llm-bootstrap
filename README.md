@@ -1,6 +1,8 @@
 # llm-bootstrap
 
-Developer home bootstrap for `Codex`, `Gemini`, and optional `Claude Code`.
+`llm-bootstrap` first stabilizes provider-native baselines for `Codex`,
+`Gemini`, and optional `Claude Code`, then layers on optional capabilities for
+planning, execution, review, QA, and company operations.
 
 This repository configures user-scope LLM tooling on macOS without touching
 provider auth tokens or project-level files. It applies a small, reproducible
@@ -30,6 +32,9 @@ curl -fsSL https://github.com/jukqaz/llm-bootstrap/releases/latest/download/inst
 
 English:
 - [README.md](README.md)
+- [RALPH_PLAN.md](RALPH_PLAN.md)
+- [docs/product-goal.md](docs/product-goal.md)
+- [docs/ralph-loop-program-plan.md](docs/ralph-loop-program-plan.md)
 - [docs/codex-first-blueprint.md](docs/codex-first-blueprint.md)
 - [docs/direction-review.md](docs/direction-review.md)
 - [docs/business-ops-blueprint.md](docs/business-ops-blueprint.md)
@@ -46,6 +51,8 @@ English:
 
 Korean:
 - [README.ko.md](README.ko.md)
+- [docs/ralph-loop-program-plan.ko.md](docs/ralph-loop-program-plan.ko.md)
+- [docs/product-goal.ko.md](docs/product-goal.ko.md)
 - [docs/codex-first-blueprint.ko.md](docs/codex-first-blueprint.ko.md)
 - [docs/direction-review.ko.md](docs/direction-review.ko.md)
 - [docs/business-ops-blueprint.ko.md](docs/business-ops-blueprint.ko.md)
@@ -53,6 +60,7 @@ Korean:
 - [docs/provider-surface-strategy.ko.md](docs/provider-surface-strategy.ko.md)
 - [docs/oh-my-comparison-report.ko.md](docs/oh-my-comparison-report.ko.md)
 - [docs/reference-repo-backlog.ko.md](docs/reference-repo-backlog.ko.md)
+- [docs/reference-surface-matrix.ko.md](docs/reference-surface-matrix.ko.md)
 - [docs/superset-strategy.ko.md](docs/superset-strategy.ko.md)
 
 Reference data:
@@ -94,14 +102,17 @@ The default baseline is intentionally small.
 - Codex:
   - local `llm-dev-kit` plugin
   - workflow docs and skills
+  - `workflow-gate` skill for task-state transitions
 - Gemini:
   - `llm-bootstrap-dev` extension
   - native custom commands
   - workflow docs and lightweight agent pack
+  - `gate` command for task-state transitions
 - Claude Code:
   - official MCP registration
   - lightweight subagent docs
   - workflow skill pack
+  - `workflow-gate` skill for task-state transitions
 
 This repository does not ship project-specific MCP such as payment, internal,
 or app-specific tools. In `merge` mode, unmanaged MCP already present in a
@@ -213,9 +224,24 @@ cargo run -- install --providers codex
 cargo run -- install --providers gemini
 cargo run -- install --providers claude
 cargo run -- install --providers codex,gemini
+cargo run -- baseline --providers codex,gemini
 cargo run -- install --providers codex,gemini,claude
 cargo run -- install --providers codex,gemini --preset light
+cargo run -- sync --providers codex,gemini --preset full
 cargo run -- install --providers codex,gemini,claude --preset full
+cargo run -- install --providers codex,gemini,claude --preset orchestrator
+cargo run -- probe --providers codex,gemini,claude --preset normal
+```
+
+The orchestrator lane also ships thin workflow gates:
+
+```bash
+llm-bootstrap internal task-state begin --title "Review auth flow" --providers codex,gemini,claude --preset orchestrator --phase execute
+llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json
+llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify
+llm-bootstrap internal task-state advance --increment-attempt --failure "verification still failing"
+llm-bootstrap internal task-state advance --investigation-note "isolated flaky fixture and captured failing trace"
+llm-bootstrap internal gate apply --target-phase ship --json
 ```
 
 `doctor --json` now exposes both the requested preset state and the last
@@ -241,8 +267,12 @@ aliases over pack groups.
   - `delivery-pack`, `incident-pack`
 - `full`
   - `delivery-pack`, `incident-pack`, `founder-pack`, `ops-pack`
+- `orchestrator`
+  - `delivery-pack`, `incident-pack`, `team-pack`
 - `company`
   - `founder-pack`, `ops-pack`
+- `review-automation`
+  - `review-automation-pack`
 
 `company` and `full` now render actual company-operation assets into the
 provider-native surfaces, not just metadata.
@@ -261,8 +291,11 @@ Examples:
 ```bash
 cargo run -- install --providers codex,gemini --preset normal
 cargo run -- install --providers codex,gemini,claude --preset full
+cargo run -- install --providers codex,gemini,claude --preset orchestrator
 cargo run -- doctor --providers codex,gemini --preset company --json
 cargo run -- record --type project --title "MVP scope" --next-action "create first issue"
+cargo run -- internal task-state begin --title "Build auth flow" --phase execute --owner codex --next-action "capture resumable record"
+cargo run -- record --type task --title "Build auth flow" --from-task-state
 cargo run -- record --type task --title "Build auth flow" --surface both --github-repo owner/repo
 ```
 
@@ -299,6 +332,14 @@ composition, not just a document bundle.
     - Codex: development and company skills
     - Gemini: development and company commands
     - Claude: development and company skills
+- `orchestrator`
+  - packs: `delivery-pack`, `incident-pack`, `team-pack`
+  - connector apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - surfaces:
+    - Codex: delivery, incident, and team skills
+    - Gemini: delivery, incident, and team commands
+    - Claude: delivery, incident, and team skills
 - `company`
   - packs: `founder-pack`, `ops-pack`
   - connector apps: `linear`, `gmail`, `calendar`, `drive`, `figma`, `stitch`
@@ -307,6 +348,15 @@ composition, not just a document bundle.
     - Codex: company skills
     - Gemini: company commands
     - Claude: company skills
+- `review-automation`
+  - packs: `review-automation-pack`
+  - connector apps: `github`, `linear`
+  - MCP: `chrome-devtools`, `context7`
+  - automations: `pr-review-gate`, `release-readiness-gate`
+  - surfaces:
+    - Codex: `review-automation-skills`
+    - Gemini: `review-automation-commands`
+    - Claude: `review-automation-skills`
 
 `doctor --json` exposes the same pack mapping directly. It now also records the
 installed preset state per provider, including connectors, automations,
@@ -315,15 +365,30 @@ surfaces, and pack-projected managed paths.
 Runtime boundaries:
 
 - app connector auth is owned by the provider runtime and reported as `runtime-managed`
-- automation contracts are rendered into installed state, while recurring scheduler registration remains runtime-managed
+- runtime scheduler automation contracts are rendered into installed state, while recurring scheduler registration remains runtime-managed
+- repo automation contracts are rendered into installed state, while repository workflow and branch protection registration remain repo-managed
 
 `doctor --json` now also exposes runtime handoff hints for active connectors and
 automations:
 
 - connectors: `runtime_owner`, `verification_mode`, `connection_status`, `next_step`
-- automations: `scheduler_owner`, `registration_status`, `next_step`
+- automations: `lane`, `scheduler_owner`, `registration_status`, `next_step`
 - runtime queue: `runtime_handoff.connector_queue`, `runtime_handoff.automation_queue`, `runtime_handoff.next_steps`
+- repo automation queue: `runtime_handoff.repo_automation_queue`, `runtime_handoff.pending_repo_registration_count`
 - records: `active_record_templates`, `record_templates`, `record_readiness`
+
+Optional repo automation scaffolding:
+
+```bash
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-required-check check --release-required-check "check,pr-review-gate / gate"
+```
+
+This writes `.github/workflows/pr-review-gate.yml`,
+`.github/workflows/release-readiness-gate.yml`,
+`.github/llm-bootstrap/BRANCH_PROTECTION.md`, and
+`.github/PULL_REQUEST_TEMPLATE.md` into the target repository without making
+repo-level workflow generation part of the default home bootstrap path.
 
 Mode examples:
 

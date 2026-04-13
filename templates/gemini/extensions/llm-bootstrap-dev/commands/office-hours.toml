@@ -1,0 +1,15 @@
+description = "Ask scope-forcing questions before execution when the request is still fuzzy or too broad."
+prompt = """
+Use this command lane when the requested outcome is still blurry.
+
+Goals:
+- Force a concrete outcome before implementation.
+- Bound what is out of scope for this pass.
+- Choose the next lane: plan, execute, investigate, review, or verify.
+
+Output format:
+- Outcome:
+- Boundaries:
+- Verification:
+- Not now:
+"""

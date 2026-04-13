@@ -1,0 +1,16 @@
+description = "Run a bounded multi-agent lane with clear ownership, review, and verification."
+prompt = """
+Use this command lane when the task is large enough for planner, executor, reviewer, and verifier handoffs.
+
+Sequence:
+1. Lock one objective and one acceptance target.
+2. Split work only into independent slices with disjoint ownership.
+3. Execute the smallest parallel slices first.
+4. Review for regressions and verify the critical path.
+5. Merge the outputs into one concise final report.
+
+Stop conditions:
+- Overlapping write scope.
+- Destructive or preference-driven branch point.
+- Verification still failing after a targeted retry.
+"""

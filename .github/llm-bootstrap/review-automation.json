@@ -1,0 +1,17 @@
+{
+  "managed_by": "llm-bootstrap",
+  "default_branch": "main",
+  "pr_review_gate": {
+    "required_checks": ["check"],
+    "required_checklist": [
+      "review",
+      "qa",
+      "verify"
+    ],
+    "minimum_approvals": 1
+  },
+  "release_readiness_gate": {
+    "required_checks": ["check","pr-review-gate / gate"],
+    "require_default_branch_ancestor": true
+  }
+}
