@@ -5,8 +5,8 @@
   "description": "Development baseline extension for Gemini CLI on macOS.",
   "author": "jukqaz",
   "license": "MIT",
-  "homepage": "https://github.com/jukqaz/stackpilot",
-  "sourceUrl": "https://github.com/jukqaz/stackpilot",
+  "homepage": "https://github.com/jukqaz/stack-pilot",
+  "sourceUrl": "https://github.com/jukqaz/stack-pilot",
   "contextFileName": "GEMINI.md",
   "excludeTools": [
     "run_shell_command(rm -rf *)",

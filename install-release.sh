@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_SLUG="${STACKPILOT_REPO:-jukqaz/stackpilot}"
+REPO_SLUG="${STACKPILOT_REPO:-jukqaz/stack-pilot}"
 VERSION="${STACKPILOT_VERSION:-latest}"
 DOWNLOAD_BASE_URL="${STACKPILOT_DOWNLOAD_BASE_URL:-}"
 

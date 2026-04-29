@@ -16,21 +16,21 @@ integration.
 
 ## Install
 
-Current release: `v0.3.0`
+Current release: `v0.3.1`
 
 Default path: run the wizard first.
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | bash
 ```
 
 Release assets:
-- [GitHub Releases](https://github.com/jukqaz/stackpilot/releases)
+- [GitHub Releases](https://github.com/jukqaz/stack-pilot/releases)
 
 Direct non-interactive install is still available:
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | bash -s -- --providers codex,gemini
 ```
 
 ## Documentation
@@ -159,14 +159,14 @@ cargo run -- install --without-rtk
 Fastest path on macOS or Linux:
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | bash
 ```
 
 Recommended for end users: use the release archive and run the bundled binary or
 wrapper scripts. This path does not require Rust.
 
 1. Download the latest archive from
-   [GitHub Releases](https://github.com/jukqaz/stackpilot/releases).
+   [GitHub Releases](https://github.com/jukqaz/stack-pilot/releases).
 2. Extract it.
 3. Run either:
 
@@ -185,15 +185,15 @@ or:
 To pin a specific release with the curl installer:
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | \
-  STACKPILOT_VERSION=v0.3.0 bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | \
+  STACKPILOT_VERSION=v0.3.1 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
 
 ```bash
-git clone https://github.com/jukqaz/stackpilot.git
-cd stackpilot
+git clone https://github.com/jukqaz/stack-pilot.git
+cd stack-pilot
 ./install.sh
 ```
 

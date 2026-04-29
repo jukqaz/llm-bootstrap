@@ -10,21 +10,21 @@ bootstrap umbrella다.
 
 ## 설치
 
-현재 release: `v0.3.0`
+현재 release: `v0.3.1`
 
 기본 경로는 wizard 실행이다.
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | bash
 ```
 
 release 자산:
-- [GitHub Releases](https://github.com/jukqaz/stackpilot/releases)
+- [GitHub Releases](https://github.com/jukqaz/stack-pilot/releases)
 
 비대화식 설치가 필요하면 이렇게 실행한다.
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | bash -s -- --providers codex,gemini
 ```
 
 ## 릴리스 규칙
@@ -104,12 +104,12 @@ Codex plugin 개념을 Gemini/Claude에 그대로 복제하지 않는다.
 가장 빠른 설치 경로:
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | bash
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | bash
 ```
 
 일반 사용자에게는 release archive 설치가 더 낫다. 이 경로는 Rust가 필요 없다.
 
-1. [GitHub Releases](https://github.com/jukqaz/stackpilot/releases)에서 최신 압축 파일을 받는다.
+1. [GitHub Releases](https://github.com/jukqaz/stack-pilot/releases)에서 최신 압축 파일을 받는다.
 2. 압축을 푼다.
 3. 다음 둘 중 하나로 실행한다.
 
@@ -128,15 +128,15 @@ curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install
 특정 release를 고정해서 설치하려면:
 
 ```bash
-curl -fsSL https://github.com/jukqaz/stackpilot/releases/latest/download/install-release.sh | \
-  STACKPILOT_VERSION=v0.3.0 bash -s -- --providers codex,gemini
+curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | \
+  STACKPILOT_VERSION=v0.3.1 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.
 
 ```bash
-git clone https://github.com/jukqaz/stackpilot.git
-cd stackpilot
+git clone https://github.com/jukqaz/stack-pilot.git
+cd stack-pilot
 ./install.sh
 ```
 
