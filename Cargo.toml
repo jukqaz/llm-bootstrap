@@ -1,7 +1,8 @@
 [package]
 name = "stackpilot"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2024"
+default-run = "stack-pilot"
 
 [[bin]]
 name = "stack-pilot"

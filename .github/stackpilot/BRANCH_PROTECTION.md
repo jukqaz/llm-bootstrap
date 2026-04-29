@@ -23,7 +23,6 @@ Repo-specific checks currently configured:
 Before tagging or shipping, run `release-readiness-gate` and keep these checks green:
 
 - `check`
-- `pr-review-gate / gate`
 
 ## Pull request checklist
 

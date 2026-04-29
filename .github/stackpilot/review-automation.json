@@ -11,7 +11,7 @@
     "minimum_approvals": 1
   },
   "release_readiness_gate": {
-    "required_checks": ["check","pr-review-gate / gate"],
+    "required_checks": ["check"],
     "require_default_branch_ancestor": true
   }
 }

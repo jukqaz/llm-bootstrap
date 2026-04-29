@@ -16,7 +16,7 @@ integration.
 
 ## Install
 
-Current release: `v0.3.3`
+Current release: `v0.3.4`
 
 Default path: run the wizard first.
 
@@ -186,7 +186,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | \
-  STACKPILOT_VERSION=v0.3.3 bash -s -- --providers codex,gemini
+  STACKPILOT_VERSION=v0.3.4 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
@@ -413,7 +413,7 @@ Optional repo automation scaffolding:
 
 ```bash
 cargo run -- internal repo-automation scaffold --repo-root /path/to/repo
-cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-required-check check --release-required-check "check,pr-review-gate / gate"
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-required-check check --release-required-check check
 ```
 
 This writes `.github/workflows/pr-review-gate.yml`,

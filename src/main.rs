@@ -378,7 +378,7 @@ fn repo_automation_scaffold_with(
     let template_root = repo_root().join("templates/repo-automation/github");
     let pr_required_checks = normalize_repo_check_names(&args.pr_required_checks);
     let release_required_checks = if args.release_required_checks.is_empty() {
-        vec!["pr-review-gate / gate".to_string()]
+        vec!["check".to_string()]
     } else {
         normalize_repo_check_names(&args.release_required_checks)
     };
@@ -6418,6 +6418,35 @@ mod tests {
         let pr_template =
             fs::read_to_string(repo.join(".github/PULL_REQUEST_TEMPLATE.md")).unwrap();
         assert!(pr_template.contains("- [ ] review"));
+
+        fs::remove_dir_all(repo).unwrap();
+    }
+
+    #[test]
+    fn repo_automation_scaffold_defaults_release_checks_to_ci_check() {
+        let repo = temp_home();
+        let args = crate::cli::RepoAutomationScaffoldArgs {
+            repo_root: repo.clone(),
+            pr_required_checks: vec!["check".to_string()],
+            release_required_checks: vec![],
+            minimum_approvals: 1,
+            default_branch: "main".to_string(),
+            force: false,
+            dry_run: false,
+            json: false,
+        };
+
+        let report = super::repo_automation_scaffold_with(&repo, args).unwrap();
+
+        assert_eq!(report.pr_required_checks, vec!["check".to_string()]);
+        assert_eq!(report.release_required_checks, vec!["check".to_string()]);
+        let config =
+            fs::read_to_string(repo.join(".github/stackpilot/review-automation.json")).unwrap();
+        let config: serde_json::Value = serde_json::from_str(&config).unwrap();
+        assert_eq!(
+            config["release_readiness_gate"]["required_checks"],
+            serde_json::json!(["check"])
+        );
 
         fs::remove_dir_all(repo).unwrap();
     }

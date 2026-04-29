@@ -10,7 +10,7 @@ bootstrap umbrella다.
 
 ## 설치
 
-현재 release: `v0.3.3`
+현재 release: `v0.3.4`
 
 기본 경로는 wizard 실행이다.
 
@@ -129,7 +129,7 @@ curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/instal
 
 ```bash
 curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | \
-  STACKPILOT_VERSION=v0.3.3 bash -s -- --providers codex,gemini
+  STACKPILOT_VERSION=v0.3.4 bash -s -- --providers codex,gemini
 ```
 
 소스 기반 개발이 필요할 때만 저장소를 clone해서 실행하면 된다.
@@ -354,7 +354,7 @@ runtime 경계:
 
 ```bash
 cargo run -- internal repo-automation scaffold --repo-root /path/to/repo
-cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-required-check check --release-required-check "check,pr-review-gate / gate"
+cargo run -- internal repo-automation scaffold --repo-root /path/to/repo --pr-required-check check --release-required-check check
 ```
 
 이 명령은 target repo에 `.github/workflows/pr-review-gate.yml`,
