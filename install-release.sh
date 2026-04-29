@@ -6,7 +6,7 @@ VERSION="${STACKPILOT_VERSION:-latest}"
 DOWNLOAD_BASE_URL="${STACKPILOT_DOWNLOAD_BASE_URL:-}"
 
 log() {
-  printf '[stackpilot] %s\n' "$*"
+  printf '[stackpilot] %s\n' "$*" >&2
 }
 
 fail() {
