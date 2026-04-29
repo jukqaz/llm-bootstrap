@@ -27,6 +27,9 @@ jobs:
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
+      - name: Release installer syntax
+        run: bash -n install-release.sh
+
       - name: Upload release installer
         env:
           GH_TOKEN: ${{ github.token }}
@@ -76,6 +79,15 @@ jobs:
           shasum -a 256 "dist/${package_root}.tar.gz" > "dist/${package_root}.tar.gz.sha256"
           cp "dist/${package_root}.tar.gz" "dist/${latest_archive}"
           shasum -a 256 "dist/${latest_archive}" > "$latest_checksum"
+
+      - name: Smoke packaged binaries
+        run: |
+          package_root="stackpilot-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          "dist/${package_root}/stack-pilot" --version
+          "dist/${package_root}/sp" --version
+          bash -n "dist/${package_root}/install.sh"
+          bash -n "dist/${package_root}/uninstall.sh"
+          bash -n "dist/${package_root}/install-release.sh"
 
       - name: Upload release assets
         env:

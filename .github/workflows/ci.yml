@@ -29,17 +29,22 @@ jobs:
         run: |
           bash -n install.sh
           bash -n uninstall.sh
+          bash -n install-release.sh
+
+      - name: Release installer stdout smoke
+        run: bash tools/smoke-release-installer-stdout.sh
 
       - name: Format
         run: cargo fmt --check
 
       - name: Help smoke
         run: |
-          cargo run --quiet -- --help
-          cargo run --quiet -- install --help
-          cargo run --quiet -- uninstall --help
-          cargo run --quiet -- doctor --help
-          cargo run --quiet -- wizard --help
+          cargo run --quiet --bin stack-pilot -- --help
+          cargo run --quiet --bin stack-pilot -- install --help
+          cargo run --quiet --bin stack-pilot -- uninstall --help
+          cargo run --quiet --bin stack-pilot -- doctor --help
+          cargo run --quiet --bin stack-pilot -- wizard --help
+          cargo run --quiet --bin sp -- --version
 
       - name: Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
