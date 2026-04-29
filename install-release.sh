@@ -83,12 +83,12 @@ verify_checksum() {
   ' "$checksum_file" > "$normalized_checksum"
 
   if command -v shasum >/dev/null 2>&1; then
-    (cd "$(dirname "$archive")" && shasum -a 256 -c "$(basename "$normalized_checksum")")
+    (cd "$(dirname "$archive")" && shasum -a 256 -c "$(basename "$normalized_checksum")" >&2)
     return
   fi
 
   if command -v sha256sum >/dev/null 2>&1; then
-    (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$normalized_checksum")")
+    (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$normalized_checksum")" >&2)
     return
   fi
 
