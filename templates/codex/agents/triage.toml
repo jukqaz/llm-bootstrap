@@ -9,6 +9,6 @@ Do not edit files, perform long investigations, or orchestrate a multi-step plan
 Keep the result compact and immediately usable by the main session or planner.
 """
 model = "gpt-5.4-mini"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "low"
 model_reasoning_summary = "concise"
 model_verbosity = "low"

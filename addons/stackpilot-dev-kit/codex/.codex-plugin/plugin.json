@@ -1,0 +1,38 @@
+{
+  "name": "stackpilot-dev-kit",
+  "version": "0.1.0",
+  "description": "Development helpers for Codex home bootstrap.",
+  "author": {
+    "name": "jukqaz",
+    "email": "noreply@example.com",
+    "url": "https://github.com/jukqaz"
+  },
+  "homepage": "https://github.com/jukqaz/stackpilot",
+  "repository": "https://github.com/jukqaz/stackpilot",
+  "license": "MIT",
+  "keywords": [
+    "development",
+    "bootstrap"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "StackPilot Dev Kit",
+    "shortDescription": "Development skill bundle for Codex.",
+    "longDescription": "Provides reusable development skills for Codex bootstrap homes without duplicating global MCP setup.",
+    "developerName": "jukqaz",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/jukqaz/stackpilot",
+    "privacyPolicyURL": "https://github.com/jukqaz/stackpilot",
+    "termsOfServiceURL": "https://github.com/jukqaz/stackpilot",
+    "defaultPrompt": [
+      "Scan this repo and tell me the safest execution lane.",
+      "Run the smallest credible verification set for my change.",
+      "Use Context7 for latest docs before writing code."
+    ],
+    "brandColor": "#0F766E"
+  }
+}

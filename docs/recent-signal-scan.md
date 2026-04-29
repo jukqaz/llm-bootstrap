@@ -1,10 +1,10 @@
 # Recent Signal Scan
 
-As of: `2026-04-09`
+As of: `2026-04-13`
 
 This document captures recent signals from `X`, `Reddit`, `Hacker News`,
 `GitHub`, and official product blogs, then translates them into
-`llm-bootstrap` design implications.
+`StackPilot` design implications.
 
 The goal is not to record every noisy trend.
 The goal is to separate recurring patterns that are actually relevant to future
@@ -41,8 +41,10 @@ Implication:
 
 #### 2. The terminal coding-agent field is widening
 
-- OpenCode promoted `OpenCode Go` on `2026-02-25` as a low-cost agentic coding
-  lane
+- The OpenCode line promoted `OpenCode Go` on `2026-02-25` as a low-cost
+  agentic coding lane
+- But as of `2026-04-13`, `opencode-ai/opencode` is archived on GitHub and
+  points users to `charmbracelet/crush` as the maintained successor
 - JetBrains announced `Junie CLI` early access on `2026-02-05`
 
 Implication:
@@ -78,14 +80,17 @@ Implication:
 
 - multi-agent value is shifting from “more roles” to “better handoff and shared
   resource models”
-- `llm-bootstrap` should prioritize harness contracts and context strategy over
+- `StackPilot` should prioritize harness contracts and context strategy over
   role-count inflation
 
 #### 3. Local and open-source coding stacks are actively tested, but uneven
 
-- On `2026-04-06`, OpenCode with self-hosted models drew strong attention
+- On `2026-04-06`, the OpenCode line with self-hosted models drew strong
+  attention
 - At the same time, Reddit complaints about Goose and OpenCode instability and
   token opacity keep appearing
+- That makes `Crush` the better current runtime reference, while `OpenCode`
+  remains a historical signal
 
 Implication:
 
@@ -162,7 +167,7 @@ Implication:
   and evaluation catalogs
 - for now, those stay advanced references, not core bootstrap behavior
 
-## What This Changes For llm-bootstrap
+## What This Changes For stackpilot
 
 ### Signals to absorb now
 
@@ -208,7 +213,6 @@ The more important structural trends are these:
 - represent workflows as data and contracts
 - separate runtime from control plane
 
-So the correct move for `llm-bootstrap` is not to stuff every trendy tool into
+So the correct move for `StackPilot` is not to stuff every trendy tool into
 the product. It is to absorb trend structure into the source catalog, then map
 it into `core`, `optional`, and `advanced` lanes deliberately.
-

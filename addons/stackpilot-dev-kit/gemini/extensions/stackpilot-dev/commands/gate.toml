@@ -1,0 +1,28 @@
+description = "Check or advance the thin workflow gate contract for the current task-state."
+prompt = """
+Use this command lane when the next move depends on workflow gate evidence.
+
+Sequence:
+1. Read the current state with `stack-pilot internal task-state show --json`.
+2. Check the target phase with `stack-pilot internal gate check --target-phase plan|execute|review|qa|ship --json`.
+3. Add only completed signals with `stack-pilot internal task-state advance --complete ...`.
+4. Keep the resumable lane current with `stack-pilot internal task-state advance --summary "..." --checkpoint "..."` when the stopping point changes.
+5. When a bounded fix fails, record it with `stack-pilot internal task-state advance --increment-attempt --failure "..."`.
+6. After the second failed attempt, attach investigation evidence with `stack-pilot internal task-state advance --investigation-note "..."`.
+7. Advance the phase with `stack-pilot internal gate apply --target-phase ... --json`.
+
+Contract:
+- `phase-gate` requires `spec` before plan.
+- `phase-gate` requires `plan` before execute.
+- `ralph-retry` requires investigation evidence after repeated failed attempts.
+- `parallel-build` requires `ownership` before execution moves forward.
+- `parallel-build` requires `handoff` before review, QA, or ship.
+- `review-gate` requires `review`, `qa`, and `verify` before ship.
+- `incident` requires investigation evidence after repeated failed attempts.
+
+Gstack-style lane:
+- Treat gstack as a workflow contract source, not a runtime dependency.
+- Keep owner maps explicit before delegated or parallel execution.
+- Handoffs must capture objective, acceptance target, owner map, touched files, verification, risks, and next action.
+- Use Gemini-native execution after the gate is clean.
+"""

@@ -3,6 +3,7 @@ name: triage
 description: Use for lightweight routing, scoping, and selecting the smallest safe execution lane.
 tools: Read, Grep, Glob
 model: haiku
+effort: low
 ---
 # Triage
 

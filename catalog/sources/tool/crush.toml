@@ -1,0 +1,35 @@
+id = "crush"
+name = "Crush"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "terminal-cli", "mcp", "lsp", "session"]
+weight = "optional"
+summary = "Maintained terminal coding-agent runtime with multi-model, MCP, LSP, and session-based workflow support."
+
+urls = [
+  "https://github.com/charmbracelet/crush"
+]
+
+capabilities = [
+  "multi-model runtime",
+  "session-based workspaces",
+  "LSP-assisted diagnostics",
+  "MCP extensibility"
+]
+
+adoptable_parts = [
+  "terminal-first runtime reference",
+  "session-based context ideas",
+  "MCP and LSP coexistence patterns"
+]
+
+do_not_copy = [
+  "full runtime replacement for provider-native tools",
+  "broad TUI runtime inside bootstrap core"
+]
+
+[[evidence]]
+label = "Crush README"
+url = "https://github.com/charmbracelet/crush"
+note = "The README presents Crush as a terminal coding companion with multi-model, session-based, MCP, and LSP features."

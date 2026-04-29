@@ -1,0 +1,154 @@
+# managed by stackpilot
+name: release-readiness-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref, branch, tag, or sha to validate
+        required: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  checks: read
+  statuses: read
+
+concurrency:
+  group: release-readiness-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gate config
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            .github/stackpilot/review-automation.json
+          sparse-checkout-cone-mode: false
+
+      - name: Resolve target ref
+        id: target
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.ref }}" ]; then
+            echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate release readiness
+        id: verify
+        uses: actions/github-script@v8
+        env:
+          TARGET_REF: ${{ steps.target.outputs.ref }}
+        with:
+          script: |
+            const fs = require('node:fs');
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const configPath = '.github/stackpilot/review-automation.json';
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            const targetRef = process.env.TARGET_REF;
+            const requiredChecks = config.release_readiness_gate.required_checks || [];
+            const defaultBranch = config.default_branch || 'main';
+            const failures = [];
+
+            function isTerminalSuccess(value) {
+              return ['success', 'neutral', 'skipped'].includes(String(value || '').toLowerCase());
+            }
+
+            function isPending(value) {
+              return ['queued', 'in_progress', 'pending', 'requested', 'waiting'].includes(String(value || '').toLowerCase());
+            }
+
+            async function collectCheckStates(ref) {
+              const states = new Map();
+              const checkRunsResponse = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref,
+                per_page: 100,
+              });
+              for (const run of checkRunsResponse.data.check_runs) {
+                states.set(run.name, run.conclusion || run.status);
+              }
+              const statusesResponse = await github.rest.repos.listCommitStatusesForRef({
+                owner,
+                repo,
+                ref,
+                per_page: 100,
+              });
+              for (const status of statusesResponse.data) {
+                states.set(status.context, status.state);
+              }
+              return states;
+            }
+
+            async function waitForRequiredChecks(ref, checks) {
+              let lastPending = [];
+              for (let attempt = 1; attempt <= 40; attempt += 1) {
+                const states = await collectCheckStates(ref);
+                const failed = [];
+                const pending = [];
+                for (const name of checks) {
+                  const state = states.get(name);
+                  if (isTerminalSuccess(state)) {
+                    continue;
+                  }
+                  if (!state || isPending(state)) {
+                    pending.push(`${name} (${state || 'missing'})`);
+                    continue;
+                  }
+                  failed.push(`${name} (${state})`);
+                }
+                if (failed.length > 0) {
+                  return { ok: false, failures: failed };
+                }
+                if (pending.length === 0) {
+                  return { ok: true, failures: [] };
+                }
+                lastPending = pending;
+                core.notice(`waiting for release checks on ${ref}: ${pending.join(', ')} (attempt ${attempt}/40)`);
+                await new Promise((resolve) => setTimeout(resolve, 15000));
+              }
+              return { ok: false, failures: [`timed out waiting for required checks: ${lastPending.join(', ')}`] };
+            }
+
+            const commitResponse = await github.rest.repos.getCommit({
+              owner,
+              repo,
+              ref: targetRef,
+            });
+            const targetSha = commitResponse.data.sha;
+            core.setOutput('target_sha', targetSha);
+            core.setOutput('default_branch', defaultBranch);
+
+            if (requiredChecks.length > 0) {
+              const checkResult = await waitForRequiredChecks(targetSha, requiredChecks);
+              if (!checkResult.ok) {
+                failures.push(...checkResult.failures);
+              }
+            }
+
+            if (failures.length > 0) {
+              core.setFailed(failures.map((item, index) => `${index + 1}. ${item}`).join('\n'));
+              return;
+            }
+
+            core.notice(`release readiness gate passed for ${targetRef} (${targetSha})`);
+
+      - name: Confirm target is reachable from default branch
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ steps.verify.outputs.default_branch }}
+          TARGET_SHA: ${{ steps.verify.outputs.target_sha }}
+        run: |
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          git merge-base --is-ancestor "$TARGET_SHA" "origin/$DEFAULT_BRANCH"

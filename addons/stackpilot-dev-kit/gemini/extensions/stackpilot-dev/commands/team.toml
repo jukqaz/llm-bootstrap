@@ -1,0 +1,46 @@
+description = "Run a bounded gstack-style team lane with ownership, handoff, review, and verification gates."
+prompt = """
+Use this command lane when the task is large enough for planner, executor, reviewer, and verifier handoffs.
+This is a workflow contract over Gemini-native execution, not a separate worker runtime.
+
+Task:
+$ARGUMENTS
+
+Pipeline:
+1. team-plan: lock one objective, the critical lane, and the smallest acceptance target.
+2. team-scope: clarify requirements only when acceptance criteria or boundaries are missing.
+3. team-exec: split work only into independent slices with disjoint ownership.
+4. team-verify: keep reviewer and verifier outside the write-owner path.
+5. team-fix: run one targeted fix pass for failed gates, then verify again.
+6. Finalize with one concise evidence report.
+
+Gate contract:
+- Before execution, record spec, plan, and ownership when parallel-build is active.
+- Before review, QA, or ship, record handoff.
+- Before ship, record review, qa, and verify.
+- After a second failed attempt, add investigation evidence instead of retrying blindly.
+
+Handoff:
+- Before each stage transition, write a 10-20 line handoff in the conversation or operating record.
+- Include decisions, rejected options, risks, touched files, and remaining work.
+- If durable resume is needed, use `stack-pilot internal task-state` or `record-work`.
+
+Useful gate commands:
+- stack-pilot internal task-state advance --complete spec,plan,ownership
+- stack-pilot internal gate check --target-phase execute --json
+- stack-pilot internal task-state advance --complete handoff,review,qa,verify
+- stack-pilot internal gate check --target-phase ship --json
+
+Stop conditions:
+- Overlapping write scope.
+- Destructive or preference-driven branch point.
+- Verification still failing after a targeted retry.
+
+Final report:
+- Pipeline Summary
+- Ownership
+- Stage Results
+- Work Completed
+- Validation
+- Open Items
+"""

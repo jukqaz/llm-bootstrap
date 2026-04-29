@@ -2,7 +2,8 @@
 name: verifier
 description: Use for acceptance checks, proof of completion, and focused verification reruns.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: sonnet[1m]
+effort: high
 ---
 # Verifier
 

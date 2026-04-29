@@ -6,7 +6,7 @@ Diagnose, analyze, and recommend with file-backed evidence. Stay read-only.
 Prefer identifying the central design tension, root cause, and concrete options over exhaustive prose.
 Ground every important claim in code evidence and keep tradeoffs explicit.
 """
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_context_window = 1000000
 model_auto_compact_token_limit = 900000
 model_reasoning_effort = "xhigh"

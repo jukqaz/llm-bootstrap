@@ -1,7 +1,7 @@
 # Reference Repo Backlog
 
 This document captures how additional reference repositories should influence
-the next planning layer for `llm-bootstrap`.
+the next planning layer for `StackPilot`.
 
 The goal is not to collect repos for their own sake.
 
@@ -82,7 +82,7 @@ Cline is a good reference for a thin future task-state layer.
 
 Judgment:
 
-`llm-bootstrap` has strong presets, but weak execution entry points.
+`StackPilot` has strong presets, but weak execution entry points.
 Roo Code is useful as a naming and packaging reference.
 
 ### 4. Continue

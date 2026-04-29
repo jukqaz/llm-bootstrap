@@ -5,17 +5,19 @@ use crate::fs_ops::{
     create_backup_root, remove_if_exists, resolve_backup_root, restore_named_entry,
     restore_relative,
 };
-use crate::json_ops::{cleanup_claude_settings, read_json_or_empty};
+use crate::json_ops::{cleanup_claude_settings, read_json_or_empty, write_json_pretty};
 use crate::layout::{
     CLAUDE_LEGACY_CLEANUP_PATHS, all_claude_harness_doc_paths, all_claude_skill_paths,
     claude_harness_doc_paths, claude_managed_paths_for, claude_skill_paths,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
+use crate::repo_assets::stackpilot_dev_kit_claude_repo_root;
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
 use crate::state::{managed_mcp_names, read_installed_state, write_installed_state};
 use anyhow::{Context, Result, bail};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 const CLAUDE_MANAGED_PATHS: &[&str] = &[
@@ -27,11 +29,14 @@ const CLAUDE_MANAGED_PATHS: &[&str] = &[
     "OPERATING_REVIEW.md",
     "CONNECTORS.md",
     "AUTOMATIONS.md",
+    "ENTRYPOINTS.md",
     "WORKFLOW.md",
     "SHIP_CHECKLIST.md",
     "OFFICE_HOURS.md",
     "INVESTIGATE.md",
     "AUTOPILOT.md",
+    "TEAM.md",
+    "REVIEW_AUTOMATION.md",
     "RETRO.md",
     "REVIEW.md",
     "QA.md",
@@ -39,11 +44,12 @@ const CLAUDE_MANAGED_PATHS: &[&str] = &[
     "settings.json",
     "RTK.md",
     "hooks/rtk-rewrite.sh",
-    "llm-bootstrap-state.json",
+    "stackpilot-state.json",
 ];
 
 const CLAUDE_MANAGED_SKILL_PATHS: &[&str] = &[
     "skills/autopilot",
+    "skills/deep-init",
     "skills/ralph-plan",
     "skills/founder-loop",
     "skills/investigate",
@@ -53,6 +59,31 @@ const CLAUDE_MANAGED_SKILL_PATHS: &[&str] = &[
     "skills/ship",
     "skills/retro",
     "skills/office-hours",
+    "skills/workflow-gate",
+    "skills/team",
+    "skills/ultrawork",
+    "skills/review-automation",
+];
+
+const CLAUDE_BASELINE_PERMISSION_DENY: &[&str] = &[
+    "Read(./.env)",
+    "Read(./.env.*)",
+    "Read(./secrets/**)",
+    "Read(./**/secrets/**)",
+    "Bash(rm -rf *)",
+    "Bash(git reset --hard *)",
+    "Bash(git checkout -- *)",
+    "Bash(git clean -fdx *)",
+    "Bash(git push --force*)",
+];
+
+const CLAUDE_BASELINE_PERMISSION_ASK: &[&str] = &[
+    "Bash(git push *)",
+    "Bash(curl *)",
+    "Bash(wget *)",
+    "Bash(ssh *)",
+    "Bash(kubectl *)",
+    "Bash(terraform apply*)",
 ];
 
 pub(crate) fn doctor_checks(
@@ -113,6 +144,7 @@ pub(crate) fn install(
 
     let root = home.join(".claude");
     let template_root = repo_root().join("templates/claude");
+    let addon_root = stackpilot_dev_kit_claude_repo_root();
     fs::create_dir_all(root.join("scripts"))?;
     fs::create_dir_all(root.join("hooks"))?;
 
@@ -142,11 +174,13 @@ pub(crate) fn install(
 
     if rtk_enabled {
         run_rtk_init(home)?;
+        write_rtk_rewrite_hook(&root)?;
     } else {
         remove_if_exists(&root.join("RTK.md"))?;
         remove_if_exists(&root.join("hooks/rtk-rewrite.sh"))?;
         cleanup_claude_settings(&root.join("settings.json"), true)?;
     }
+    sync_claude_settings(&root, mode, rtk_enabled)?;
 
     copy_render_file_with_extras(
         &template_root.join("CLAUDE.md"),
@@ -176,7 +210,7 @@ pub(crate) fn install(
             remove_if_exists(&root.join(relative))?;
         }
         copy_render_relative_entries(
-            &template_root,
+            &addon_root,
             &root,
             &claude_skill_paths(active_surfaces),
             home,
@@ -188,6 +222,7 @@ pub(crate) fn install(
     }
 
     sync_baseline_mcp(home, &root, enabled_mcp)?;
+    sync_claude_settings(&root, mode, rtk_enabled)?;
 
     println!("[claude] installed {} ({})", root.display(), mode.name());
     Ok(())
@@ -250,9 +285,7 @@ pub(crate) fn uninstall(
         }
         remove_if_exists(&root.join(relative))?;
     }
-    if rtk_enabled {
-        cleanup_claude_settings(&root.join("settings.json"), true)?;
-    }
+    cleanup_claude_managed_settings(&root.join("settings.json"), rtk_enabled)?;
 
     println!("[claude] uninstalled {}", root.display());
     Ok(())
@@ -327,6 +360,23 @@ fn run_rtk_init(home: &Path) -> Result<()> {
         ["init", "-g", "--auto-patch"],
         "initializing RTK for Claude Code",
     )
+}
+
+fn write_rtk_rewrite_hook(root: &Path) -> Result<()> {
+    let hook_path = root.join("hooks/rtk-rewrite.sh");
+    if let Some(parent) = hook_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    fs::write(
+        &hook_path,
+        "#!/usr/bin/env bash\nset -euo pipefail\nexec rtk hook claude\n",
+    )
+    .with_context(|| format!("failed to write {}", hook_path.display()))?;
+    fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755))
+        .with_context(|| format!("failed to set executable bit on {}", hook_path.display()))?;
+    Ok(())
 }
 
 fn run_rtk_uninstall(home: &Path) -> Result<()> {
@@ -413,6 +463,290 @@ fn remove_mcp(home: &Path, name: &str) -> Result<()> {
     }
 
     bail!("failed to remove Claude MCP {}: {}", name, stderr.trim())
+}
+
+fn sync_claude_settings(root: &Path, mode: ApplyMode, rtk_enabled: bool) -> Result<()> {
+    let path = root.join("settings.json");
+    let existing = read_json_or_empty(&path)?;
+    let mut settings = match mode {
+        ApplyMode::Merge => existing,
+        ApplyMode::Replace => json!({}),
+    };
+
+    if mode == ApplyMode::Replace && rtk_enabled {
+        settings["hooks"] = rtk_claude_hooks(root);
+    }
+
+    set_json_pointer(
+        &mut settings,
+        "/$schema",
+        json!("https://json.schemastore.org/claude-code-settings.json"),
+    );
+    set_json_pointer(&mut settings, "/autoUpdatesChannel", json!("stable"));
+    set_json_pointer(&mut settings, "/autoMemoryEnabled", json!(true));
+    set_json_pointer(&mut settings, "/awaySummaryEnabled", json!(true));
+    set_json_pointer(&mut settings, "/cleanupPeriodDays", json!(365));
+    remove_json_pointer(&mut settings, "/effortLevel");
+    set_json_pointer(
+        &mut settings,
+        "/env/CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
+        json!("1"),
+    );
+    set_json_pointer_with_merge_default(
+        &mut settings,
+        mode,
+        "/env/CLAUDE_CODE_EFFORT_LEVEL",
+        json!("max"),
+    );
+    remove_json_pointer(&mut settings, "/env/CLAUDE_CODE_DISABLE_AUTO_MEMORY");
+    set_json_pointer_with_merge_default(
+        &mut settings,
+        mode,
+        "/fastModePerSessionOptIn",
+        json!(true),
+    );
+    set_json_pointer(&mut settings, "/includeGitInstructions", json!(true));
+    set_json_pointer_with_merge_default_or_known_old(
+        &mut settings,
+        mode,
+        "/model",
+        json!("opus[1m]"),
+        &[json!("opus")],
+    );
+    set_json_pointer(&mut settings, "/permissions/defaultMode", json!("auto"));
+    set_json_pointer(&mut settings, "/showThinkingSummaries", json!(true));
+    set_json_pointer(&mut settings, "/useAutoModeDuringPlan", json!(false));
+    append_json_string_array(
+        &mut settings,
+        "/permissions/deny",
+        CLAUDE_BASELINE_PERMISSION_DENY,
+    );
+    append_json_string_array(
+        &mut settings,
+        "/permissions/ask",
+        CLAUDE_BASELINE_PERMISSION_ASK,
+    );
+
+    write_json_pretty(&path, &settings)
+}
+
+fn rtk_claude_hooks(root: &Path) -> Value {
+    json!({
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": root.join("hooks/rtk-rewrite.sh").to_string_lossy()
+                    }
+                ]
+            }
+        ]
+    })
+}
+
+fn set_json_pointer(settings: &mut Value, path: &str, value: Value) {
+    let parts = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
+    let Some((last, parents)) = parts.split_last() else {
+        return;
+    };
+
+    let mut cursor = settings;
+    for part in parents {
+        if !cursor.get(part).is_some_and(Value::is_object) {
+            cursor[part] = json!({});
+        }
+        cursor = &mut cursor[part];
+    }
+    cursor[last] = value;
+}
+
+fn set_json_pointer_with_merge_default(
+    settings: &mut Value,
+    mode: ApplyMode,
+    path: &str,
+    value: Value,
+) {
+    if mode == ApplyMode::Merge && settings.pointer(path).is_some() {
+        return;
+    }
+    set_json_pointer(settings, path, value);
+}
+
+fn set_json_pointer_with_merge_default_or_known_old(
+    settings: &mut Value,
+    mode: ApplyMode,
+    path: &str,
+    value: Value,
+    known_old_values: &[Value],
+) {
+    if mode == ApplyMode::Merge
+        && let Some(existing) = settings.pointer(path)
+        && !known_old_values.iter().any(|old| old == existing)
+    {
+        return;
+    }
+    set_json_pointer(settings, path, value);
+}
+
+fn append_json_string_array(settings: &mut Value, path: &str, values: &[&str]) {
+    let parts = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
+    let Some((last, parents)) = parts.split_last() else {
+        return;
+    };
+
+    let mut cursor = settings;
+    for part in parents {
+        if !cursor.get(part).is_some_and(Value::is_object) {
+            cursor[part] = json!({});
+        }
+        cursor = &mut cursor[part];
+    }
+
+    if !cursor.get(last).is_some_and(Value::is_array) {
+        cursor[last] = json!([]);
+    }
+    let Some(array) = cursor[last].as_array_mut() else {
+        return;
+    };
+    for value in values {
+        if !array.iter().any(|entry| entry.as_str() == Some(value)) {
+            array.push(json!(value));
+        }
+    }
+}
+
+fn cleanup_claude_managed_settings(path: &Path, rtk_enabled: bool) -> Result<()> {
+    cleanup_claude_settings(path, rtk_enabled)?;
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let mut settings = read_json_or_empty(path)?;
+    remove_json_pointer_if_equal(
+        &mut settings,
+        "/$schema",
+        &json!("https://json.schemastore.org/claude-code-settings.json"),
+    );
+    remove_json_pointer_if_equal(&mut settings, "/autoUpdatesChannel", &json!("stable"));
+    remove_json_pointer_if_equal(&mut settings, "/autoMemoryEnabled", &json!(true));
+    remove_json_pointer_if_equal(&mut settings, "/awaySummaryEnabled", &json!(true));
+    remove_json_pointer_if_equal(&mut settings, "/cleanupPeriodDays", &json!(365));
+    remove_json_pointer_if_equal(&mut settings, "/effortLevel", &json!("max"));
+    remove_json_pointer_if_equal(&mut settings, "/effortLevel", &json!("high"));
+    remove_json_pointer_if_equal(
+        &mut settings,
+        "/env/CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
+        &json!("1"),
+    );
+    remove_json_pointer_if_equal(
+        &mut settings,
+        "/env/CLAUDE_CODE_EFFORT_LEVEL",
+        &json!("max"),
+    );
+    remove_empty_object_key(&mut settings, "env");
+    remove_json_pointer_if_equal(&mut settings, "/fastModePerSessionOptIn", &json!(true));
+    remove_json_pointer_if_equal(&mut settings, "/includeGitInstructions", &json!(true));
+    remove_json_pointer_if_equal(&mut settings, "/model", &json!("opus[1m]"));
+    remove_json_pointer_if_equal(&mut settings, "/model", &json!("opus"));
+    remove_json_pointer_if_equal(&mut settings, "/model", &json!("sonnet[1m]"));
+    remove_json_pointer_if_equal(&mut settings, "/model", &json!("sonnet"));
+    remove_normalized_sonnet_1m_model(&mut settings);
+    remove_json_pointer_if_equal(&mut settings, "/permissions/defaultMode", &json!("auto"));
+    remove_json_pointer_if_equal(&mut settings, "/showThinkingSummaries", &json!(true));
+    remove_json_pointer_if_equal(&mut settings, "/useAutoModeDuringPlan", &json!(false));
+    remove_claude_permission_rules(&mut settings, "deny", CLAUDE_BASELINE_PERMISSION_DENY);
+    remove_claude_permission_rules(&mut settings, "ask", CLAUDE_BASELINE_PERMISSION_ASK);
+
+    if settings.as_object().is_some_and(|object| object.is_empty()) {
+        remove_if_exists(path)?;
+    } else {
+        write_json_pretty(path, &settings)?;
+    }
+    Ok(())
+}
+
+fn remove_empty_object_key(settings: &mut Value, key: &str) {
+    let Some(root) = settings.as_object_mut() else {
+        return;
+    };
+    if root
+        .get(key)
+        .and_then(Value::as_object)
+        .is_some_and(|object| object.is_empty())
+    {
+        root.remove(key);
+    }
+}
+
+fn remove_json_pointer(settings: &mut Value, path: &str) {
+    let parts = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
+    let Some((last, parents)) = parts.split_last() else {
+        return;
+    };
+
+    let mut cursor = settings;
+    for part in parents {
+        let Some(next) = cursor.get_mut(part) else {
+            return;
+        };
+        cursor = next;
+    }
+    if let Some(object) = cursor.as_object_mut() {
+        object.remove(*last);
+    }
+}
+
+fn remove_json_pointer_if_equal(settings: &mut Value, path: &str, expected: &Value) {
+    if settings.pointer(path) != Some(expected) {
+        return;
+    }
+    let parts = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
+    let Some((last, parents)) = parts.split_last() else {
+        return;
+    };
+
+    let mut cursor = settings;
+    for part in parents {
+        let Some(next) = cursor.get_mut(part) else {
+            return;
+        };
+        cursor = next;
+    }
+    if let Some(object) = cursor.as_object_mut() {
+        object.remove(*last);
+    }
+}
+
+fn remove_normalized_sonnet_1m_model(settings: &mut Value) {
+    let is_normalized_sonnet_1m = settings
+        .get("model")
+        .and_then(Value::as_str)
+        .is_some_and(|model| model.starts_with("sonnet-") && model.ends_with("[1m]"));
+    if is_normalized_sonnet_1m {
+        remove_json_pointer(settings, "/model");
+    }
+}
+
+fn remove_claude_permission_rules(settings: &mut Value, key: &str, rules: &[&str]) {
+    let Some(root) = settings.as_object_mut() else {
+        return;
+    };
+    let Some(permissions) = root.get_mut("permissions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let Some(entries) = permissions.get_mut(key).and_then(Value::as_array_mut) else {
+        return;
+    };
+
+    entries.retain(|entry| !entry.as_str().is_some_and(|value| rules.contains(&value)));
+    if entries.is_empty() {
+        permissions.remove(key);
+    }
+    if permissions.is_empty() {
+        root.remove("permissions");
+    }
 }
 
 fn backup_home_file(

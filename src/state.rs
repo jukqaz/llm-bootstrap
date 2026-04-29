@@ -114,8 +114,144 @@ pub(crate) fn write_installed_state(
     Ok(())
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TaskState {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    pub(crate) status: String,
+    pub(crate) phase: String,
+    pub(crate) owner: Option<String>,
+    pub(crate) summary: Option<String>,
+    pub(crate) checkpoint: Option<String>,
+    pub(crate) next_action: Option<String>,
+    pub(crate) providers: Vec<String>,
+    pub(crate) packs: Vec<String>,
+    pub(crate) harnesses: Vec<String>,
+    pub(crate) completed_signals: Vec<String>,
+    pub(crate) attempt_count: u64,
+    pub(crate) last_failure: Option<String>,
+    pub(crate) investigation_note: Option<String>,
+    pub(crate) updated_at: String,
+}
+
+pub(crate) fn read_task_state(home: &Path) -> Result<Option<TaskState>> {
+    let path = task_state_path(home);
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let raw =
+        fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
+    let value: Value = serde_json::from_str(&raw)
+        .with_context(|| format!("failed to parse {}", path.display()))?;
+
+    Ok(Some(TaskState {
+        id: value
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        title: value
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        status: value
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        phase: value
+            .get("phase")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        owner: value
+            .get("owner")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        summary: value
+            .get("summary")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        checkpoint: value
+            .get("checkpoint")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        next_action: value
+            .get("next_action")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        providers: json_string_array(&value, "providers"),
+        packs: json_string_array(&value, "packs"),
+        harnesses: json_string_array(&value, "harnesses"),
+        completed_signals: json_string_array(&value, "completed_signals"),
+        attempt_count: value
+            .get("attempt_count")
+            .and_then(Value::as_u64)
+            .unwrap_or_default(),
+        last_failure: value
+            .get("last_failure")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        investigation_note: value
+            .get("investigation_note")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        updated_at: value
+            .get("updated_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+    }))
+}
+
+pub(crate) fn write_task_state(home: &Path, state: &TaskState) -> Result<()> {
+    let path = task_state_path(home);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+    let value = json!({
+        "id": state.id,
+        "title": state.title,
+        "status": state.status,
+        "phase": state.phase,
+        "owner": state.owner,
+        "summary": state.summary,
+        "checkpoint": state.checkpoint,
+        "next_action": state.next_action,
+        "providers": state.providers,
+        "packs": state.packs,
+        "harnesses": state.harnesses,
+        "completed_signals": state.completed_signals,
+        "attempt_count": state.attempt_count,
+        "last_failure": state.last_failure,
+        "investigation_note": state.investigation_note,
+        "updated_at": state.updated_at,
+    });
+    fs::write(
+        &path,
+        format!("{}\n", serde_json::to_string_pretty(&value)?),
+    )
+    .with_context(|| format!("failed to write {}", path.display()))?;
+    Ok(())
+}
+
+pub(crate) fn clear_task_state(home: &Path) -> Result<()> {
+    let path = task_state_path(home);
+    if path.exists() {
+        fs::remove_file(&path).with_context(|| format!("failed to remove {}", path.display()))?;
+    }
+    Ok(())
+}
+
 fn state_path(root: &Path) -> std::path::PathBuf {
-    root.join("llm-bootstrap-state.json")
+    root.join("stackpilot-state.json")
+}
+
+fn task_state_path(home: &Path) -> std::path::PathBuf {
+    home.join(".stackpilot/task-state.json")
 }
 
 fn json_string_array(value: &Value, key: &str) -> Vec<String> {
@@ -130,4 +266,48 @@ fn json_string_array(value: &Value, key: &str) -> Vec<String> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TaskState, clear_task_state, read_task_state, write_task_state};
+    use std::fs;
+
+    #[test]
+    fn task_state_round_trip_and_clear() {
+        let home = std::env::temp_dir().join(format!(
+            "stackpilot-task-state-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let state = TaskState {
+            id: "task_1".to_string(),
+            title: "Probe harness".to_string(),
+            status: "in-progress".to_string(),
+            phase: "review".to_string(),
+            owner: Some("owner".to_string()),
+            summary: Some("Auth review is blocked on the final probe.".to_string()),
+            checkpoint: Some("Re-run the oauth spec and compare the failing fixture.".to_string()),
+            next_action: Some("run probe".to_string()),
+            providers: vec!["codex".to_string(), "gemini".to_string()],
+            packs: vec!["delivery-pack".to_string()],
+            harnesses: vec!["ralph-loop".to_string()],
+            completed_signals: vec!["ownership".to_string(), "review".to_string()],
+            attempt_count: 2,
+            last_failure: Some("none".to_string()),
+            investigation_note: Some("captured failing trace".to_string()),
+            updated_at: "123".to_string(),
+        };
+
+        write_task_state(&home, &state).unwrap();
+        let loaded = read_task_state(&home).unwrap().unwrap();
+        assert_eq!(loaded, state);
+
+        clear_task_state(&home).unwrap();
+        assert!(read_task_state(&home).unwrap().is_none());
+
+        let _ = fs::remove_dir_all(home.join(".stackpilot"));
+    }
 }

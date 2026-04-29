@@ -74,7 +74,7 @@ bootstrap이 증명하지 않는 것:
 예:
 
 - Codex state DB migration 경고
-- `llm-bootstrap`가 관리하지 않는 plugin 경고
+- `StackPilot`가 관리하지 않는 plugin 경고
 - 세션 모드별 MCP 노출 차이
 
 bootstrap이 이미 증명하는 것:
@@ -113,4 +113,4 @@ bootstrap이 증명하지 않는 것:
 ## 실무 규칙
 
 `doctor`가 녹색이고 남은 큐가 runtime handoff뿐이면, 다음 수정은
-`llm-bootstrap`가 아니라 provider runtime이나 운영 절차 쪽에 있어야 한다.
+`StackPilot`가 아니라 provider runtime이나 운영 절차 쪽에 있어야 한다.

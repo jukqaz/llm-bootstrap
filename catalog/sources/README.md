@@ -1,6 +1,6 @@
 # Source Catalog
 
-This directory stores structured reference data for `llm-bootstrap`.
+This directory stores structured reference data for `StackPilot`.
 
 It is intentionally separate from runtime manifests.
 
@@ -58,21 +58,21 @@ note = "What this source proves"
 title = "Best practices page"
 url = "https://example.com/best-practices"
 focus = "security"
-why_it_matters = "Explains what should influence llm-bootstrap design"
+why_it_matters = "Explains what should influence stackpilot design"
 ```
 ```
 
 ## Field Rules
 
 - `source_type`: `official`, `reference`, or `tool`
-- `status`: lifecycle marker such as `active`
+- `status`: lifecycle marker such as `active`, `archived`, or `superseded`
 - `provider_scope`: `codex`, `gemini`, `claude`, or `cross-provider`
 - `categories`: use broad capability buckets only
 - `weight`: `core`, `optional`, or `advanced`
 - `summary`: one-sentence operational value
 - `native_surfaces`: only for sources that define provider-native surfaces
 - `capabilities`: what the source is actually good at
-- `adoptable_parts`: what `llm-bootstrap` should reuse
+- `adoptable_parts`: what `StackPilot` should reuse
 - `do_not_copy`: what should stay outside this repo
 - `[[evidence]]`: one or more concrete URLs with short proof notes
 - `[[recommended_article]]`: optional curated official reading list for design
@@ -93,3 +93,8 @@ That boundary is deliberate:
 
 - source catalog answers "what did we learn?"
 - runtime manifest answers "what do we install?"
+
+Coverage decisions are documented separately in:
+
+- [../../docs/reference-coverage.ko.md](../../docs/reference-coverage.ko.md)
+- [../../docs/reference-coverage.md](../../docs/reference-coverage.md)

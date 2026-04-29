@@ -1,6 +1,6 @@
 # Dev + Company Operating Model
 
-이 문서는 `llm-bootstrap`를 "개발용 bootstrap"에서
+이 문서는 `StackPilot`를 "개발용 bootstrap"에서
 "개발 + 회사운영 operating system bootstrap"으로 확장할 때의 기준 모델을 정리한다.
 
 핵심은 두 가지를 동시에 만족하는 것이다.
@@ -13,7 +13,7 @@
 
 ## 최종 목표
 
-`llm-bootstrap`의 최종 목표는 아래처럼 고정한다.
+`StackPilot`의 최종 목표는 아래처럼 고정한다.
 
 > provider-native surface 위에 공통 harness를 설치하고,
 > 그 위에 개발 pack과 회사운영 pack을 조합해
@@ -403,7 +403,7 @@ core에는 회사운영 도메인 로직을 직접 넣지 않는다.
 
 ## 최종 판단
 
-`llm-bootstrap`는 앞으로 아래 구조로 가야 한다.
+`StackPilot`는 앞으로 아래 구조로 가야 한다.
 
 - 작은 bootstrap core
 - 공통 harness layer

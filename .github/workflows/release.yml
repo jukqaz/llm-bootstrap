@@ -62,13 +62,14 @@ jobs:
 
       - name: Package archive
         run: |
-          package_root="llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}"
-          latest_archive="llm-bootstrap-${{ matrix.target }}.tar.gz"
+          package_root="stackpilot-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          latest_archive="stackpilot-${{ matrix.target }}.tar.gz"
           latest_checksum="dist/${latest_archive}.sha256"
           mkdir -p "dist/${package_root}"
-          cp target/release/llm-bootstrap "dist/${package_root}/"
+          cp target/release/stack-pilot "dist/${package_root}/"
+          cp target/release/sp "dist/${package_root}/"
           cp bootstrap.toml install.sh install-release.sh uninstall.sh README.md README.ko.md LICENSE "dist/${package_root}/"
-          cp -R templates plugins bundles "dist/${package_root}/"
+          cp -R templates addons bundles "dist/${package_root}/"
           mkdir -p "dist/${package_root}/.agents/plugins"
           cp .agents/plugins/marketplace.json "dist/${package_root}/.agents/plugins/marketplace.json"
           tar -C dist -czf "dist/${package_root}.tar.gz" "${package_root}"
@@ -81,8 +82,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "$GITHUB_REF_NAME" \
-            "dist/llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz" \
-            "dist/llm-bootstrap-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz.sha256" \
-            "dist/llm-bootstrap-${{ matrix.target }}.tar.gz" \
-            "dist/llm-bootstrap-${{ matrix.target }}.tar.gz.sha256" \
+            "dist/stackpilot-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz" \
+            "dist/stackpilot-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz.sha256" \
+            "dist/stackpilot-${{ matrix.target }}.tar.gz" \
+            "dist/stackpilot-${{ matrix.target }}.tar.gz.sha256" \
             --clobber

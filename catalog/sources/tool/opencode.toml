@@ -1,0 +1,35 @@
+id = "opencode"
+name = "OpenCode"
+source_type = "tool"
+status = "archived"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "terminal-cli", "mcp", "lsp", "retired"]
+weight = "optional"
+summary = "Archived terminal coding-agent reference that still matters as historical signal because the project moved to Crush."
+
+urls = [
+  "https://github.com/opencode-ai/opencode"
+]
+
+capabilities = [
+  "terminal coding runtime",
+  "project memory file convention",
+  "session compaction command",
+  "MCP and LSP configuration"
+]
+
+adoptable_parts = [
+  "historical reference for terminal agent UX",
+  "memory-file naming ideas",
+  "session compaction concepts"
+]
+
+do_not_copy = [
+  "archived runtime as an active baseline dependency",
+  "early-development runtime assumptions in bootstrap core"
+]
+
+[[evidence]]
+label = "OpenCode README"
+url = "https://github.com/opencode-ai/opencode"
+note = "The README is archived for provenance, marks the project as moved to Crush, and still documents terminal, MCP, and LSP patterns worth tracking historically."

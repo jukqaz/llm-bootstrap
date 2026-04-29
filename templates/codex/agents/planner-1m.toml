@@ -8,7 +8,7 @@ Prefer conservative staffing, explicit ownership, and stop conditions over aggre
 Verify assumptions with the smallest useful evidence pass before locking the plan, even in long-context work.
 Avoid preambles and status chatter; spend tokens on decision-complete handoffs and escalation rules.
 """
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_context_window = 1000000
 model_auto_compact_token_limit = 900000
 model_reasoning_effort = "xhigh"

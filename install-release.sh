@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_SLUG="${LLM_BOOTSTRAP_REPO:-jukqaz/llm-bootstrap}"
-VERSION="${LLM_BOOTSTRAP_VERSION:-latest}"
-DOWNLOAD_BASE_URL="${LLM_BOOTSTRAP_DOWNLOAD_BASE_URL:-}"
+REPO_SLUG="${STACKPILOT_REPO:-jukqaz/stack-pilot}"
+VERSION="${STACKPILOT_VERSION:-latest}"
+DOWNLOAD_BASE_URL="${STACKPILOT_DOWNLOAD_BASE_URL:-}"
 
 log() {
-  printf '[llm-bootstrap] %s\n' "$*"
+  printf '[stackpilot] %s\n' "$*"
 }
 
 fail() {
-  printf '[llm-bootstrap] %s\n' "$*" >&2
+  printf '[stackpilot] %s\n' "$*" >&2
   exit 1
 }
 
@@ -37,14 +37,14 @@ download_url() {
   local target="$1"
   local filename base_url
   if [[ "$VERSION" == "latest" ]]; then
-    filename="llm-bootstrap-${target}.tar.gz"
+    filename="stackpilot-${target}.tar.gz"
     if [[ -n "$DOWNLOAD_BASE_URL" ]]; then
       printf '%s/%s' "$DOWNLOAD_BASE_URL" "$filename"
     else
       printf 'https://github.com/%s/releases/latest/download/%s' "$REPO_SLUG" "$filename"
     fi
   else
-    filename="llm-bootstrap-${VERSION}-${target}.tar.gz"
+    filename="stackpilot-${VERSION}-${target}.tar.gz"
     if [[ -n "$DOWNLOAD_BASE_URL" ]]; then
       printf '%s/%s' "$DOWNLOAD_BASE_URL" "$filename"
     else
@@ -61,9 +61,9 @@ checksum_url() {
 archive_name() {
   local target="$1"
   if [[ "$VERSION" == "latest" ]]; then
-    printf 'llm-bootstrap-%s.tar.gz' "$target"
+    printf 'stackpilot-%s.tar.gz' "$target"
   else
-    printf 'llm-bootstrap-%s-%s.tar.gz' "$VERSION" "$target"
+    printf 'stackpilot-%s-%s.tar.gz' "$VERSION" "$target"
   fi
 }
 
@@ -119,25 +119,25 @@ main() {
   tar -xzf "$archive_path" -C "$temp_dir"
 
   local extracted_dir
-  extracted_dir="$(find "$temp_dir" -mindepth 1 -maxdepth 1 -type d -name 'llm-bootstrap-*' | head -n 1)"
-  [[ -n "$extracted_dir" ]] || fail "failed to find extracted llm-bootstrap directory"
-  [[ -x "$extracted_dir/llm-bootstrap" ]] || fail "bundled llm-bootstrap binary not found"
+  extracted_dir="$(find "$temp_dir" -mindepth 1 -maxdepth 1 -type d -name 'stackpilot-*' | head -n 1)"
+  [[ -n "$extracted_dir" ]] || fail "failed to find extracted stackpilot directory"
+  [[ -x "$extracted_dir/stack-pilot" ]] || fail "bundled stack-pilot binary not found"
 
   if [[ $# -eq 0 ]]; then
-    exec "$extracted_dir/llm-bootstrap" wizard
+    exec "$extracted_dir/stack-pilot" wizard
   fi
 
   case "$1" in
     --help|-h|--version|-V)
-      exec "$extracted_dir/llm-bootstrap" "$@"
+      exec "$extracted_dir/stack-pilot" "$@"
       ;;
   esac
 
-  if [[ "$1" != -* ]] && "$extracted_dir/llm-bootstrap" "$1" --help >/dev/null 2>&1; then
-    exec "$extracted_dir/llm-bootstrap" "$@"
+  if [[ "$1" != -* ]] && "$extracted_dir/stack-pilot" "$1" --help >/dev/null 2>&1; then
+    exec "$extracted_dir/stack-pilot" "$@"
   fi
 
-  exec "$extracted_dir/llm-bootstrap" install "$@"
+  exec "$extracted_dir/stack-pilot" install "$@"
 }
 
 main "$@"

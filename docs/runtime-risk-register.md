@@ -72,8 +72,8 @@ Operational action:
 
 Examples:
 
-- Codex state DB migration warnings
-- provider-specific plugin warnings outside `llm-bootstrap` managed paths
+- Codex state DB migration notices
+- provider-specific plugin notices outside `StackPilot` managed paths
 - session-specific MCP visibility differences
 
 What bootstrap already proves:
@@ -89,15 +89,15 @@ What bootstrap does not prove:
 
 Operational action:
 
-1. Treat provider runtime warnings as runtime issues first, not bootstrap issues.
+1. Treat provider runtime notices as runtime issues first, not bootstrap issues.
 2. Reproduce with a minimal runtime command.
-3. Only change bootstrap when the warning is caused by a managed asset.
+3. Only change bootstrap when the notice is caused by a managed asset.
 
 ## Priority order
 
 1. Verify active app connectors.
 2. Register active automations.
-3. Investigate runtime-specific warnings only after bootstrap state is clean.
+3. Investigate runtime-specific notices only after bootstrap state is clean.
 
 ## Mapping to `doctor --json`
 
@@ -113,4 +113,4 @@ Use these fields first:
 
 If `doctor` is green and the remaining queue is only runtime handoff, the next
 fix belongs in the provider runtime or the operator workflow, not in
-`llm-bootstrap`.
+`StackPilot`.

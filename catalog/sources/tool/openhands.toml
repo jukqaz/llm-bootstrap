@@ -1,0 +1,36 @@
+id = "openhands"
+name = "OpenHands"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "cloud", "sdk", "integration"]
+weight = "advanced"
+summary = "Heavy runtime and platform reference for remote execution, SDK usage, and issue-driven development lanes."
+
+urls = [
+  "https://github.com/OpenHands/OpenHands",
+  "https://docs.openhands.dev"
+]
+
+capabilities = [
+  "remote coding-agent runtime",
+  "SDK and platform documentation",
+  "issue-driven development platform",
+  "community and cloud execution patterns"
+]
+
+adoptable_parts = [
+  "reference for remote execution lanes",
+  "separation between local bootstrap and heavy runtime",
+  "issue and inbox integration ideas for advanced addons"
+]
+
+do_not_copy = [
+  "full remote platform into bootstrap core",
+  "cloud and container orchestration as default user-home baseline"
+]
+
+[[evidence]]
+label = "OpenHands README"
+url = "https://github.com/OpenHands/OpenHands"
+note = "The README positions OpenHands as an AI-driven development project and points readers to platform docs, SDK docs, and benchmark-backed runtime materials."

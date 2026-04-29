@@ -1,6 +1,6 @@
 # Runtime Handoff
 
-This document defines where `llm-bootstrap` stops and where the target runtime
+This document defines where `StackPilot` stops and where the target runtime
 takes over.
 
 The rule is simple:
@@ -10,12 +10,12 @@ The rule is simple:
 
 ## Boundary
 
-`llm-bootstrap` owns:
+`StackPilot` owns:
 
 - `preset -> pack -> harness -> connectors -> MCP -> provider surface`
 - installing the required docs, skills, commands, and scripts into provider homes
 - comparing requested state and installed state through `doctor`
-- recording provider state in `llm-bootstrap-state.json`
+- recording provider state in `stackpilot-state.json`
 
 The runtime owns:
 
@@ -91,12 +91,15 @@ Current automation contracts:
 - `weekly-market-scan`
 - `weekly-operating-review`
 - `weekly-pipeline-review`
+- `pr-review-gate`
+- `release-readiness-gate`
 
 In `doctor`, active automation contracts expose:
 
 - `status = rendered`
-- `scheduler_owner = runtime-managed`
-- `registration_status = not-registered`
+- `lane = runtime-scheduler` or `lane = repo-automation`
+- `scheduler_owner = runtime-managed` or `scheduler_owner = repo-managed`
+- `registration_status = not-registered` or `registration_status = not-configured`
 
 Inactive automation contracts expose:
 
@@ -107,14 +110,16 @@ Inactive automation contracts expose:
 Meaning:
 
 - bootstrap installs which automation contracts are active
-- the actual recurring schedule must still be registered by the runtime or an external automation layer
+- runtime scheduler lanes still require scheduler registration in the provider runtime or an external automation layer
+- repo automation lanes still require repository workflow, required check, or branch protection registration
 
 Operational checklist:
 
 1. Confirm the active automation list with `doctor --json`.
-2. Confirm the target runtime exposes scheduling or automation features.
-3. Register the desired cadence.
-4. Validate the first execution against the artifact contract.
+2. Check the automation lane in `doctor --json`.
+3. For `runtime-scheduler`, confirm the target runtime exposes scheduling features and register the cadence.
+4. For `repo-automation`, register the workflow, required check, or branch protection lane in the target repository.
+5. Validate the first execution against the artifact contract.
 
 ## Handoff by preset
 
@@ -153,16 +158,25 @@ Operational checklist:
   - `weekly-operating-review`
   - `weekly-pipeline-review`
 
+### `review-automation`
+
+- focus: repository PR and release gates
+- connector handoff: `github`, `linear`
+- automation handoff:
+  - `pr-review-gate`
+  - `release-readiness-gate`
+
 ## Practical conclusion
 
 What remains after bootstrap is not a bootstrap bug. It is an operating handoff.
 
 - app connectors must actually be logged in
-- automations must actually be registered
+- runtime automations must actually be registered
+- repo automation lanes must actually be wired into repository workflow or branch protection
 
 So the next steps after bootstrap are:
 
 1. open the provider runtime
 2. verify connector linkage
-3. register the scheduler
+3. register the scheduler or repository gate
 4. validate the first run

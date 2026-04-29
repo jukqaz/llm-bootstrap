@@ -1,6 +1,6 @@
 # Solo Company Flow
 
-이 문서는 실제 1인회사를 운영할 때 `llm-bootstrap`가 어떤 순서로 도움을 줘야
+이 문서는 실제 1인회사를 운영할 때 `StackPilot`가 어떤 순서로 도움을 줘야
 하는지 정의한다.
 
 목표는 "회사 기능 목록"을 만드는 것이 아니다.
@@ -24,7 +24,7 @@
 3. 반복되고, 실수 비용이 높고, artifact가 남아야 하는 일만 capability로 만든다
 4. 돈, 고객 발송, 법무, 보안, 개인정보, 채용, 계약은 approval boundary를 둔다
 
-`llm-bootstrap`가 직접 해야 하는 것:
+`StackPilot`가 직접 해야 하는 것:
 
 - baseline 설치와 복구
 - provider-native command/skill 배포
@@ -32,7 +32,7 @@
 - 필요한 connector와 runtime handoff 표시
 - doctor readiness
 
-`llm-bootstrap`가 직접 하지 않을 것:
+`StackPilot`가 직접 하지 않을 것:
 
 - CRM, analytics, helpdesk, accounting, ads platform runtime 구현
 - 고객 이메일이나 광고를 자동 발송
@@ -82,7 +82,7 @@ discover -> decide -> validate -> build -> launch -> learn
 
 ## Build / Delegate Matrix
 
-| 영역 | `llm-bootstrap`가 직접 제공 | LLM에 맡김 | 외부 툴에 맡김 |
+| 영역 | `StackPilot`가 직접 제공 | LLM에 맡김 | 외부 툴에 맡김 |
 |---|---|---|---|
 | 시장조사 | `market-scan` artifact contract | 검색 요약, 경쟁사 비교, pain 정리 | 검색엔진, Reddit/HN/X, app review, analytics |
 | 아이디어 | `idea-score`, `assumption-map` | 브레인스토밍, 중복 제거, 리스크 정리 | 없음 또는 메모/문서 툴 |
@@ -769,9 +769,9 @@ advanced wizard에서만 세부 stage를 보여준다.
 wizard의 결과는 내부적으로 아래 명령으로 해석된다.
 
 ```bash
-llm-bootstrap baseline --providers ...
-llm-bootstrap add project,growth,support,company
-llm-bootstrap doctor
+stack-pilot baseline --providers ...
+stack-pilot add project,growth,support,company
+stack-pilot doctor
 ```
 
 ## Doctor Readiness
@@ -789,7 +789,7 @@ sales: not installed
 finance: manual CSV fallback
 company: weekly operating review not scheduled
 records: local docs only
-legacy: clean
+retired_tools: clean
 ```
 
 중요한 것은 `missing`을 실패로만 보지 않는 것이다.
@@ -823,7 +823,7 @@ legacy: clean
 - `weekly-operating-review`
 
 여기서도 실제 실행은 가능한 한 LLM 대화와 기존 tool을 사용한다.
-`llm-bootstrap`는 이 10개가 provider별 command/skill로 같은 contract를 갖게 만드는 데 집중한다.
+`StackPilot`는 이 10개가 provider별 command/skill로 같은 contract를 갖게 만드는 데 집중한다.
 
 ## 중복 방지
 

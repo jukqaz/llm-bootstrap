@@ -1,6 +1,6 @@
 # Codex-First Blueprint
 
-`llm-bootstrap`는 여러 agent harness의 아이디어를 섞되, 그대로 복제하지 않는다.
+`StackPilot`는 여러 agent harness의 아이디어를 섞되, 그대로 복제하지 않는다.
 목표는 `Codex -> Gemini -> Claude Code` 순으로 지원하는 개발용 bootstrap을 만드는 것이다.
 메인라인은 Codex다. 나머지 provider는 Codex-first 설계를 얇게 이식한다.
 
@@ -73,7 +73,7 @@
 - giant agent catalog
 - 자동 학습, quota-watch, telemetry 성격의 기본 훅
 
-## llm-bootstrap에 실제로 반영할 방향
+## StackPilot에 실제로 반영할 방향
 
 ### Core
 
@@ -89,7 +89,7 @@
 - bootstrap 범위는 user/home 설정까지만 유지하고 project-level 설정은 제외
 - env가 없는 선택 MCP는 disabled 상태로 두고 생성하지 않음
 - secret manager SDK/CLI에 직접 결합하지 않고 env consumer로 유지
-- doctor는 blocking missing과 disabled warning을 분리
+- doctor는 blocking missing과 disabled status를 분리
 
 ### Codex mainline
 

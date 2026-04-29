@@ -1,16 +1,20 @@
 # Provider Surface Strategy
 
-This document explains how `llm-bootstrap` should deliver multi-agent harnesses,
+This document explains how `StackPilot` should deliver multi-agent harnesses,
 Ralph-loop style control flow, and `gstack`-inspired workflow contracts across
 different LLM runtimes.
 
 The top-level rule is simple:
 
-> keep the catalog shared, but render into each provider's native surface
+> keep catalog and workflow intent shared, but split the product surface into
+> provider-native kits
 
 That means we should not force one abstraction across `plugin`, `extension`,
-`skill`, `command`, and `mcp`. Each provider should receive the same intent
-through the surface it handles best.
+`skill`, `command`, and `mcp`. Each provider should receive the same intent as
+`codex-kit`, `gemini-kit`, or `claude-kit` through the surface it handles best.
+
+`StackPilot` is the umbrella installer, doctor, probe, and migration tool for
+those three kits.
 
 ## Why This Direction
 
@@ -26,7 +30,7 @@ The codebase already follows that pattern:
 
 - Codex installs `.agents/plugins/marketplace.json`, local plugins, and agent
   TOML files
-- Gemini installs `extensions/llm-bootstrap-dev`, patches `settings.json`, and
+- Gemini installs `extensions/stackpilot-dev`, patches `settings.json`, and
   adds command TOML files
 - Claude installs `agents/*`, workflow skills, and registers MCP through
   official CLI flows
@@ -46,7 +50,7 @@ Priority order:
 3. community-proven patterns
 4. our own abstraction layer
 
-`llm-bootstrap` should compose and automate native surfaces, not replace them.
+`StackPilot` should compose and automate native surfaces, not replace them.
 
 ## Official Docs Summary
 
@@ -145,7 +149,8 @@ Avoid:
 - adding taskboards, session databases, or runtime caches
 - shipping heavy MCP in the default install
 
-In one line: one shared spec, three native renderers.
+In one line: one shared intent and verification layer, three provider-native
+kits.
 
 ## Top-Level Structure
 
@@ -220,7 +225,7 @@ Codex has the strongest multi-agent and plugin surface.
 Today it already uses:
 
 - `.agents/plugins/marketplace.json`
-- `plugins/llm-dev-kit`
+- `plugins/stackpilot-dev-kit`
 - `agents/*.toml`
 - `config.toml` features such as `enable_fanout` and `multi_agent_v2`
 
@@ -272,7 +277,7 @@ Gemini is more naturally extension-first than plugin-first.
 
 The current implementation centers on:
 
-- `extensions/llm-bootstrap-dev`
+- `extensions/stackpilot-dev`
 - `commands/*.toml`
 - `settings.json` merge
 - `extension-enablement.json`
@@ -455,14 +460,14 @@ on top of our runtime.
 ### Codex-first
 
 - core MCP
-- `llm-dev-kit` plugin
+- `stackpilot-dev-kit` plugin
 - `delivery-harness`
 - `parallel-build-harness`
 
 ### Gemini-first
 
 - core MCP
-- `llm-bootstrap-dev` extension
+- `stackpilot-dev` extension
 - `delivery-harness`
 - `review-gate-harness`
 
@@ -499,8 +504,8 @@ It should report at least:
 Examples:
 
 - `ok mcp chrome-devtools`
-- `warn harness parallel-build missing on Gemini`
-- `warn role security-reviewer has no Claude equivalent`
+- `missing harness parallel-build on Gemini`
+- `role security-reviewer has no Claude equivalent`
 
 This should also roll out incrementally.
 

@@ -38,5 +38,4 @@ note = "Goose presents itself as an open-source extensible agent that can instal
 [[evidence]]
 label = "Goose security guidance"
 url = "https://github.com/block/goose/security"
-note = "The project explicitly warns about local execution risk and recommends VM or container isolation."
-
+note = "The project documents local execution risk and recommends VM or container isolation."

@@ -149,3 +149,39 @@ id = "mcp_universe"
 file = "tool/mcp_universe.toml"
 source_type = "tool"
 priority = 30
+
+[[entry]]
+id = "caveman"
+file = "tool/caveman.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "gitingest"
+file = "tool/gitingest.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "github_copilot_cli"
+file = "tool/github_copilot_cli.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "openhands"
+file = "tool/openhands.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "crush"
+file = "tool/crush.toml"
+source_type = "tool"
+priority = 30
+
+[[entry]]
+id = "opencode"
+file = "tool/opencode.toml"
+source_type = "tool"
+priority = 30

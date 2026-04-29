@@ -22,5 +22,11 @@ Keep execution direct, compact, and evidence-based.
 - This file is user/home guidance only.
 - Project-specific rules belong in project `CLAUDE.md` files.
 - Native workflow entrypoints live in `~/.claude/skills/*/SKILL.md`.
+- Claude auto memory is enabled; keep reusable project learnings concise and leave conversation history intact.
+
+## Workflow gates
+
+- Use `workflow-gate` when task-state should control review, QA, ship, or retry transitions.
+- Back the workflow with `stack-pilot internal task-state ...` and `stack-pilot internal gate ...`.
 
 __RTK_CLAUDE_IMPORT__

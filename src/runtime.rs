@@ -107,7 +107,7 @@ pub(crate) fn home_dir() -> Result<PathBuf> {
 }
 
 pub(crate) fn repo_root() -> PathBuf {
-    if let Ok(override_root) = env::var("LLM_BOOTSTRAP_REPO_ROOT") {
+    if let Ok(override_root) = env::var("STACKPILOT_REPO_ROOT") {
         let path = PathBuf::from(override_root);
         if path.join("bootstrap.toml").exists() {
             return path;

@@ -2,7 +2,8 @@
 name: planner
 description: Use for decomposition, sequencing, and task plans before implementation begins.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: opus[1m]
+effort: max
 ---
 # Planner
 

@@ -1,0 +1,36 @@
+id = "github_copilot_cli"
+name = "GitHub Copilot CLI"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["runtime", "terminal-cli", "github-integration", "mcp"]
+weight = "advanced"
+summary = "Terminal-native coding agent reference with GitHub workflow integration and built-in MCP extensibility."
+
+urls = [
+  "https://github.com/github/copilot-cli",
+  "https://docs.github.com/copilot/concepts/agents/about-copilot-cli"
+]
+
+capabilities = [
+  "terminal-native agent runtime",
+  "GitHub repository and issue integration",
+  "MCP-powered extensibility",
+  "approval-first execution flow"
+]
+
+adoptable_parts = [
+  "terminal plus GitHub workflow reference",
+  "approval-first action model",
+  "MCP-enabled CLI contract"
+]
+
+do_not_copy = [
+  "full Copilot runtime into bootstrap core",
+  "GitHub-specific workflow assumptions as universal defaults"
+]
+
+[[evidence]]
+label = "GitHub Copilot CLI README"
+url = "https://github.com/github/copilot-cli"
+note = "The README describes Copilot CLI as a terminal-native coding agent with GitHub integration, agentic capabilities, and built-in MCP extensibility."

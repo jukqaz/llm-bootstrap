@@ -15,6 +15,7 @@ Optimize for software development with direct execution and compact reporting.
 - Prefer official docs for SDK or API behavior that may drift.
 __RTK_GEMINI_RULE__
 - MCP baseline includes Chrome DevTools, plus Context7 and Exa when their env keys are available.
+- Native Gemini memory is enabled through Memory v2 and Auto Memory; keep durable facts concise and preserve chat history.
 - Ask only when a decision is destructive or cannot be inferred safely.
 - Keep changes small and reversible.
 
@@ -22,3 +23,11 @@ __RTK_GEMINI_RULE__
 
 - Run the smallest credible verification that proves the claim.
 - If verification is partial, state the gap plainly.
+
+## Workflow gates
+
+- Use `stack-pilot internal task-state begin|advance|show` to keep the thin local task-state current.
+- Use `stack-pilot internal gate check --target-phase plan|execute|review|qa|ship --json` before advancing a gated phase.
+- Use `stack-pilot internal task-state advance --increment-attempt --failure "..."` after a bounded retry fails.
+- After the second failed attempt, use `stack-pilot internal task-state advance --investigation-note "..."` before another gated retry.
+- Use the extension `gate` command when the session should reason from the gate report first.

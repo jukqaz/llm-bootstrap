@@ -15,10 +15,10 @@ pub(crate) struct BackupEntry {
 
 pub(crate) fn create_backup_root(provider_root: &Path, timestamp: &str) -> Result<PathBuf> {
     let backups_dir = provider_root.join("backups");
-    let mut backup_root = backups_dir.join(format!("llm-bootstrap-{timestamp}"));
+    let mut backup_root = backups_dir.join(format!("stackpilot-{timestamp}"));
     let mut suffix = 1usize;
     while backup_root.exists() {
-        backup_root = backups_dir.join(format!("llm-bootstrap-{timestamp}-{suffix}"));
+        backup_root = backups_dir.join(format!("stackpilot-{timestamp}-{suffix}"));
         suffix += 1;
     }
     fs::create_dir_all(&backup_root)
@@ -143,7 +143,7 @@ pub(crate) fn resolve_backup_root(
         let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
-        if !name.starts_with("llm-bootstrap-") {
+        if !name.starts_with("stackpilot-") {
             continue;
         }
         match &latest {
@@ -152,12 +152,7 @@ pub(crate) fn resolve_backup_root(
         }
     }
 
-    latest.with_context(|| {
-        format!(
-            "no llm-bootstrap backups found in {}",
-            backups_dir.display()
-        )
-    })
+    latest.with_context(|| format!("no stackpilot backups found in {}", backups_dir.display()))
 }
 
 pub(crate) fn list_backup_entries(provider_root: &Path) -> Result<Vec<BackupEntry>> {
@@ -178,7 +173,7 @@ pub(crate) fn list_backup_entries(provider_root: &Path) -> Result<Vec<BackupEntr
         let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
-        if !name.starts_with("llm-bootstrap-") {
+        if !name.starts_with("stackpilot-") {
             continue;
         }
         entries.push(BackupEntry {
@@ -475,7 +470,7 @@ mod tests {
 
     #[test]
     fn backup_relative_skips_unix_sockets() {
-        let root = std::env::temp_dir().join(format!("llm-bootstrap-fsops-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("stackpilot-fsops-{}", std::process::id()));
         let source_dir = root.join("source");
         let backup_dir = root.join("backup");
         fs::create_dir_all(&source_dir).unwrap();
@@ -490,11 +485,10 @@ mod tests {
 
     #[test]
     fn list_backup_entries_returns_latest_first() {
-        let root =
-            std::env::temp_dir().join(format!("llm-bootstrap-backups-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("stackpilot-backups-{}", std::process::id()));
         let provider_root = root.join(".codex");
-        fs::create_dir_all(provider_root.join("backups/llm-bootstrap-100")).unwrap();
-        fs::create_dir_all(provider_root.join("backups/llm-bootstrap-200")).unwrap();
+        fs::create_dir_all(provider_root.join("backups/stackpilot-100")).unwrap();
+        fs::create_dir_all(provider_root.join("backups/stackpilot-200")).unwrap();
         fs::create_dir_all(provider_root.join("backups/not-managed")).unwrap();
 
         let entries = list_backup_entries(&provider_root).unwrap();
@@ -503,14 +497,14 @@ mod tests {
             .map(|entry| entry.name)
             .collect::<Vec<_>>();
 
-        assert_eq!(names, vec!["llm-bootstrap-200", "llm-bootstrap-100"]);
+        assert_eq!(names, vec!["stackpilot-200", "stackpilot-100"]);
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn backup_relative_skips_symbolic_links() {
         let root = std::env::temp_dir().join(format!(
-            "llm-bootstrap-fsops-symlink-backup-{}",
+            "stackpilot-fsops-symlink-backup-{}",
             std::process::id()
         ));
         let source_dir = root.join("source");
@@ -529,7 +523,7 @@ mod tests {
     #[test]
     fn restore_relative_skips_symbolic_links() {
         let root = std::env::temp_dir().join(format!(
-            "llm-bootstrap-fsops-symlink-restore-{}",
+            "stackpilot-fsops-symlink-restore-{}",
             std::process::id()
         ));
         let backup_dir = root.join("backup");

@@ -48,6 +48,12 @@ default_enabled = true
 description = "Quality gate harness for review, tests, and verification."
 
 [[harnesses]]
+name = "parallel-build"
+category = "development"
+default_enabled = false
+description = "Gstack-style parallel build harness that requires ownership, handoff, review, QA, and verification gates."
+
+[[harnesses]]
 name = "founder-loop"
 category = "company"
 default_enabled = false
@@ -66,8 +72,8 @@ lane = "core"
 harnesses = ["ralph-loop", "ralph-plan", "delivery", "review-gate"]
 mcp_servers = ["chrome-devtools", "context7"]
 connectors = ["github", "linear"]
-codex_surfaces = ["llm-dev-kit", "delivery-skills"]
-gemini_surfaces = ["llm-bootstrap-dev", "delivery-commands"]
+codex_surfaces = ["stackpilot-dev-kit", "delivery-skills"]
+gemini_surfaces = ["stackpilot-dev", "delivery-commands"]
 claude_surfaces = ["claude-skills", "delivery-skills"]
 description = "Default software delivery pack."
 
@@ -78,10 +84,34 @@ lane = "core"
 harnesses = ["incident", "review-gate"]
 mcp_servers = ["chrome-devtools", "context7"]
 connectors = ["github", "linear"]
-codex_surfaces = ["llm-dev-kit", "incident-skills"]
-gemini_surfaces = ["llm-bootstrap-dev", "incident-commands"]
+codex_surfaces = ["stackpilot-dev-kit", "incident-skills"]
+gemini_surfaces = ["stackpilot-dev", "incident-commands"]
 claude_surfaces = ["claude-skills", "incident-skills"]
 description = "Core incident response and regression pack."
+
+[[packs]]
+name = "team-pack"
+scope = "development"
+lane = "advanced"
+harnesses = ["ralph-loop", "ralph-plan", "delivery", "parallel-build", "review-gate"]
+mcp_servers = ["chrome-devtools", "context7"]
+connectors = ["github", "linear"]
+codex_surfaces = ["stackpilot-dev-kit", "delivery-skills", "team-skills"]
+gemini_surfaces = ["stackpilot-dev", "delivery-commands", "team-commands"]
+claude_surfaces = ["claude-skills", "delivery-skills", "team-skills"]
+description = "Advanced gstack-style team delivery pack with decomposition, ownership, handoff, and verification lanes."
+
+[[packs]]
+name = "review-automation-pack"
+scope = "development"
+lane = "advanced"
+harnesses = ["delivery", "review-gate"]
+mcp_servers = ["chrome-devtools", "context7"]
+connectors = ["github", "linear"]
+codex_surfaces = ["stackpilot-dev-kit", "review-automation-skills"]
+gemini_surfaces = ["stackpilot-dev", "review-automation-commands"]
+claude_surfaces = ["claude-skills", "review-automation-skills"]
+description = "Optional repository automation lane for PR review and release gate contracts."
 
 [[packs]]
 name = "founder-pack"
@@ -90,8 +120,8 @@ lane = "optional"
 harnesses = ["ralph-plan", "founder-loop", "operating-review"]
 mcp_servers = ["exa"]
 connectors = ["linear", "gmail", "calendar", "drive", "figma", "stitch"]
-codex_surfaces = ["llm-dev-kit", "company-skills"]
-gemini_surfaces = ["llm-bootstrap-dev", "company-commands"]
+codex_surfaces = ["stackpilot-dev-kit", "company-skills"]
+gemini_surfaces = ["stackpilot-dev", "company-commands"]
 claude_surfaces = ["claude-skills", "company-skills"]
 description = "Founder and product operating pack."
 
@@ -102,8 +132,8 @@ lane = "optional"
 harnesses = ["ralph-plan", "operating-review"]
 mcp_servers = ["exa"]
 connectors = ["linear", "gmail", "calendar", "drive"]
-codex_surfaces = ["llm-dev-kit", "company-skills"]
-gemini_surfaces = ["llm-bootstrap-dev", "company-commands"]
+codex_surfaces = ["stackpilot-dev-kit", "company-skills"]
+gemini_surfaces = ["stackpilot-dev", "company-commands"]
 claude_surfaces = ["claude-skills", "company-skills"]
 description = "Weekly operating review and KPI pack."
 
@@ -123,9 +153,168 @@ packs = ["delivery-pack", "incident-pack", "founder-pack", "ops-pack"]
 description = "Development plus company operating packs."
 
 [[presets]]
+name = "orchestrator"
+packs = ["delivery-pack", "incident-pack", "team-pack"]
+description = "Development baseline with gstack-style orchestration gates and provider-native team surfaces."
+
+[[presets]]
 name = "company"
 packs = ["founder-pack", "ops-pack"]
 description = "Company operating packs without the development delivery lane."
+
+[[presets]]
+name = "review-automation"
+packs = ["review-automation-pack"]
+description = "Optional repository PR and release gate lane."
+
+[[presets]]
+name = "all-in-one"
+packs = ["delivery-pack", "incident-pack", "team-pack", "founder-pack", "ops-pack", "review-automation-pack"]
+description = "All-in-one lane that turns on development, multi-agent, company, and review automation packs together."
+
+[[surfaces]]
+name = "stackpilot-dev-kit"
+kind = "baseline"
+runtime_owner = "bootstrap"
+default_lane = "core"
+distribution_target = "codex-plugin"
+description = "Codex plugin bundle that renders baseline skills and provider-native execution helpers."
+
+[[surfaces]]
+name = "delivery-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "codex-plugin"
+description = "Codex delivery entrypoints such as office-hours, autopilot, review, QA, ship, and retro."
+
+[[surfaces]]
+name = "incident-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "codex-plugin"
+description = "Codex incident and investigation entrypoints for regression response."
+
+[[surfaces]]
+name = "company-skills"
+kind = "company"
+runtime_owner = "provider-native"
+default_lane = "optional"
+distribution_target = "codex-plugin"
+description = "Codex founder and company operating entrypoints."
+
+[[surfaces]]
+name = "team-skills"
+kind = "team"
+runtime_owner = "provider-native"
+default_lane = "advanced"
+distribution_target = "codex-plugin"
+description = "Codex multi-agent team entrypoints for parallel build, review, ultrawork, and verify lanes."
+
+[[surfaces]]
+name = "review-automation-skills"
+kind = "review-automation"
+runtime_owner = "external-runtime"
+default_lane = "advanced"
+distribution_target = "codex-plugin"
+description = "Codex review automation entrypoints for repository workflow and PR gate contracts."
+
+[[surfaces]]
+name = "stackpilot-dev"
+kind = "baseline"
+runtime_owner = "bootstrap"
+default_lane = "core"
+distribution_target = "gemini-extension"
+description = "Gemini extension bundle that renders baseline commands, agents, and docs."
+
+[[surfaces]]
+name = "delivery-commands"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "gemini-extension"
+description = "Gemini delivery commands such as office-hours, intent, autopilot, review, QA, ship, and retro."
+
+[[surfaces]]
+name = "incident-commands"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "gemini-extension"
+description = "Gemini incident and investigation command lane."
+
+[[surfaces]]
+name = "company-commands"
+kind = "company"
+runtime_owner = "provider-native"
+default_lane = "optional"
+distribution_target = "gemini-extension"
+description = "Gemini founder and company operating command lane."
+
+[[surfaces]]
+name = "team-commands"
+kind = "team"
+runtime_owner = "provider-native"
+default_lane = "advanced"
+distribution_target = "gemini-extension"
+description = "Gemini multi-agent team commands for parallel build, ultrawork, review, and verification handoffs."
+
+[[surfaces]]
+name = "review-automation-commands"
+kind = "review-automation"
+runtime_owner = "external-runtime"
+default_lane = "advanced"
+distribution_target = "gemini-extension"
+description = "Gemini review automation entrypoints for repository workflow and PR gate contracts."
+
+[[surfaces]]
+name = "claude-skills"
+kind = "baseline"
+runtime_owner = "bootstrap"
+default_lane = "core"
+distribution_target = "claude-skills"
+description = "Claude user-scope skill and workflow baseline rendered through provider-native paths."
+
+[[surfaces]]
+name = "delivery-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "claude-skills"
+description = "Claude delivery entrypoints such as office-hours, autopilot, review, QA, ship, and retro."
+
+[[surfaces]]
+name = "incident-skills"
+kind = "entrypoint"
+runtime_owner = "provider-native"
+default_lane = "core"
+distribution_target = "claude-skills"
+description = "Claude incident and investigation entrypoints."
+
+[[surfaces]]
+name = "company-skills"
+kind = "company"
+runtime_owner = "provider-native"
+default_lane = "optional"
+distribution_target = "claude-skills"
+description = "Claude founder and company operating entrypoints."
+
+[[surfaces]]
+name = "team-skills"
+kind = "team"
+runtime_owner = "provider-native"
+default_lane = "advanced"
+distribution_target = "claude-skills"
+description = "Claude multi-agent team entrypoints for parallel build, ultrawork, review, and verify lanes."
+
+[[surfaces]]
+name = "review-automation-skills"
+kind = "review-automation"
+runtime_owner = "external-runtime"
+default_lane = "advanced"
+distribution_target = "claude-skills"
+description = "Claude review automation entrypoints for repository workflow and PR gate contracts."
 
 [[connectors]]
 name = "github"
@@ -221,6 +410,24 @@ packs = ["ops-pack"]
 connectors = ["linear", "gmail", "calendar", "drive"]
 artifact = "Pipeline Review"
 description = "Summarize active pipeline, follow-ups, and schedule risk for the next operating week."
+
+[[automations]]
+name = "pr-review-gate"
+cadence = "on-demand"
+lane = "repo-automation"
+packs = ["review-automation-pack"]
+connectors = ["github", "linear"]
+artifact = "PR Review Gate"
+description = "Register review, QA, verification, and branch protection checks for pull request delivery."
+
+[[automations]]
+name = "release-readiness-gate"
+cadence = "on-demand"
+lane = "repo-automation"
+packs = ["review-automation-pack"]
+connectors = ["github", "linear"]
+artifact = "Release Readiness Gate"
+description = "Register release readiness checks and approval gates before ship or tagged release."
 
 [[record_templates]]
 name = "opportunity-record"
