@@ -4,6 +4,7 @@ mod json_ops;
 mod layout;
 mod manifest;
 mod providers;
+mod repo_assets;
 mod runtime;
 mod state;
 
@@ -41,9 +42,9 @@ use crate::layout::{
     gemini_managed_paths_for,
 };
 
-const ZSHRC_MARKER_START: &str = "# >>> llm-bootstrap env >>>";
-const ZSHRC_MARKER_END: &str = "# <<< llm-bootstrap env <<<";
-const ZSHRC_ENV_RELATIVE_PATH: &str = ".zshrc.d/llm-bootstrap-env.zsh";
+const ZSHRC_MARKER_START: &str = "# >>> stackpilot env >>>";
+const ZSHRC_MARKER_END: &str = "# <<< stackpilot env <<<";
+const ZSHRC_ENV_RELATIVE_PATH: &str = ".zshrc.d/stackpilot-env.zsh";
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -222,12 +223,21 @@ fn probe(args: ProbeArgs, manifest: &BootstrapManifest) -> Result<()> {
         if runtime.status != "ok" {
             ok = false;
         }
+        let optimizations = if args.optimize {
+            run_provider_optimization_probes(&home, provider)?
+        } else {
+            Vec::new()
+        };
+        if optimizations.iter().any(|check| check.status != "ok") {
+            ok = false;
+        }
 
         reports.push(ProbeProviderReport {
             provider: provider.name().to_string(),
             requested_surfaces: provider_surfaces(provider, &resolved.surfaces).to_vec(),
             files,
             runtime,
+            optimizations,
         });
     }
 
@@ -267,6 +277,20 @@ fn probe(args: ProbeArgs, manifest: &BootstrapManifest) -> Result<()> {
                 && !stderr.is_empty()
             {
                 println!("[stderr] {}", stderr);
+            }
+            for check in &provider.optimizations {
+                println!("[optimize:{}] {}", check.status, check.command);
+                if let Some(detail) = check.detail.as_deref() {
+                    println!("[optimize-detail] {}", detail);
+                }
+                if let Some(stdout) = check.stdout.as_deref() {
+                    println!("[optimize-stdout] {}", stdout);
+                }
+                if let Some(stderr) = check.stderr.as_deref()
+                    && !stderr.is_empty()
+                {
+                    println!("[optimize-stderr] {}", stderr);
+                }
             }
         }
         println!(
@@ -360,7 +384,7 @@ fn repo_automation_scaffold_with(
     };
     let minimum_approvals = args.minimum_approvals.max(1);
     let config = RepoAutomationConfig {
-        managed_by: "llm-bootstrap".to_string(),
+        managed_by: "stackpilot".to_string(),
         default_branch: args.default_branch.clone(),
         pr_review_gate: RepoAutomationPrGateConfig {
             required_checks: pr_required_checks.clone(),
@@ -373,8 +397,8 @@ fn repo_automation_scaffold_with(
         },
     };
 
-    let config_path = target_root.join(".github/llm-bootstrap/review-automation.json");
-    let branch_doc_path = target_root.join(".github/llm-bootstrap/BRANCH_PROTECTION.md");
+    let config_path = target_root.join(".github/stackpilot/review-automation.json");
+    let branch_doc_path = target_root.join(".github/stackpilot/BRANCH_PROTECTION.md");
     let pr_template_path = target_root.join(".github/PULL_REQUEST_TEMPLATE.md");
     let pr_workflow_path = target_root.join(".github/workflows/pr-review-gate.yml");
     let release_workflow_path = target_root.join(".github/workflows/release-readiness-gate.yml");
@@ -391,10 +415,10 @@ fn repo_automation_scaffold_with(
     }
 
     if !args.dry_run {
-        fs::create_dir_all(target_root.join(".github/llm-bootstrap")).with_context(|| {
+        fs::create_dir_all(target_root.join(".github/stackpilot")).with_context(|| {
             format!(
                 "failed to create {}",
-                target_root.join(".github/llm-bootstrap").display()
+                target_root.join(".github/stackpilot").display()
             )
         })?;
         fs::create_dir_all(target_root.join(".github/workflows")).with_context(|| {
@@ -485,7 +509,7 @@ fn repo_automation_scaffold_with(
     ];
     if !pr_required_checks.is_empty() {
         next_steps.push(
-            "keep `.github/llm-bootstrap/review-automation.json` aligned with the repo CI check names"
+            "keep `.github/stackpilot/review-automation.json` aligned with the repo CI check names"
                 .to_string(),
         );
     }
@@ -530,8 +554,8 @@ fn ensure_repo_automation_path(path: &Path, force: bool) -> Result<()> {
         return Ok(());
     }
     let raw = fs::read_to_string(path).unwrap_or_default();
-    let managed = raw.contains("# managed by llm-bootstrap")
-        || raw.contains("\"managed_by\": \"llm-bootstrap\"");
+    let managed =
+        raw.contains("# managed by stackpilot") || raw.contains("\"managed_by\": \"stackpilot\"");
     if managed {
         return Ok(());
     }
@@ -604,6 +628,8 @@ fn task_state_begin(
         status: args.status.name().to_string(),
         phase: args.phase.name().to_string(),
         owner: args.owner,
+        summary: args.summary,
+        checkpoint: args.checkpoint,
         next_action: args.next_action,
         providers: providers
             .iter()
@@ -632,6 +658,18 @@ fn task_state_advance(home: &Path, args: TaskStateAdvanceArgs) -> Result<()> {
     }
     if let Some(phase) = args.phase {
         state.phase = phase.name().to_string();
+    }
+    if let Some(summary) = args.summary {
+        state.summary = Some(summary);
+    }
+    if args.clear_summary {
+        state.summary = None;
+    }
+    if let Some(checkpoint) = args.checkpoint {
+        state.checkpoint = Some(checkpoint);
+    }
+    if args.clear_checkpoint {
+        state.checkpoint = None;
     }
     if let Some(next_action) = args.next_action {
         state.next_action = Some(next_action);
@@ -686,6 +724,8 @@ fn print_task_state(state: &TaskState, json: bool) -> Result<()> {
             "status": state.status,
             "phase": state.phase,
             "owner": state.owner,
+            "summary": state.summary,
+            "checkpoint": state.checkpoint,
             "next_action": state.next_action,
             "providers": state.providers,
             "packs": state.packs,
@@ -702,6 +742,7 @@ fn print_task_state(state: &TaskState, json: bool) -> Result<()> {
         println!("title: {}", state.title);
         println!("status: {}", state.status);
         println!("phase: {}", state.phase);
+        println!("owner: {}", state.owner.as_deref().unwrap_or(""));
         println!(
             "providers: {}",
             if state.providers.is_empty() {
@@ -735,6 +776,8 @@ fn print_task_state(state: &TaskState, json: bool) -> Result<()> {
             }
         );
         println!("attempt_count: {}", state.attempt_count);
+        println!("summary: {}", state.summary.as_deref().unwrap_or(""));
+        println!("checkpoint: {}", state.checkpoint.as_deref().unwrap_or(""));
         println!(
             "next_action: {}",
             state.next_action.as_deref().unwrap_or("")
@@ -1133,14 +1176,12 @@ fn print_workflow_gate_summary(harnesses: &[String]) {
         println!("- {}", line);
     }
     println!("gate_commands:");
+    println!("- stack-pilot internal gate check --target-phase plan|execute|review|qa|ship --json");
     println!(
-        "- llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json"
+        "- stack-pilot internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify"
     );
-    println!(
-        "- llm-bootstrap internal task-state advance --complete spec,plan,ownership,handoff,review,qa,verify"
-    );
-    println!("- llm-bootstrap internal task-state advance --increment-attempt --failure \"...\"");
-    println!("- llm-bootstrap internal gate apply --target-phase ship --json");
+    println!("- stack-pilot internal task-state advance --increment-attempt --failure \"...\"");
+    println!("- stack-pilot internal gate apply --target-phase ship --json");
 }
 
 fn record(args: RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
@@ -1530,7 +1571,7 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
         .map(|provider| defaults.contains(provider))
         .collect::<Vec<_>>();
 
-    println!("llm-bootstrap wizard");
+    println!("stack-pilot wizard");
     println!(
         "defaults: providers={}, mode={}, rtk={}, preset={}",
         provider_names(&defaults),
@@ -1636,7 +1677,7 @@ fn wizard(_args: WizardArgs, manifest: &BootstrapManifest) -> Result<()> {
     )?;
     let persistence_items = [
         "GUI apps (launchctl setenv)",
-        "CLI shells (~/.zshrc + ~/.zshrc.d/llm-bootstrap-env.zsh)",
+        "CLI shells (~/.zshrc + ~/.zshrc.d/stackpilot-env.zsh)",
     ];
     let persistence_defaults = [true, true];
     let persistence = MultiSelect::with_theme(&theme)
@@ -1830,7 +1871,7 @@ fn cleanup_home_legacy_artifacts(home: &std::path::Path) -> Result<()> {
         return Ok(());
     }
 
-    let backups_dir = home.join(".llm-bootstrap-legacy-backups");
+    let backups_dir = home.join(".stackpilot-legacy-backups");
     let timestamp = timestamp_string()?;
     let mut backup_root = backups_dir.join(format!("legacy-cleanup-{timestamp}"));
     let mut suffix = 1usize;
@@ -2136,6 +2177,7 @@ struct ProbeProviderReport {
     requested_surfaces: Vec<String>,
     files: Vec<ProbeFileCheck>,
     runtime: ProbeRuntimeResult,
+    optimizations: Vec<ProbeRuntimeResult>,
 }
 
 #[derive(Serialize)]
@@ -2605,14 +2647,14 @@ fn provider_runtime_check(provider: Provider) -> DoctorCheck {
 
 fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan) -> Vec<PathBuf> {
     let root = provider_root(home, provider);
-    match provider {
+    let paths = match provider {
         Provider::Codex => {
             let mut paths = vec![root.join("AGENTS.md"), root.join("config.toml")];
             if resolved
                 .distribution_state
                 .enabled(DistributionTarget::CodexPlugin)
             {
-                paths.push(root.join("plugins/llm-dev-kit/.codex-plugin/plugin.json"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/.codex-plugin/plugin.json"));
             }
             if resolved
                 .surfaces
@@ -2621,8 +2663,9 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .any(|surface| surface == "delivery-skills")
             {
                 paths.push(root.join("WORKFLOW.md"));
-                paths.push(root.join("plugins/llm-dev-kit/skills/autopilot/SKILL.md"));
-                paths.push(root.join("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/autopilot/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/deep-init/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/workflow-gate/SKILL.md"));
             }
             if resolved
                 .surfaces
@@ -2631,8 +2674,9 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .any(|surface| surface == "team-skills")
             {
                 paths.push(root.join("TEAM.md"));
-                paths.push(root.join("plugins/llm-dev-kit/skills/team/SKILL.md"));
-                paths.push(root.join("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/team/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/ultrawork/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/workflow-gate/SKILL.md"));
             }
             if resolved
                 .surfaces
@@ -2641,7 +2685,9 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .any(|surface| surface == "review-automation-skills")
             {
                 paths.push(root.join("REVIEW_AUTOMATION.md"));
-                paths.push(root.join("plugins/llm-dev-kit/skills/review-automation/SKILL.md"));
+                paths.push(
+                    root.join("plugins/stackpilot-dev-kit/skills/review-automation/SKILL.md"),
+                );
             }
             if resolved
                 .surfaces
@@ -2649,8 +2695,8 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .iter()
                 .any(|surface| surface == "incident-skills")
             {
-                paths.push(root.join("plugins/llm-dev-kit/skills/investigate/SKILL.md"));
-                paths.push(root.join("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/investigate/SKILL.md"));
+                paths.push(root.join("plugins/stackpilot-dev-kit/skills/workflow-gate/SKILL.md"));
             }
             if resolved
                 .surfaces
@@ -2668,7 +2714,7 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .distribution_state
                 .enabled(DistributionTarget::GeminiExtension)
             {
-                paths.push(root.join("extensions/llm-bootstrap-dev/gemini-extension.json"));
+                paths.push(root.join("extensions/stackpilot-dev/gemini-extension.json"));
             }
             if resolved
                 .surfaces
@@ -2677,8 +2723,9 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .any(|surface| surface == "delivery-commands")
             {
                 paths.push(root.join("WORKFLOW.md"));
-                paths.push(root.join("extensions/llm-bootstrap-dev/commands/autopilot.toml"));
-                paths.push(root.join("extensions/llm-bootstrap-dev/commands/gate.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/autopilot.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/deep-init.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/gate.toml"));
             }
             if resolved
                 .surfaces
@@ -2687,8 +2734,9 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .any(|surface| surface == "team-commands")
             {
                 paths.push(root.join("TEAM.md"));
-                paths.push(root.join("extensions/llm-bootstrap-dev/commands/team.toml"));
-                paths.push(root.join("extensions/llm-bootstrap-dev/commands/gate.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/team.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/ultrawork.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/gate.toml"));
             }
             if resolved
                 .surfaces
@@ -2697,9 +2745,7 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .any(|surface| surface == "review-automation-commands")
             {
                 paths.push(root.join("REVIEW_AUTOMATION.md"));
-                paths.push(
-                    root.join("extensions/llm-bootstrap-dev/commands/review-automation.toml"),
-                );
+                paths.push(root.join("extensions/stackpilot-dev/commands/review-automation.toml"));
             }
             if resolved
                 .surfaces
@@ -2707,8 +2753,8 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .iter()
                 .any(|surface| surface == "incident-commands")
             {
-                paths.push(root.join("extensions/llm-bootstrap-dev/agents/triage.md"));
-                paths.push(root.join("extensions/llm-bootstrap-dev/commands/gate.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/agents/triage.md"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/gate.toml"));
             }
             if resolved
                 .surfaces
@@ -2716,8 +2762,7 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
                 .iter()
                 .any(|surface| surface == "company-commands")
             {
-                paths
-                    .push(root.join("extensions/llm-bootstrap-dev/commands/operating-review.toml"));
+                paths.push(root.join("extensions/stackpilot-dev/commands/operating-review.toml"));
             }
             paths
         }
@@ -2731,6 +2776,7 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
             {
                 paths.push(root.join("WORKFLOW.md"));
                 paths.push(root.join("skills/autopilot/SKILL.md"));
+                paths.push(root.join("skills/deep-init/SKILL.md"));
                 paths.push(root.join("skills/workflow-gate/SKILL.md"));
             }
             if resolved
@@ -2741,6 +2787,7 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
             {
                 paths.push(root.join("TEAM.md"));
                 paths.push(root.join("skills/team/SKILL.md"));
+                paths.push(root.join("skills/ultrawork/SKILL.md"));
                 paths.push(root.join("skills/workflow-gate/SKILL.md"));
             }
             if resolved
@@ -2771,11 +2818,54 @@ fn provider_probe_paths(home: &Path, provider: Provider, resolved: &ResolvedPlan
             }
             paths
         }
+    };
+    dedupe_ordered(paths)
+}
+
+fn dedupe_ordered<T>(items: Vec<T>) -> Vec<T>
+where
+    T: Eq + Hash + Clone,
+{
+    let mut seen = IndexSet::new();
+    let mut unique = Vec::new();
+    for item in items {
+        if seen.insert(item.clone()) {
+            unique.push(item);
+        }
     }
+    unique
 }
 
 fn run_provider_probe(home: &Path, provider: Provider, prompt: &str) -> Result<ProbeRuntimeResult> {
-    let attempts = provider_probe_attempts(provider, prompt);
+    run_provider_probe_attempts(home, provider, provider_probe_attempts(provider, prompt))
+}
+
+fn run_provider_optimization_probes(
+    home: &Path,
+    provider: Provider,
+) -> Result<Vec<ProbeRuntimeResult>> {
+    match provider {
+        Provider::Codex => Ok(vec![run_provider_probe_attempts(
+            home,
+            provider,
+            codex_long_context_probe_attempts(),
+        )?]),
+        Provider::Claude => {
+            let mut results = Vec::new();
+            for attempt in claude_1m_probe_attempts() {
+                results.push(run_provider_probe_attempts(home, provider, vec![attempt])?);
+            }
+            Ok(results)
+        }
+        Provider::Gemini => Ok(Vec::new()),
+    }
+}
+
+fn run_provider_probe_attempts(
+    home: &Path,
+    provider: Provider,
+    attempts: Vec<(String, Vec<String>)>,
+) -> Result<ProbeRuntimeResult> {
     let mut last_failure = None;
 
     for (command, args) in attempts {
@@ -2794,11 +2884,7 @@ fn run_provider_probe(home: &Path, provider: Provider, prompt: &str) -> Result<P
                     status: "ok".to_string(),
                     command: display_command,
                     stdout: Some(stdout),
-                    stderr: if stderr.is_empty() {
-                        None
-                    } else {
-                        Some(stderr)
-                    },
+                    stderr: None,
                     detail: None,
                 });
             }
@@ -2840,6 +2926,43 @@ fn run_provider_probe(home: &Path, provider: Provider, prompt: &str) -> Result<P
         stderr: None,
         detail: Some("no runtime probe attempt available".to_string()),
     }))
+}
+
+fn codex_long_context_probe_attempts() -> Vec<(String, Vec<String>)> {
+    vec![(
+        "codex".to_string(),
+        vec![
+            "exec".to_string(),
+            "-c".to_string(),
+            "model=\"gpt-5.5\"".to_string(),
+            "-c".to_string(),
+            "model_context_window=1000000".to_string(),
+            "-c".to_string(),
+            "model_auto_compact_token_limit=900000".to_string(),
+            "--skip-git-repo-check".to_string(),
+            "--ephemeral".to_string(),
+            "Reply with exactly OK and nothing else.".to_string(),
+        ],
+    )]
+}
+
+fn claude_1m_probe_attempts() -> Vec<(String, Vec<String>)> {
+    [("opus[1m]", "max"), ("sonnet[1m]", "high")]
+        .into_iter()
+        .map(|(model, effort)| {
+            (
+                "claude".to_string(),
+                vec![
+                    "-p".to_string(),
+                    "--model".to_string(),
+                    model.to_string(),
+                    "--effort".to_string(),
+                    effort.to_string(),
+                    "Reply with exactly OK and nothing else.".to_string(),
+                ],
+            )
+        })
+        .collect()
 }
 
 fn provider_probe_attempts(provider: Provider, prompt: &str) -> Vec<(String, Vec<String>)> {
@@ -3174,10 +3297,9 @@ fn record_with(args: &RecordArgs, manifest: &BootstrapManifest) -> Result<()> {
         .find(|record| record.record_type == args.record_type.record_type());
     let task_state = if args.from_task_state {
         let home = home_dir()?;
-        Some(
-            read_task_state(&home)?
-                .context("no active task state to attach; start one with `llm-bootstrap internal task-state begin ...`")?,
-        )
+        Some(read_task_state(&home)?.context(
+            "no active task state to attach; start one with `stack-pilot internal task-state begin ...`",
+        )?)
     } else {
         None
     };
@@ -3239,6 +3361,9 @@ fn render_record_body(
         .as_deref()
         .or_else(|| task_state.and_then(|state| state.owner.as_deref()))
         .unwrap_or("");
+    let context_summary = task_state
+        .and_then(|state| state.summary.as_deref())
+        .unwrap_or("");
     let next_action = args
         .next_action
         .as_deref()
@@ -3252,6 +3377,12 @@ fn render_record_body(
     let task_state_id = task_state.map(|state| state.id.as_str()).unwrap_or("");
     let task_state_phase = task_state.map(|state| state.phase.as_str()).unwrap_or("");
     let task_state_status = task_state.map(|state| state.status.as_str()).unwrap_or("");
+    let task_state_summary = task_state
+        .and_then(|state| state.summary.as_deref())
+        .unwrap_or("");
+    let task_state_checkpoint = task_state
+        .and_then(|state| state.checkpoint.as_deref())
+        .unwrap_or("");
     let task_state_providers = task_state
         .map(|state| yaml_inline_string_array(&state.providers))
         .unwrap_or_else(|| "[]".to_string());
@@ -3273,7 +3404,7 @@ fn render_record_body(
         .unwrap_or("");
 
     Ok(format!(
-        "# {title}\n\n```yaml\nid: \"{id}\"\ntype: \"{record_type}\"\ntemplate: \"{template_name}\"\nstage: \"{stage}\"\ntitle: \"{title}\"\nstatus: \"{status}\"\nsource: \"llm-bootstrap record\"\nowner: \"{owner}\"\nupdated_at: \"{updated_at}\"\nnext_action: \"{next_action}\"\nlinked_tools:\n  github: \"\"\n  linear: \"\"\n  figma: \"\"\n  docs: \"\"\n  calendar: \"\"\n  crm: \"\"\n  helpdesk: \"\"\n  analytics: \"\"\ncontext:\n  summary: \"\"\n  assumptions: []\n  task_state:\n    source: \"{task_state_source}\"\n    id: \"{task_state_id}\"\n    phase: \"{task_state_phase}\"\n    status: \"{task_state_status}\"\n    providers: {task_state_providers}\n    packs: {task_state_packs}\n    harnesses: {task_state_harnesses}\n    completed_signals: {task_state_completed}\n    attempt_count: {task_state_attempts}\n    last_failure: \"{task_state_failure}\"\n    investigation_note: \"{task_state_investigation}\"\ndecision:\n  chosen: \"\"\n  alternatives: []\n  rationale: \"\"\nevidence:\n  links: []\n  notes: []\napprovals:\n  required: false\n  reason: \"\"\n  approver: \"\"\nhandoff:\n  runtime_owner: \"\"\n  external_object_id: \"\"\n  next_step: \"\"\n```\n\n## Description\n\n{description}\n\n## Notes\n\n- Keep this record compact.\n- Link to external source-of-truth systems instead of copying their data.\n- If task-state is attached, keep this record aligned with the active lane before closing the loop.\n- Require approval before customer sends, legal/finance decisions, or external writes.\n",
+        "# {title}\n\n```yaml\nid: \"{id}\"\ntype: \"{record_type}\"\ntemplate: \"{template_name}\"\nstage: \"{stage}\"\ntitle: \"{title}\"\nstatus: \"{status}\"\nsource: \"stack-pilot record\"\nowner: \"{owner}\"\nupdated_at: \"{updated_at}\"\nnext_action: \"{next_action}\"\nlinked_tools:\n  github: \"\"\n  linear: \"\"\n  figma: \"\"\n  docs: \"\"\n  calendar: \"\"\n  crm: \"\"\n  helpdesk: \"\"\n  analytics: \"\"\ncontext:\n  summary: \"{context_summary}\"\n  assumptions: []\n  task_state:\n    source: \"{task_state_source}\"\n    id: \"{task_state_id}\"\n    phase: \"{task_state_phase}\"\n    status: \"{task_state_status}\"\n    summary: \"{task_state_summary}\"\n    checkpoint: \"{task_state_checkpoint}\"\n    providers: {task_state_providers}\n    packs: {task_state_packs}\n    harnesses: {task_state_harnesses}\n    completed_signals: {task_state_completed}\n    attempt_count: {task_state_attempts}\n    last_failure: \"{task_state_failure}\"\n    investigation_note: \"{task_state_investigation}\"\ndecision:\n  chosen: \"\"\n  alternatives: []\n  rationale: \"\"\nevidence:\n  links: []\n  notes: []\napprovals:\n  required: false\n  reason: \"\"\n  approver: \"\"\nhandoff:\n  runtime_owner: \"\"\n  external_object_id: \"\"\n  next_step: \"\"\n```\n\n## Description\n\n{description}\n\n## Notes\n\n- Keep this record compact.\n- Link to external source-of-truth systems instead of copying their data.\n- If task-state is attached, keep this record aligned with the active lane before closing the loop.\n- Require approval before customer sends, legal/finance decisions, or external writes.\n",
         title = yaml_string(&args.title),
         id = id,
         record_type = args.record_type.record_type(),
@@ -3283,10 +3414,13 @@ fn render_record_body(
         owner = yaml_string(owner),
         updated_at = updated_at,
         next_action = yaml_string(next_action),
+        context_summary = yaml_string(context_summary),
         task_state_source = yaml_string(task_state_source),
         task_state_id = yaml_string(task_state_id),
         task_state_phase = yaml_string(task_state_phase),
         task_state_status = yaml_string(task_state_status),
+        task_state_summary = yaml_string(task_state_summary),
+        task_state_checkpoint = yaml_string(task_state_checkpoint),
         task_state_providers = task_state_providers,
         task_state_packs = task_state_packs,
         task_state_harnesses = task_state_harnesses,
@@ -3342,7 +3476,7 @@ fn create_github_issue(args: &RecordArgs, body: &str, local_path: Option<&Path>)
         Some(path) => path.to_path_buf(),
         None => {
             let path = env::temp_dir().join(format!(
-                "llm-bootstrap-record-{}-{}.md",
+                "stackpilot-record-{}-{}.md",
                 args.record_type.name(),
                 timestamp_string()?
             ));
@@ -4144,7 +4278,7 @@ fn read_managed_env_entries(path: &Path) -> Result<BTreeMap<String, String>> {
 }
 
 fn write_managed_env_entries(path: &Path, entries: &BTreeMap<String, String>) -> Result<()> {
-    let mut body = String::from("# managed by llm-bootstrap\n");
+    let mut body = String::from("# managed by stackpilot\n");
     for (name, value) in entries {
         body.push_str("export ");
         body.push_str(name);
@@ -4163,7 +4297,7 @@ fn ensure_zshrc_sources_managed_env() -> Result<()> {
         String::new()
     };
 
-    if existing.contains("llm-bootstrap-env.zsh") || zshrc_has_zshrc_d_loader(&existing) {
+    if existing.contains("stackpilot-env.zsh") || zshrc_has_zshrc_d_loader(&existing) {
         return Ok(());
     }
 
@@ -4310,6 +4444,7 @@ mod tests {
     use crate::providers::{claude, codex, gemini};
     use serde_json::json;
     use std::{
+        collections::BTreeSet,
         fs,
         path::{Path, PathBuf},
         sync::atomic::{AtomicU64, Ordering},
@@ -4370,7 +4505,7 @@ mod tests {
                     name: "parallel-build".to_string(),
                     category: HarnessCategory::Development,
                     default_enabled: false,
-                    description: "Multi-agent planner, executor, reviewer, and verifier harness."
+                    description: "Gstack-style parallel build harness with ownership, handoff, review, QA, and verification gates."
                         .to_string(),
                 },
                 HarnessDefinition {
@@ -4405,9 +4540,9 @@ mod tests {
                     ],
                     mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
                     connectors: vec!["github".to_string(), "linear".to_string()],
-                    codex_surfaces: vec!["llm-dev-kit".to_string(), "delivery-skills".to_string()],
+                    codex_surfaces: vec!["stackpilot-dev-kit".to_string(), "delivery-skills".to_string()],
                     gemini_surfaces: vec![
-                        "llm-bootstrap-dev".to_string(),
+                        "stackpilot-dev".to_string(),
                         "delivery-commands".to_string(),
                     ],
                     claude_surfaces: vec![
@@ -4423,9 +4558,9 @@ mod tests {
                     harnesses: vec!["incident".to_string(), "review-gate".to_string()],
                     mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
                     connectors: vec!["github".to_string(), "linear".to_string()],
-                    codex_surfaces: vec!["llm-dev-kit".to_string(), "incident-skills".to_string()],
+                    codex_surfaces: vec!["stackpilot-dev-kit".to_string(), "incident-skills".to_string()],
                     gemini_surfaces: vec![
-                        "llm-bootstrap-dev".to_string(),
+                        "stackpilot-dev".to_string(),
                         "incident-commands".to_string(),
                     ],
                     claude_surfaces: vec![
@@ -4448,12 +4583,12 @@ mod tests {
                     mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
                     connectors: vec!["github".to_string(), "linear".to_string()],
                     codex_surfaces: vec![
-                        "llm-dev-kit".to_string(),
+                        "stackpilot-dev-kit".to_string(),
                         "delivery-skills".to_string(),
                         "team-skills".to_string(),
                     ],
                     gemini_surfaces: vec![
-                        "llm-bootstrap-dev".to_string(),
+                        "stackpilot-dev".to_string(),
                         "delivery-commands".to_string(),
                         "team-commands".to_string(),
                     ],
@@ -4462,7 +4597,7 @@ mod tests {
                         "delivery-skills".to_string(),
                         "team-skills".to_string(),
                     ],
-                    description: "Advanced multi-agent team delivery pack.".to_string(),
+                    description: "Advanced gstack-style team delivery pack with decomposition, ownership, handoff, and verification lanes.".to_string(),
                 },
                 PackDefinition {
                     name: "review-automation-pack".to_string(),
@@ -4472,11 +4607,11 @@ mod tests {
                     mcp_servers: vec![BaselineMcp::ChromeDevtools, BaselineMcp::Context7],
                     connectors: vec!["github".to_string(), "linear".to_string()],
                     codex_surfaces: vec![
-                        "llm-dev-kit".to_string(),
+                        "stackpilot-dev-kit".to_string(),
                         "review-automation-skills".to_string(),
                     ],
                     gemini_surfaces: vec![
-                        "llm-bootstrap-dev".to_string(),
+                        "stackpilot-dev".to_string(),
                         "review-automation-commands".to_string(),
                     ],
                     claude_surfaces: vec![
@@ -4503,9 +4638,9 @@ mod tests {
                         "figma".to_string(),
                         "stitch".to_string(),
                     ],
-                    codex_surfaces: vec!["llm-dev-kit".to_string(), "company-skills".to_string()],
+                    codex_surfaces: vec!["stackpilot-dev-kit".to_string(), "company-skills".to_string()],
                     gemini_surfaces: vec![
-                        "llm-bootstrap-dev".to_string(),
+                        "stackpilot-dev".to_string(),
                         "company-commands".to_string(),
                     ],
                     claude_surfaces: vec![
@@ -4526,9 +4661,9 @@ mod tests {
                         "calendar".to_string(),
                         "drive".to_string(),
                     ],
-                    codex_surfaces: vec!["llm-dev-kit".to_string(), "company-skills".to_string()],
+                    codex_surfaces: vec!["stackpilot-dev-kit".to_string(), "company-skills".to_string()],
                     gemini_surfaces: vec![
-                        "llm-bootstrap-dev".to_string(),
+                        "stackpilot-dev".to_string(),
                         "company-commands".to_string(),
                     ],
                     claude_surfaces: vec![
@@ -4566,7 +4701,7 @@ mod tests {
                         "incident-pack".to_string(),
                         "team-pack".to_string(),
                     ],
-                    description: "Development baseline with advanced multi-agent delivery."
+                    description: "Development baseline with gstack-style orchestration gates and provider-native team surfaces."
                         .to_string(),
                 },
                 PresetDefinition {
@@ -4579,10 +4714,24 @@ mod tests {
                     packs: vec!["review-automation-pack".to_string()],
                     description: "Repository review automation lane.".to_string(),
                 },
+                PresetDefinition {
+                    name: "all-in-one".to_string(),
+                    packs: vec![
+                        "delivery-pack".to_string(),
+                        "incident-pack".to_string(),
+                        "team-pack".to_string(),
+                        "founder-pack".to_string(),
+                        "ops-pack".to_string(),
+                        "review-automation-pack".to_string(),
+                    ],
+                    description:
+                        "All-in-one lane with development, orchestration, company, and review automation."
+                            .to_string(),
+                },
             ],
             surfaces: vec![
                 SurfaceDefinition {
-                    name: "llm-dev-kit".to_string(),
+                    name: "stackpilot-dev-kit".to_string(),
                     kind: SurfaceKind::Baseline,
                     runtime_owner: SurfaceRuntimeOwner::Bootstrap,
                     default_lane: PackLane::Core,
@@ -4630,7 +4779,7 @@ mod tests {
                     description: "Codex review automation entrypoints.".to_string(),
                 },
                 SurfaceDefinition {
-                    name: "llm-bootstrap-dev".to_string(),
+                    name: "stackpilot-dev".to_string(),
                     kind: SurfaceKind::Baseline,
                     runtime_owner: SurfaceRuntimeOwner::Bootstrap,
                     default_lane: PackLane::Core,
@@ -5044,7 +5193,10 @@ mod tests {
             active_connectors: vec!["github".to_string(), "linear".to_string()],
             active_automations: Vec::new(),
             active_record_templates: vec!["project-record".to_string()],
-            active_surfaces: vec!["llm-dev-kit".to_string(), "delivery-skills".to_string()],
+            active_surfaces: vec![
+                "stackpilot-dev-kit".to_string(),
+                "delivery-skills".to_string(),
+            ],
             managed_paths: vec!["config.toml".to_string(), "AGENTS.md".to_string()],
         };
 
@@ -5292,6 +5444,12 @@ mod tests {
             preset.name == "review-automation"
                 && preset.packs.contains(&"review-automation-pack".to_string())
         }));
+        assert!(manifest.presets.iter().any(|preset| {
+            preset.name == "all-in-one"
+                && preset.packs.contains(&"team-pack".to_string())
+                && preset.packs.contains(&"founder-pack".to_string())
+                && preset.packs.contains(&"review-automation-pack".to_string())
+        }));
         assert!(manifest.surfaces.iter().any(|surface| {
             surface.name == "delivery-commands"
                 && surface.distribution_target == DistributionTarget::GeminiExtension
@@ -5335,8 +5493,8 @@ mod tests {
 
     #[test]
     fn codex_bundle_qa_browser_skill_has_frontmatter() {
-        let path = crate::runtime::repo_root()
-            .join("bundles/full/plugins/llm-dev-kit/skills/qa-browser/SKILL.md");
+        let path = crate::repo_assets::stackpilot_dev_kit_codex_bundle_root()
+            .join("skills/qa-browser/SKILL.md");
         let raw = fs::read_to_string(path).unwrap();
         assert!(raw.starts_with("---\n"));
     }
@@ -5345,7 +5503,7 @@ mod tests {
         let counter = TEMP_HOME_COUNTER.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir()
             .join(format!(
-                "llm-bootstrap-test-{}-{}-{}",
+                "stackpilot-test-{}-{}-{}",
                 std::process::id(),
                 std::thread::current().name().unwrap_or("anon"),
                 counter
@@ -5361,6 +5519,14 @@ mod tests {
         path
     }
 
+    fn assert_claude_opus_1m_model(value: &serde_json::Value) {
+        let model = value.as_str().unwrap_or_default();
+        assert_eq!(
+            model, "opus[1m]",
+            "expected Claude Opus 1M model, got {model:?}"
+        );
+    }
+
     fn test_task_state(harnesses: &[&str]) -> crate::state::TaskState {
         crate::state::TaskState {
             id: "task_1".to_string(),
@@ -5368,6 +5534,10 @@ mod tests {
             status: "in-progress".to_string(),
             phase: "execute".to_string(),
             owner: Some("codex".to_string()),
+            summary: Some("Auth flow is wired and blocked on the review lane.".to_string()),
+            checkpoint: Some(
+                "Resume from the failing oauth fixture and re-run the review probes.".to_string(),
+            ),
             next_action: Some("continue".to_string()),
             providers: vec!["codex".to_string(), "gemini".to_string()],
             packs: vec!["delivery-pack".to_string(), "team-pack".to_string()],
@@ -5563,6 +5733,10 @@ mod tests {
             crate::cli::TaskStateAdvanceArgs {
                 status: None,
                 phase: None,
+                summary: None,
+                clear_summary: false,
+                checkpoint: None,
+                clear_checkpoint: false,
                 next_action: None,
                 failure: None,
                 clear_failure: false,
@@ -5593,6 +5767,53 @@ mod tests {
     }
 
     #[test]
+    fn task_state_advance_updates_summary_and_checkpoint() {
+        let home = temp_home();
+        let state = test_task_state(&[]);
+        crate::state::write_task_state(&home, &state).unwrap();
+
+        super::task_state_advance(
+            &home,
+            crate::cli::TaskStateAdvanceArgs {
+                status: None,
+                phase: None,
+                summary: Some("Review lane is waiting on a flaky fixture repro.".to_string()),
+                clear_summary: false,
+                checkpoint: Some(
+                    "Open the oauth fixture, rerun the repro, and capture output.".to_string(),
+                ),
+                clear_checkpoint: false,
+                next_action: Some("rerun the flaky review repro".to_string()),
+                failure: None,
+                clear_failure: false,
+                investigation_note: None,
+                clear_investigation: false,
+                complete: Vec::new(),
+                clear_complete: Vec::new(),
+                increment_attempt: false,
+                json: false,
+            },
+        )
+        .unwrap();
+
+        let loaded = crate::state::read_task_state(&home).unwrap().unwrap();
+        assert_eq!(
+            loaded.summary.as_deref(),
+            Some("Review lane is waiting on a flaky fixture repro.")
+        );
+        assert_eq!(
+            loaded.checkpoint.as_deref(),
+            Some("Open the oauth fixture, rerun the repro, and capture output.")
+        );
+        assert_eq!(
+            loaded.next_action.as_deref(),
+            Some("rerun the flaky review repro")
+        );
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
     fn home_legacy_cleanup_removes_old_omx_omc_omg_without_touching_history() {
         let home = temp_home();
         fs::create_dir_all(home.join(".omx/cache")).unwrap();
@@ -5616,7 +5837,7 @@ mod tests {
             fs::read_to_string(home.join(".codex/sessions/session.jsonl")).unwrap(),
             "keep"
         );
-        let backup_root = fs::read_dir(home.join(".llm-bootstrap-legacy-backups"))
+        let backup_root = fs::read_dir(home.join(".stackpilot-legacy-backups"))
             .unwrap()
             .next()
             .unwrap()
@@ -5633,11 +5854,11 @@ mod tests {
     #[test]
     fn legacy_env_cleanup_removes_oh_my_keys_from_managed_cli_env_only() {
         let home = temp_home();
-        let env_path = home.join(".zshrc.d/llm-bootstrap-env.zsh");
+        let env_path = home.join(".zshrc.d/stackpilot-env.zsh");
         fs::create_dir_all(env_path.parent().unwrap()).unwrap();
         fs::write(
             &env_path,
-            "# managed by llm-bootstrap\nexport EXA_API_KEY='exa-key'\nexport OMX_API_KEY='old-omx'\nexport OH_MY_OPENCODE_API_KEY='old-oh-my'\n",
+            "# managed by stackpilot\nexport EXA_API_KEY='exa-key'\nexport OMX_API_KEY='old-omx'\nexport OH_MY_OPENCODE_API_KEY='old-oh-my'\n",
         )
         .unwrap();
 
@@ -5700,14 +5921,17 @@ mod tests {
 
     #[test]
     fn codex_mcp_blocks_include_unified_baseline() {
-        let enabled = vec![BaselineMcp::ChromeDevtools];
+        let enabled = vec![BaselineMcp::ChromeDevtools, BaselineMcp::Exa];
         let root = temp_home().join(".codex");
         fs::create_dir_all(&root).unwrap();
         let blocks =
             codex::mcp_blocks(Path::new("/tmp/home"), &root, &enabled, ApplyMode::Merge).unwrap();
         assert!(blocks.contains("chrome-devtools-mcp.sh"));
+        assert!(blocks.contains("exa-mcp.sh"));
+        assert!(blocks.contains("startup_timeout_sec = 20"));
+        assert!(blocks.contains("tool_timeout_sec = 120"));
+        assert!(blocks.contains("env_vars = [\"EXA_API_KEY\"]"));
         assert!(!blocks.contains("context7-mcp.sh"));
-        assert!(!blocks.contains("exa-mcp.sh"));
         assert!(!blocks.contains("playwright-mcp.sh"));
         assert!(!blocks.contains("github-mcp.sh"));
         fs::remove_dir_all(root.parent().unwrap()).unwrap();
@@ -5715,7 +5939,7 @@ mod tests {
 
     #[test]
     fn codex_plugin_blocks_follow_distribution_target_selection() {
-        assert!(codex::plugin_blocks(true).contains("llm-dev-kit@llm-bootstrap"));
+        assert!(codex::plugin_blocks(true).contains("stackpilot-dev-kit@stackpilot"));
         assert!(codex::plugin_blocks(false).is_empty());
     }
 
@@ -5807,6 +6031,30 @@ mod tests {
     }
 
     #[test]
+    fn selected_pack_names_resolve_all_in_one_preset() {
+        let selection = super::selected_pack_names(
+            &super::PackArgs {
+                preset: Some("all-in-one".to_string()),
+                packs: None,
+            },
+            &test_manifest(),
+        )
+        .unwrap();
+        assert_eq!(selection.preset, Some("all-in-one".to_string()));
+        assert_eq!(
+            selection.packs,
+            vec![
+                "delivery-pack".to_string(),
+                "incident-pack".to_string(),
+                "team-pack".to_string(),
+                "founder-pack".to_string(),
+                "ops-pack".to_string(),
+                "review-automation-pack".to_string()
+            ]
+        );
+    }
+
+    #[test]
     fn provider_runtime_check_requires_gemini_cli() {
         let check = super::provider_runtime_check(super::Provider::Gemini);
 
@@ -5872,6 +6120,31 @@ mod tests {
     }
 
     #[test]
+    fn codex_optimization_probe_attempt_uses_gpt55_1m_override() {
+        let attempts = super::codex_long_context_probe_attempts();
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0].0, "codex");
+        let args = &attempts[0].1;
+        assert!(args.contains(&"model=\"gpt-5.5\"".to_string()));
+        assert!(args.contains(&"model_context_window=1000000".to_string()));
+        assert!(args.contains(&"model_auto_compact_token_limit=900000".to_string()));
+        assert!(args.contains(&"--skip-git-repo-check".to_string()));
+        assert!(args.contains(&"--ephemeral".to_string()));
+    }
+
+    #[test]
+    fn claude_optimization_probe_attempts_use_1m_aliases() {
+        let attempts = super::claude_1m_probe_attempts();
+        assert_eq!(attempts.len(), 2);
+        assert_eq!(attempts[0].0, "claude");
+        assert!(attempts[0].1.contains(&"opus[1m]".to_string()));
+        assert!(attempts[0].1.contains(&"max".to_string()));
+        assert_eq!(attempts[1].0, "claude");
+        assert!(attempts[1].1.contains(&"sonnet[1m]".to_string()));
+        assert!(attempts[1].1.contains(&"high".to_string()));
+    }
+
+    #[test]
     fn provider_probe_paths_follow_selected_surfaces() {
         let home = temp_home();
         let resolved = super::resolve_plan(
@@ -5884,20 +6157,22 @@ mod tests {
         .unwrap();
 
         let codex_paths = super::provider_probe_paths(&home, super::Provider::Codex, &resolved);
+        assert_unique_paths(&codex_paths);
         assert!(codex_paths.iter().any(|path| path.ends_with("AGENTS.md")));
         assert!(codex_paths.iter().any(|path| path.ends_with("WORKFLOW.md")));
         assert!(
             codex_paths
                 .iter()
-                .any(|path| path.ends_with("plugins/llm-dev-kit/skills/autopilot/SKILL.md"))
+                .any(|path| path.ends_with("plugins/stackpilot-dev-kit/skills/autopilot/SKILL.md"))
         );
 
         let gemini_paths = super::provider_probe_paths(&home, super::Provider::Gemini, &resolved);
+        assert_unique_paths(&gemini_paths);
         assert!(gemini_paths.iter().any(|path| path.ends_with("GEMINI.md")));
         assert!(
             gemini_paths
                 .iter()
-                .any(|path| path.ends_with("extensions/llm-bootstrap-dev/commands/autopilot.toml"))
+                .any(|path| path.ends_with("extensions/stackpilot-dev/commands/autopilot.toml"))
         );
 
         fs::remove_dir_all(home).unwrap();
@@ -5916,32 +6191,43 @@ mod tests {
         .unwrap();
 
         let codex_paths = super::provider_probe_paths(&home, super::Provider::Codex, &resolved);
+        assert_unique_paths(&codex_paths);
         assert!(codex_paths.iter().any(|path| path.ends_with("TEAM.md")));
         assert!(
             codex_paths
                 .iter()
-                .any(|path| path.ends_with("plugins/llm-dev-kit/skills/team/SKILL.md"))
+                .any(|path| path.ends_with("plugins/stackpilot-dev-kit/skills/team/SKILL.md"))
         );
         assert!(
             codex_paths
                 .iter()
-                .any(|path| path.ends_with("plugins/llm-dev-kit/skills/workflow-gate/SKILL.md"))
+                .any(|path| path.ends_with("plugins/stackpilot-dev-kit/skills/ultrawork/SKILL.md"))
         );
+        assert!(codex_paths.iter().any(|path| {
+            path.ends_with("plugins/stackpilot-dev-kit/skills/workflow-gate/SKILL.md")
+        }));
 
         let gemini_paths = super::provider_probe_paths(&home, super::Provider::Gemini, &resolved);
+        assert_unique_paths(&gemini_paths);
         assert!(gemini_paths.iter().any(|path| path.ends_with("TEAM.md")));
         assert!(
             gemini_paths
                 .iter()
-                .any(|path| path.ends_with("extensions/llm-bootstrap-dev/commands/team.toml"))
+                .any(|path| path.ends_with("extensions/stackpilot-dev/commands/team.toml"))
         );
         assert!(
             gemini_paths
                 .iter()
-                .any(|path| path.ends_with("extensions/llm-bootstrap-dev/commands/gate.toml"))
+                .any(|path| path.ends_with("extensions/stackpilot-dev/commands/ultrawork.toml"))
+        );
+        assert!(
+            gemini_paths
+                .iter()
+                .any(|path| path.ends_with("extensions/stackpilot-dev/commands/gate.toml"))
         );
 
         let claude_paths = super::provider_probe_paths(&home, super::Provider::Claude, &resolved);
+        assert_unique_paths(&claude_paths);
         assert!(claude_paths.iter().any(|path| path.ends_with("TEAM.md")));
         assert!(
             claude_paths
@@ -5951,10 +6237,70 @@ mod tests {
         assert!(
             claude_paths
                 .iter()
+                .any(|path| path.ends_with("skills/ultrawork/SKILL.md"))
+        );
+        assert!(
+            claude_paths
+                .iter()
                 .any(|path| path.ends_with("skills/workflow-gate/SKILL.md"))
         );
 
         fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn selected_provider_asset_paths_are_unique() {
+        let codex_surfaces = vec![
+            "delivery-skills".to_string(),
+            "incident-skills".to_string(),
+            "team-skills".to_string(),
+            "review-automation-skills".to_string(),
+            "company-skills".to_string(),
+        ];
+        let gemini_surfaces = vec![
+            "delivery-commands".to_string(),
+            "incident-commands".to_string(),
+            "team-commands".to_string(),
+            "review-automation-commands".to_string(),
+            "company-commands".to_string(),
+        ];
+
+        assert_unique_static_paths(crate::layout::codex_managed_paths_for(
+            &codex_surfaces,
+            true,
+            true,
+        ));
+        assert_unique_static_paths(crate::layout::codex_plugin_asset_paths(&codex_surfaces));
+        assert_unique_static_paths(crate::layout::gemini_managed_paths_for(
+            &gemini_surfaces,
+            true,
+            true,
+        ));
+        assert_unique_static_paths(crate::layout::gemini_extension_asset_paths(
+            &gemini_surfaces,
+        ));
+        assert_unique_static_paths(crate::layout::claude_managed_paths_for(
+            &codex_surfaces,
+            true,
+            true,
+        ));
+        assert_unique_static_paths(crate::layout::claude_skill_paths(&codex_surfaces));
+    }
+
+    fn assert_unique_paths(paths: &[PathBuf]) {
+        let mut seen = BTreeSet::new();
+        for path in paths {
+            let rendered = path.display().to_string();
+            assert!(seen.insert(rendered.clone()), "duplicate path: {rendered}");
+        }
+    }
+
+    fn assert_unique_static_paths<T: ToString>(paths: Vec<T>) {
+        let mut seen = BTreeSet::new();
+        for path in paths {
+            let rendered = path.to_string();
+            assert!(seen.insert(rendered.clone()), "duplicate path: {rendered}");
+        }
     }
 
     #[test]
@@ -6056,7 +6402,7 @@ mod tests {
             vec!["check".to_string(), "pr-review-gate / gate".to_string()]
         );
         assert!(
-            repo.join(".github/llm-bootstrap/review-automation.json")
+            repo.join(".github/stackpilot/review-automation.json")
                 .exists()
         );
         assert!(repo.join(".github/workflows/pr-review-gate.yml").exists());
@@ -6066,8 +6412,8 @@ mod tests {
         );
         assert!(repo.join(".github/PULL_REQUEST_TEMPLATE.md").exists());
         let config =
-            fs::read_to_string(repo.join(".github/llm-bootstrap/review-automation.json")).unwrap();
-        assert!(config.contains("\"managed_by\": \"llm-bootstrap\""));
+            fs::read_to_string(repo.join(".github/stackpilot/review-automation.json")).unwrap();
+        assert!(config.contains("\"managed_by\": \"stackpilot\""));
         assert!(config.contains("\"check\""));
         let pr_template =
             fs::read_to_string(repo.join(".github/PULL_REQUEST_TEMPLATE.md")).unwrap();
@@ -6214,7 +6560,7 @@ mod tests {
             next_action: None,
             from_task_state: true,
             surface: crate::cli::RecordSurface::LocalDocs,
-            output_dir: PathBuf::from(".llm-bootstrap/records"),
+            output_dir: PathBuf::from(".stackpilot/records"),
             github_repo: None,
             dry_run: true,
         };
@@ -6236,6 +6582,13 @@ mod tests {
         assert!(body.contains("harnesses: [\"parallel-build\", \"review-gate\"]"));
         assert!(body.contains("owner: \"codex\""));
         assert!(body.contains("next_action: \"continue\""));
+        assert!(body.contains(
+            "context:\n  summary: \"Auth flow is wired and blocked on the review lane.\""
+        ));
+        assert!(body.contains("summary: \"Auth flow is wired and blocked on the review lane.\""));
+        assert!(body.contains(
+            "checkpoint: \"Resume from the failing oauth fixture and re-run the review probes.\""
+        ));
         assert!(body.contains("investigation_note: \"isolated flaky fixture\""));
     }
 
@@ -6357,12 +6710,24 @@ mod tests {
             let parsed: toml::Value = raw.parse().unwrap();
             let name = parsed["name"].as_str().unwrap().to_string();
             assert!(parsed.get("model").is_some(), "missing model in {}", name);
+            assert_ne!(
+                parsed["model"].as_str(),
+                Some("gpt-5-codex"),
+                "stale Codex model alias in {}",
+                name
+            );
             assert!(
                 parsed.get("model_reasoning_effort").is_some(),
                 "missing effort in {}",
                 name
             );
             if parsed.get("model_context_window").is_some() {
+                assert_eq!(
+                    parsed["model"].as_str(),
+                    Some("gpt-5.5"),
+                    "long-context Codex role should request the latest model in {}",
+                    name
+                );
                 assert_eq!(
                     parsed["model_context_window"].as_integer(),
                     Some(1_000_000),
@@ -6376,6 +6741,27 @@ mod tests {
                     name
                 );
                 pinned.push(name);
+            } else {
+                let (expected_model, expected_effort) = match name.as_str() {
+                    "triage" => ("gpt-5.4-mini", "low"),
+                    "explore" | "git-master" => ("gpt-5.4-mini", "medium"),
+                    "docs-researcher" | "verifier" => ("gpt-5.4-mini", "high"),
+                    "backend-service" | "executor" | "frontend-app" | "mobile-app"
+                    | "test-engineer" => ("gpt-5.5", "high"),
+                    _ => ("gpt-5.5", "xhigh"),
+                };
+                assert_eq!(
+                    parsed["model"].as_str(),
+                    Some(expected_model),
+                    "unexpected Codex model tier in {}",
+                    name
+                );
+                assert_eq!(
+                    parsed["model_reasoning_effort"].as_str(),
+                    Some(expected_effort),
+                    "unexpected Codex reasoning effort in {}",
+                    name
+                );
             }
         }
 
@@ -6387,14 +6773,14 @@ mod tests {
     fn claude_agent_templates_use_official_frontmatter_model_fields() {
         let agents_dir = crate::runtime::repo_root().join("templates/claude/agents");
         let expected = [
-            ("executor.md", "model: inherit"),
-            ("planner.md", "model: inherit"),
-            ("reviewer.md", "model: sonnet"),
-            ("triage.md", "model: haiku"),
-            ("verifier.md", "model: sonnet"),
+            ("executor.md", "model: sonnet[1m]", "effort: high"),
+            ("planner.md", "model: opus[1m]", "effort: max"),
+            ("reviewer.md", "model: opus[1m]", "effort: max"),
+            ("triage.md", "model: haiku", "effort: low"),
+            ("verifier.md", "model: sonnet[1m]", "effort: high"),
         ];
 
-        for (file, needle) in expected {
+        for (file, model, effort) in expected {
             let raw = fs::read_to_string(agents_dir.join(file)).unwrap();
             assert!(
                 raw.starts_with("---\n"),
@@ -6405,14 +6791,15 @@ mod tests {
                 raw.contains("description:"),
                 "{file} missing description frontmatter"
             );
-            assert!(raw.contains(needle), "{file} missing expected model");
+            assert!(raw.contains(model), "{file} missing expected model");
+            assert!(raw.contains(effort), "{file} missing expected effort");
         }
     }
 
     #[test]
     fn gemini_agent_templates_include_required_frontmatter() {
-        let agents_dir = crate::runtime::repo_root()
-            .join("templates/gemini/extensions/llm-bootstrap-dev/agents");
+        let agents_dir = crate::repo_assets::stackpilot_dev_kit_gemini_repo_root()
+            .join("extensions/stackpilot-dev/agents");
         let expected = [
             "docs-researcher.md",
             "executor.md",
@@ -6436,8 +6823,8 @@ mod tests {
             );
         }
 
-        let bundled_qa = crate::runtime::repo_root()
-            .join("bundles/full/gemini/extensions/llm-bootstrap-dev/agents/qa.md");
+        let bundled_qa = crate::repo_assets::stackpilot_dev_kit_gemini_bundle_root()
+            .join("extensions/stackpilot-dev/agents/qa.md");
         let bundled_raw = fs::read_to_string(bundled_qa).unwrap();
         assert!(
             bundled_raw.starts_with("---\n"),
@@ -6539,7 +6926,7 @@ mod tests {
 
     #[test]
     fn parse_managed_env_content_reads_exported_key() {
-        let raw = "# managed by llm-bootstrap\nexport EXA_API_KEY='exa-key'\nexport CONTEXT7_API_KEY='ctx-key'\n";
+        let raw = "# managed by stackpilot\nexport EXA_API_KEY='exa-key'\nexport CONTEXT7_API_KEY='ctx-key'\n";
         assert_eq!(
             super::parse_managed_env_content(raw, "CONTEXT7_API_KEY"),
             Some("ctx-key".to_string())
@@ -6549,9 +6936,9 @@ mod tests {
     #[test]
     fn upsert_managed_block_appends_when_missing() {
         let existing = "export PATH=\"$HOME/.local/bin:$PATH\"\n";
-        let block = "# >>> llm-bootstrap env >>>\nsource test\n# <<< llm-bootstrap env <<<\n";
+        let block = "# >>> stackpilot env >>>\nsource test\n# <<< stackpilot env <<<\n";
         let updated = super::upsert_managed_block(existing, block);
-        assert!(updated.contains("llm-bootstrap env"));
+        assert!(updated.contains("stackpilot env"));
         assert!(updated.contains("source test"));
     }
 
@@ -6674,20 +7061,20 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_extension_enablement_removes_only_llm_bootstrap_entry() {
+    fn cleanup_extension_enablement_removes_only_stackpilot_entry() {
         let temp = temp_home();
         fs::create_dir_all(&temp).unwrap();
         let path = temp.join("extension-enablement.json");
         fs::write(
             &path,
-            "{\n  \"llm-bootstrap-dev\": {\"overrides\": [\"/tmp/*\"]},\n  \"other\": {\"overrides\": [\"/keep/*\"]}\n}\n",
+            "{\n  \"stackpilot-dev\": {\"overrides\": [\"/tmp/*\"]},\n  \"other\": {\"overrides\": [\"/keep/*\"]}\n}\n",
         )
         .unwrap();
 
         cleanup_extension_enablement(&path).unwrap();
 
         let after = fs::read_to_string(&path).unwrap();
-        assert!(!after.contains("llm-bootstrap-dev"));
+        assert!(!after.contains("stackpilot-dev"));
         assert!(after.contains("\"other\""));
 
         fs::remove_dir_all(temp).unwrap();
@@ -6715,12 +7102,12 @@ mod tests {
         assert!(codex_home.join("REVIEW.md").exists());
         assert!(
             codex_home
-                .join("plugins/llm-dev-kit/.codex-plugin/plugin.json")
+                .join("plugins/stackpilot-dev-kit/.codex-plugin/plugin.json")
                 .exists()
         );
         assert!(
             codex_home
-                .join("plugins/llm-dev-kit/skills/review/SKILL.md")
+                .join("plugins/stackpilot-dev-kit/skills/review/SKILL.md")
                 .exists()
         );
         assert!(!codex_home.join("RTK.md").exists());
@@ -6743,6 +7130,13 @@ mod tests {
         let codex_home = home.join(".codex");
         fs::create_dir_all(codex_home.join(".tmp/plugins/omx")).unwrap();
         fs::write(codex_home.join(".tmp/plugins/omx/plugin.json"), "{}").unwrap();
+        fs::create_dir_all(codex_home.join(".tmp/plugins-backup-old/repo")).unwrap();
+        fs::write(
+            codex_home.join(".tmp/plugins-backup-old/repo/README.md"),
+            "old",
+        )
+        .unwrap();
+        fs::write(codex_home.join(".tmp/plugins.sha"), "old-sha").unwrap();
 
         codex::install(
             &home,
@@ -6756,6 +7150,8 @@ mod tests {
         .unwrap();
 
         assert!(!codex_home.join(".tmp/plugins").exists());
+        assert!(!codex_home.join(".tmp/plugins-backup-old").exists());
+        assert!(!codex_home.join(".tmp/plugins.sha").exists());
         assert!(codex_home.join("backups").exists());
 
         fs::remove_dir_all(home).unwrap();
@@ -6794,7 +7190,7 @@ mod tests {
         fs::create_dir_all(&codex_home).unwrap();
         fs::write(
             codex_home.join("config.toml"),
-            "model = \"legacy-model\"\n\n[projects.\"/tmp/demo\"]\ntrust_level = \"trusted\"\n\n[mcp_servers.manual-tool]\ncommand = \"manual-tool\"\nenabled = true\n",
+            "model = \"legacy-model\"\n\n[agents]\nmax_threads = 99\n\n[features]\nmulti_agent_v2 = true\ntool_search = true\nchronicle = true\nmemories = false\n\n[memories]\nno_memories_if_mcp_or_web_search = true\n\n[projects.\"/tmp/demo\"]\ntrust_level = \"trusted\"\n\n[mcp_servers.manual-tool]\ncommand = \"manual-tool\"\nenabled = true\n",
         )
         .unwrap();
 
@@ -6813,8 +7209,68 @@ mod tests {
         let parsed: toml::Value = config.parse().unwrap();
         assert_eq!(
             parsed.get("model").and_then(toml::Value::as_str),
-            Some("gpt-5.4")
+            Some("gpt-5.5")
         );
+        assert_eq!(
+            parsed
+                .get("model_reasoning_effort")
+                .and_then(toml::Value::as_str),
+            Some("xhigh")
+        );
+        assert_eq!(
+            parsed
+                .get("plan_mode_reasoning_effort")
+                .and_then(toml::Value::as_str),
+            Some("xhigh")
+        );
+        assert_eq!(
+            parsed.get("service_tier").and_then(toml::Value::as_str),
+            Some("fast")
+        );
+        assert!(
+            parsed
+                .get("agents")
+                .and_then(toml::Value::as_table)
+                .and_then(|agents| agents.get("max_threads"))
+                .is_none()
+        );
+        let features = parsed
+            .get("features")
+            .and_then(toml::Value::as_table)
+            .unwrap();
+        assert!(features.get("multi_agent").is_some());
+        assert!(features.get("multi_agent_v2").is_none());
+        assert!(features.get("tool_search").is_none());
+        assert!(features.get("chronicle").is_some());
+        assert_eq!(
+            features.get("fast_mode").and_then(toml::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            features.get("memories").and_then(toml::Value::as_bool),
+            Some(true)
+        );
+        let memories = parsed
+            .get("memories")
+            .and_then(toml::Value::as_table)
+            .unwrap();
+        assert_eq!(
+            memories
+                .get("generate_memories")
+                .and_then(toml::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            memories.get("use_memories").and_then(toml::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            memories
+                .get("disable_on_external_context")
+                .and_then(toml::Value::as_bool),
+            Some(false)
+        );
+        assert!(memories.get("no_memories_if_mcp_or_web_search").is_none());
         assert_eq!(
             parsed
                 .get("projects")
@@ -6887,9 +7343,9 @@ mod tests {
 
         let codex_home = home.join(".codex");
         let config = fs::read_to_string(codex_home.join("config.toml")).unwrap();
-        assert!(!config.contains("llm-dev-kit@llm-bootstrap"));
+        assert!(!config.contains("stackpilot-dev-kit@stackpilot"));
         assert!(!codex_home.join(".agents/plugins/marketplace.json").exists());
-        assert!(!codex_home.join("plugins/llm-dev-kit").exists());
+        assert!(!codex_home.join("plugins/stackpilot-dev-kit").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -6915,32 +7371,32 @@ mod tests {
         let codex_home = home.join(".codex");
         assert!(
             codex_home
-                .join("plugins/llm-dev-kit/.codex-plugin/plugin.json")
+                .join("plugins/stackpilot-dev-kit/.codex-plugin/plugin.json")
                 .exists()
         );
         assert!(
             codex_home
-                .join("plugins/llm-dev-kit/skills/investigate/SKILL.md")
+                .join("plugins/stackpilot-dev-kit/skills/investigate/SKILL.md")
                 .exists()
         );
         assert!(
             codex_home
-                .join("plugins/llm-dev-kit/skills/repo-radar/SKILL.md")
+                .join("plugins/stackpilot-dev-kit/skills/repo-radar/SKILL.md")
                 .exists()
         );
         assert!(
             !codex_home
-                .join("plugins/llm-dev-kit/skills/autopilot/SKILL.md")
+                .join("plugins/stackpilot-dev-kit/skills/autopilot/SKILL.md")
                 .exists()
         );
         assert!(
             !codex_home
-                .join("plugins/llm-dev-kit/skills/delivery-loop/SKILL.md")
+                .join("plugins/stackpilot-dev-kit/skills/delivery-loop/SKILL.md")
                 .exists()
         );
         assert!(
             !codex_home
-                .join("plugins/llm-dev-kit/skills/qa-browser/SKILL.md")
+                .join("plugins/stackpilot-dev-kit/skills/qa-browser/SKILL.md")
                 .exists()
         );
 
@@ -6967,9 +7423,20 @@ mod tests {
 
         let codex_home = home.join(".codex");
         assert!(codex_home.join("TEAM.md").exists());
+        assert!(codex_home.join("ENTRYPOINTS.md").exists());
         assert!(
             codex_home
-                .join("plugins/llm-dev-kit/skills/team/SKILL.md")
+                .join("plugins/stackpilot-dev-kit/skills/team/SKILL.md")
+                .exists()
+        );
+        assert!(
+            codex_home
+                .join("plugins/stackpilot-dev-kit/skills/deep-init/SKILL.md")
+                .exists()
+        );
+        assert!(
+            codex_home
+                .join("plugins/stackpilot-dev-kit/skills/ultrawork/SKILL.md")
                 .exists()
         );
 
@@ -7004,27 +7471,27 @@ mod tests {
         assert!(gemini_home.join("GEMINI.md").exists());
         assert!(
             gemini_home
-                .join("extensions/llm-bootstrap-dev/commands/doctor.toml")
+                .join("extensions/stackpilot-dev/commands/doctor.toml")
                 .exists()
         );
         assert!(
             gemini_home
-                .join("extensions/llm-bootstrap-dev/commands/autopilot.toml")
+                .join("extensions/stackpilot-dev/commands/autopilot.toml")
                 .exists()
         );
         assert!(
             gemini_home
-                .join("extensions/llm-bootstrap-dev/commands/office-hours.toml")
+                .join("extensions/stackpilot-dev/commands/office-hours.toml")
                 .exists()
         );
         assert!(
             gemini_home
-                .join("extensions/llm-bootstrap-dev/commands/qa.toml")
+                .join("extensions/stackpilot-dev/commands/qa.toml")
                 .exists()
         );
         assert!(
             gemini_home
-                .join("extensions/llm-bootstrap-dev/commands/retro.toml")
+                .join("extensions/stackpilot-dev/commands/retro.toml")
                 .exists()
         );
         assert!(!gemini_home.join("hooks/rtk-hook-gemini.sh").exists());
@@ -7039,7 +7506,7 @@ mod tests {
         let uninstalled = fs::read_to_string(gemini_home.join("settings.json")).unwrap();
         assert!(uninstalled.contains("/tmp/custom-run-shell.sh"));
         assert!(!gemini_home.join("GEMINI.md").exists());
-        assert!(!gemini_home.join("extensions/llm-bootstrap-dev").exists());
+        assert!(!gemini_home.join("extensions/stackpilot-dev").exists());
         assert!(!gemini_home.join("extensions/oh-my-gemini").exists());
         assert!(gemini_home.join("backups").exists());
 
@@ -7056,20 +7523,20 @@ mod tests {
             &home,
             ApplyMode::Merge,
             &manifest,
-            &[BaselineMcp::ChromeDevtools],
+            &[BaselineMcp::ChromeDevtools, BaselineMcp::Exa],
             false,
             true,
             &test_active_surfaces(),
         )
         .unwrap();
         fs::write(
-            gemini_home.join("llm-bootstrap-state.json"),
+            gemini_home.join("stackpilot-state.json"),
             "{\n  \"managed_mcp\": [\"chrome-devtools\"]\n}\n",
         )
         .unwrap();
         fs::write(
             gemini_home.join("extensions/extension-enablement.json"),
-            "{\n  \"llm-bootstrap-dev\": {\"overrides\": [\"/tmp/*\"]},\n  \"other-extension\": {\"overrides\": [\"/opt/*\"]}\n}\n",
+            "{\n  \"stackpilot-dev\": {\"overrides\": [\"/tmp/*\"]},\n  \"other-extension\": {\"overrides\": [\"/opt/*\"]}\n}\n",
         )
         .unwrap();
 
@@ -7079,11 +7546,11 @@ mod tests {
             &fs::read_to_string(gemini_home.join("extensions/extension-enablement.json")).unwrap(),
         )
         .unwrap();
-        assert!(enablement.get("llm-bootstrap-dev").is_none());
+        assert!(enablement.get("stackpilot-dev").is_none());
         assert!(enablement.get("other-extension").is_some());
         assert!(!gemini_home.join("WORKFLOW.md").exists());
         assert!(!gemini_home.join("SHIP_CHECKLIST.md").exists());
-        assert!(!gemini_home.join("llm-bootstrap-state.json").exists());
+        assert!(!gemini_home.join("stackpilot-state.json").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -7110,7 +7577,7 @@ mod tests {
             &home,
             ApplyMode::Merge,
             &manifest,
-            &[BaselineMcp::ChromeDevtools],
+            &[BaselineMcp::ChromeDevtools, BaselineMcp::Exa],
             false,
             true,
             &test_active_surfaces(),
@@ -7123,6 +7590,87 @@ mod tests {
         assert!(after["mcpServers"].get("legacy-memory").is_some());
         assert!(after["mcpServers"].get("manual-tool").is_some());
         assert!(after["mcpServers"].get("chrome-devtools").is_some());
+        assert_eq!(
+            after["mcpServers"]["chrome-devtools"]["timeout"],
+            json!(30000)
+        );
+        assert_eq!(
+            after["mcpServers"]["chrome-devtools"]["trust"],
+            json!(false)
+        );
+        assert_eq!(
+            after["mcpServers"]["exa"]["env"]["EXA_API_KEY"],
+            json!("$EXA_API_KEY")
+        );
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn gemini_merge_preserves_user_preference_settings() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let gemini_home = home.join(".gemini");
+        fs::create_dir_all(&gemini_home).unwrap();
+        fs::write(
+            gemini_home.join("settings.json"),
+            "{\n  \"general\": {\n    \"defaultApprovalMode\": \"auto_edit\",\n    \"enableAutoUpdate\": true,\n    \"checkpointing\": {\n      \"enabled\": false\n    },\n    \"plan\": {\n      \"directory\": \"\",\n      \"enabled\": false,\n      \"modelRouting\": false\n    },\n    \"retryFetchErrors\": false,\n    \"sessionRetention\": {\n      \"enabled\": true\n    },\n    \"topicUpdateNarration\": false\n  },\n  \"ideMode\": true,\n  \"showLineNumbers\": false,\n  \"showMemoryUsage\": false,\n  \"ui\": {\n    \"inlineThinkingMode\": \"off\",\n    \"hideTips\": false\n  },\n  \"output\": {\n    \"format\": \"json\"\n  }\n}\n",
+        )
+        .unwrap();
+
+        gemini::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+
+        let after: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(gemini_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert_eq!(after["general"]["defaultApprovalMode"], json!("plan"));
+        assert_eq!(after["general"]["enableAutoUpdate"], json!(false));
+        assert_eq!(
+            after["general"]["enableAutoUpdateNotification"],
+            json!(false)
+        );
+        assert_eq!(after["general"]["plan"]["modelRouting"], json!(true));
+        assert_eq!(after["general"]["checkpointing"]["enabled"], json!(true));
+        assert_eq!(after["general"]["plan"]["enabled"], json!(true));
+        assert!(after["general"]["plan"].get("directory").is_none());
+        assert_eq!(after["general"]["retryFetchErrors"], json!(true));
+        assert_eq!(
+            after["general"]["sessionRetention"]["enabled"],
+            json!(false)
+        );
+        assert!(after["general"].get("topicUpdateNarration").is_none());
+        assert_eq!(after["experimental"]["contextManagement"], json!(true));
+        assert_eq!(after["experimental"]["autoMemory"], json!(true));
+        assert_eq!(after["experimental"]["memoryV2"], json!(true));
+        assert_eq!(after["experimental"]["modelSteering"], json!(true));
+        assert_eq!(after["experimental"]["topicUpdateNarration"], json!(true));
+        assert_eq!(
+            after["contextManagement"]["historyWindow"]["maxTokens"],
+            json!(150000)
+        );
+        assert_eq!(after["hooksConfig"]["enabled"], json!(true));
+        assert_eq!(after["skills"]["enabled"], json!(true));
+        assert_eq!(after["model"]["maxSessionTurns"], json!(-1));
+        assert_eq!(after["model"]["name"], json!("auto"));
+        assert!(after.get("ideMode").is_none());
+        assert!(after.get("showLineNumbers").is_none());
+        assert!(after.get("showMemoryUsage").is_none());
+        assert_eq!(after["ui"]["inlineThinkingMode"], json!("off"));
+        assert_eq!(after["ui"]["hideTips"], json!(false));
+        assert_eq!(after["ui"]["showLineNumbers"], json!(true));
+        assert_eq!(after["ui"]["showMemoryUsage"], json!(true));
+        assert_eq!(after["ui"]["showCitations"], json!(true));
+        assert_eq!(after["ui"]["footer"]["hideContextPercentage"], json!(false));
+        assert_eq!(after["output"]["format"], json!("json"));
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -7248,18 +7796,18 @@ mod tests {
         assert!(gemini_home.join("GEMINI.md").exists());
         assert!(
             !gemini_home
-                .join("extensions/llm-bootstrap-dev/gemini-extension.json")
+                .join("extensions/stackpilot-dev/gemini-extension.json")
                 .exists()
         );
         assert!(
             !gemini_home
-                .join("extensions/llm-bootstrap-dev/commands/autopilot.toml")
+                .join("extensions/stackpilot-dev/commands/autopilot.toml")
                 .exists()
         );
         let enablement = gemini_home.join("extensions/extension-enablement.json");
         if enablement.exists() {
             let raw = fs::read_to_string(enablement).unwrap();
-            assert!(!raw.contains("llm-bootstrap-dev"));
+            assert!(!raw.contains("stackpilot-dev"));
         }
 
         fs::remove_dir_all(home).unwrap();
@@ -7284,9 +7832,20 @@ mod tests {
 
         let gemini_home = home.join(".gemini");
         assert!(gemini_home.join("TEAM.md").exists());
+        assert!(gemini_home.join("ENTRYPOINTS.md").exists());
         assert!(
             gemini_home
-                .join("extensions/llm-bootstrap-dev/commands/team.toml")
+                .join("extensions/stackpilot-dev/commands/team.toml")
+                .exists()
+        );
+        assert!(
+            gemini_home
+                .join("extensions/stackpilot-dev/commands/deep-init.toml")
+                .exists()
+        );
+        assert!(
+            gemini_home
+                .join("extensions/stackpilot-dev/commands/ultrawork.toml")
                 .exists()
         );
 
@@ -7319,6 +7878,39 @@ mod tests {
         assert!(claude_home.join("skills/autopilot/SKILL.md").exists());
         assert!(claude_home.join("skills/review/SKILL.md").exists());
         assert!(!claude_home.join("RTK.md").exists());
+        let settings: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(claude_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert_eq!(settings["autoUpdatesChannel"], json!("stable"));
+        assert_eq!(settings["autoMemoryEnabled"], json!(true));
+        assert_eq!(settings["awaySummaryEnabled"], json!(true));
+        assert_eq!(settings["cleanupPeriodDays"], json!(365));
+        assert!(settings.get("effortLevel").is_none());
+        assert_eq!(settings["env"]["CLAUDE_CODE_EFFORT_LEVEL"], json!("max"));
+        assert_eq!(
+            settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"],
+            json!("1")
+        );
+        assert_eq!(settings["fastModePerSessionOptIn"], json!(true));
+        assert_eq!(settings["includeGitInstructions"], json!(true));
+        assert_claude_opus_1m_model(&settings["model"]);
+        assert_eq!(settings["permissions"]["defaultMode"], json!("auto"));
+        assert_eq!(settings["showThinkingSummaries"], json!(true));
+        assert_eq!(settings["useAutoModeDuringPlan"], json!(false));
+        assert!(
+            settings["permissions"]["deny"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|rule| rule == "Read(./.env)")
+        );
+        assert!(
+            settings["permissions"]["ask"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|rule| rule == "Bash(git push *)")
+        );
 
         let mcp = claude::claude_user_mcp(&home).unwrap();
         assert!(mcp["mcpServers"].get("chrome-devtools").is_some());
@@ -7330,7 +7922,99 @@ mod tests {
         assert!(!claude_home.join("scripts").exists());
         assert!(!claude_home.join("skills/autopilot").exists());
         assert!(!claude_home.join("plugins/cache/omc").exists());
+        assert!(!claude_home.join("settings.json").exists());
         assert!(claude_home.join("backups").exists());
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_merge_appends_baseline_permissions_without_dropping_custom_rules() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let claude_home = home.join(".claude");
+        fs::create_dir_all(&claude_home).unwrap();
+        fs::write(
+            claude_home.join("settings.json"),
+            "{\n  \"model\": \"sonnet\",\n  \"env\": {\"CUSTOM_FLAG\": \"1\", \"CLAUDE_CODE_DISABLE_AUTO_MEMORY\": \"1\"},\n  \"permissions\": {\n    \"ask\": [\"Bash(make deploy *)\"],\n    \"deny\": [\"Read(./private/**)\"]\n  }\n}\n",
+        )
+        .unwrap();
+
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+
+        let settings: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(claude_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert_eq!(settings["model"], json!("sonnet"));
+        assert_eq!(settings["autoMemoryEnabled"], json!(true));
+        assert!(settings.get("effortLevel").is_none());
+        assert_eq!(settings["env"]["CUSTOM_FLAG"], json!("1"));
+        assert!(
+            settings["env"]
+                .get("CLAUDE_CODE_DISABLE_AUTO_MEMORY")
+                .is_none()
+        );
+        assert_eq!(settings["env"]["CLAUDE_CODE_EFFORT_LEVEL"], json!("max"));
+        assert_eq!(
+            settings["env"]["CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"],
+            json!("1")
+        );
+        let deny = settings["permissions"]["deny"].as_array().unwrap();
+        assert!(deny.iter().any(|rule| rule == "Read(./private/**)"));
+        assert!(deny.iter().any(|rule| rule == "Read(./.env)"));
+        let ask = settings["permissions"]["ask"].as_array().unwrap();
+        assert!(ask.iter().any(|rule| rule == "Bash(make deploy *)"));
+        assert!(ask.iter().any(|rule| rule == "Bash(git push *)"));
+
+        fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn claude_merge_preserves_user_opt_down_for_model_effort_and_fast_mode() {
+        if !crate::runtime::command_exists("claude") {
+            return;
+        }
+
+        let home = temp_home();
+        let manifest = test_manifest();
+        let claude_home = home.join(".claude");
+        fs::create_dir_all(&claude_home).unwrap();
+        fs::write(
+            claude_home.join("settings.json"),
+            "{\n  \"model\": \"sonnet\",\n  \"env\": {\"CLAUDE_CODE_EFFORT_LEVEL\": \"xhigh\"},\n  \"fastModePerSessionOptIn\": false\n}\n",
+        )
+        .unwrap();
+
+        claude::install(
+            &home,
+            ApplyMode::Merge,
+            &manifest,
+            &[BaselineMcp::ChromeDevtools],
+            false,
+            true,
+            &test_active_surfaces(),
+        )
+        .unwrap();
+
+        let settings: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(claude_home.join("settings.json")).unwrap())
+                .unwrap();
+        assert_eq!(settings["env"]["CLAUDE_CODE_EFFORT_LEVEL"], json!("xhigh"));
+        assert_eq!(settings["fastModePerSessionOptIn"], json!(false));
+        assert_eq!(settings["model"], json!("sonnet"));
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -7358,15 +8042,17 @@ mod tests {
         let claude_home = home.join(".claude");
         assert!(claude_home.join("WORKFLOW.md").exists());
         assert!(claude_home.join("AUTOPILOT.md").exists());
+        assert!(claude_home.join("ENTRYPOINTS.md").exists());
         assert!(claude_home.join("agents/planner.md").exists());
-        assert!(claude_home.join("llm-bootstrap-state.json").exists());
+        assert!(claude_home.join("stackpilot-state.json").exists());
 
         claude::uninstall(&home, &[BaselineMcp::ChromeDevtools], false).unwrap();
 
         assert!(!claude_home.join("WORKFLOW.md").exists());
         assert!(!claude_home.join("AUTOPILOT.md").exists());
+        assert!(!claude_home.join("ENTRYPOINTS.md").exists());
         assert!(!claude_home.join("agents/planner.md").exists());
-        assert!(!claude_home.join("llm-bootstrap-state.json").exists());
+        assert!(!claude_home.join("stackpilot-state.json").exists());
 
         fs::remove_dir_all(home).unwrap();
     }
@@ -7622,7 +8308,10 @@ mod tests {
 
         let claude_home = home.join(".claude");
         assert!(claude_home.join("TEAM.md").exists());
+        assert!(claude_home.join("ENTRYPOINTS.md").exists());
+        assert!(claude_home.join("skills/deep-init/SKILL.md").exists());
         assert!(claude_home.join("skills/team/SKILL.md").exists());
+        assert!(claude_home.join("skills/ultrawork/SKILL.md").exists());
 
         fs::remove_dir_all(home).unwrap();
     }

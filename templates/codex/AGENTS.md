@@ -19,6 +19,7 @@ Optimize for fast, reliable, low-ceremony execution.
 - Prefer targeted reads, tight diffs, and short evidence summaries over pasting large outputs.
 - If a thread is getting noisy or repetitive, summarize the durable state and refocus.
 - Avoid dragging work toward extreme context sizes when a smaller, cleaner context would produce a better result.
+- Native Codex memories are enabled for cross-session recall; use them as hints and verify important claims against local evidence.
 
 ## Execution rules
 

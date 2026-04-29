@@ -1,4 +1,4 @@
-# managed by llm-bootstrap
+# managed by stackpilot
 
 ## Summary
 

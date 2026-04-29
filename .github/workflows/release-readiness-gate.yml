@@ -1,4 +1,4 @@
-# managed by llm-bootstrap
+# managed by stackpilot
 name: release-readiness-gate
 
 on:
@@ -29,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
           sparse-checkout: |
-            .github/llm-bootstrap/review-automation.json
+            .github/stackpilot/review-automation.json
           sparse-checkout-cone-mode: false
 
       - name: Resolve target ref
@@ -53,7 +53,7 @@ jobs:
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const configPath = '.github/llm-bootstrap/review-automation.json';
+            const configPath = '.github/stackpilot/review-automation.json';
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
             const targetRef = process.env.TARGET_REF;
             const requiredChecks = config.release_readiness_gate.required_checks || [];

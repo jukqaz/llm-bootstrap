@@ -2,7 +2,7 @@
 
 This document records the reviewed materials, compares them against the current
 implementation, and answers whether the current direction for
-`llm-bootstrap` is sound.
+`StackPilot` is sound.
 
 Its purpose is simple:
 
@@ -222,6 +222,6 @@ What should stay deferred:
 
 In one sentence:
 
-> `llm-bootstrap` should become the installer that places shared harness intent
+> `StackPilot` should become the installer that places shared harness intent
 > onto provider-native surfaces, not a new runtime that replaces them.
 

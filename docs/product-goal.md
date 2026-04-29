@@ -1,25 +1,37 @@
 # Product Goal
 
-This document is the top-level source of truth for `llm-bootstrap`.
+This document is the top-level source of truth for `StackPilot`.
 
 Strategy docs, capability design, backlog decisions, and renderer changes
 should all be checked against this document first.
 
 ## One-line goal
 
-`llm-bootstrap` has a two-step goal:
+This repository has a two-step goal:
 
-1. establish a safe provider-native baseline for each LLM runtime
-2. add capability layers that help the user work better on top of that baseline
+1. establish a safe provider-native kit baseline for each LLM runtime
+2. add capability layers that help the user work better on top of that kit baseline
 
-In other words, this is not just an installer.
-It follows a `baseline first, enablement second` product rule.
+In other words, the repository follows a `baseline first, enablement second`
+rule, but the product contract stays centered on provider-specific baseline kits.
 
 ## Product definition
 
-`llm-bootstrap` reproduces a safe baseline for runtimes such as `Codex`,
-`Gemini`, and `Claude Code`, then adds planning, execution, review, QA,
-record, and company-operation capabilities through provider-native surfaces.
+`StackPilot` is the bootstrap umbrella that reproduces safe provider-native
+kit baselines for runtimes such as `Codex`, `Gemini`, and `Claude Code`.
+
+The important point is that the three LLMs are not forced into one common UX.
+
+- `Codex` uses `codex-kit`.
+- `Gemini` uses `gemini-kit`.
+- `Claude Code` uses `claude-kit`.
+
+Each kit follows its provider-native surface. `StackPilot` installs,
+verifies, restores, and migrates those kits.
+
+This repository stays a monorepo, while planning, execution, review, QA,
+record, and company-operation capabilities are treated as optional addons
+through provider-native surfaces.
 
 The product must answer two questions:
 
@@ -38,7 +50,7 @@ It includes:
 - core MCP
 - env-gated MCP
 - auth, session, and history preservation
-- legacy artifact cleanup
+- old-tool artifact cleanup
 - minimal workflow docs and provider-native entrypoints
 
 It does not include:
@@ -56,9 +68,9 @@ Baseline succeeds when:
 - drift is visible through doctor
 - uninstall and restore remain predictable
 
-## Layer 2. Enablement
+## Layer 2. Addon Enablement
 
-Enablement is the capability layer added after baseline is stable.
+Addon enablement is the capability layer added after baseline is stable.
 
 Examples:
 
@@ -82,6 +94,10 @@ Therefore enablement should:
 - preserve provider-native surfaces
 - keep install-state separate from task-state
 - leave external-tool ownership as a handoff when SaaS or runtimes do it better
+
+When needed, this layer can be bundled behind a strong preset such as
+`all-in-one`. That should still mean "turn on multiple opt-in addons together",
+not "inflate the bootstrap core into one giant runtime."
 
 ## Why the product is split into two layers
 
@@ -114,14 +130,16 @@ integrity.
 
 ## Naming and positioning
 
-The current name, `llm-bootstrap`, is still accurate for Layer 1.
-So the immediate change should be positioning, not renaming.
+The current name, `StackPilot`, is still accurate for the umbrella CLI.
+The user-facing capability story should be split by provider kit.
 
 Recommended positioning:
 
-> `llm-bootstrap` first stabilizes each provider-native LLM baseline, then
-> layers on optional capabilities for planning, execution, review, QA, and
-> company operations.
+> `StackPilot` installs and verifies `codex-kit`, `gemini-kit`, and
+> `claude-kit`. Workflow and company capabilities are shared contracts rendered
+> into each provider's native surface.
+
+That means repositioning toward provider-native kits comes before renaming.
 
 ## Implementation test
 
@@ -138,6 +156,7 @@ If the answer is unclear, it should not enter the core product.
 
 ## Current conclusion
 
-`llm-bootstrap` is already a baseline product.
-The next step is to grow enablement without weakening that foundation, and to
-keep all future improvements aligned to this two-layer model.
+`StackPilot` is already a provider-native kit baseline product contract.
+Addon enablement can keep growing, but the core product definition should stay
+aligned to this document, [monorepo-boundary.md](monorepo-boundary.md), and
+[provider-native-kit-strategy.md](provider-native-kit-strategy.md).

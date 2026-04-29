@@ -1,6 +1,6 @@
-# llm-bootstrap Superset Strategy
+# StackPilot Superset Strategy
 
-This document defines a curated superset for `llm-bootstrap`.
+This document defines a curated superset for `StackPilot`.
 
 The goal is not to copy every good idea from every reference repo.
 

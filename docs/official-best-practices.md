@@ -4,7 +4,7 @@ As of: `2026-04-09`
 
 This document curates the official best-practice articles from
 `OpenAI Codex`, `Gemini CLI`, and `Claude Code` that most directly affect
-`llm-bootstrap` design.
+`StackPilot` design.
 
 The point is not feature inventory.
 The point is what the official docs actively recommend.
@@ -32,7 +32,7 @@ The point is what the official docs actively recommend.
 - production readiness starts with org setup, secrets, billing, and rollout
   planning
 
-### What this means for llm-bootstrap
+### What this means for stackpilot
 
 - the Codex renderer should keep `config + AGENTS + MCP` as the base surface
 - role instructions should lean toward direct instructions plus output contracts
@@ -63,7 +63,7 @@ The point is what the official docs actively recommend.
 - Plan Mode explicitly supports preserving approved plan artifacts through hooks
 - sandbox guidance recommends the most restrictive viable profile
 
-### What this means for llm-bootstrap
+### What this means for stackpilot
 
 - extension-first remains the correct Gemini direction
 - hook and command count must be balanced against synchronous latency cost
@@ -98,10 +98,10 @@ The point is what the official docs actively recommend.
   blocking, and skipping sensitive files
 - MCP is formally scoped through `--scope`, `.mcp.json`, user scope, project
   scope, and approval flows
-- large MCP output is an official concern with warnings and
+- large MCP output is an official concern with output limits such as
   `MAX_MCP_OUTPUT_TOKENS`
 
-### What this means for llm-bootstrap
+### What this means for stackpilot
 
 - Claude should stay `subagent + MCP + hooks/settings` first, not skill-first
 - workflow skills belong as a secondary packaging layer
@@ -121,7 +121,7 @@ All three official ecosystems are converging on similar themes:
 - deterministic hooks or approval flows over runtime magic
 - output-shape and safety management over simple tool-count growth
 
-So the official baseline for `llm-bootstrap` is:
+So the official baseline for `StackPilot` is:
 
 1. keep shared intent short and structured
 2. prefer provider-native surfaces
@@ -137,4 +137,3 @@ These articles are also reflected in the official source catalog:
 - [catalog/sources/official/openai_codex.toml](../catalog/sources/official/openai_codex.toml)
 - [catalog/sources/official/gemini_cli.toml](../catalog/sources/official/gemini_cli.toml)
 - [catalog/sources/official/claude_code.toml](../catalog/sources/official/claude_code.toml)
-

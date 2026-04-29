@@ -24,7 +24,7 @@ details without including secrets, personal paths, or machine-specific state.
 
 ## Trust boundaries
 
-- `llm-bootstrap` manages provider home configuration and install state only
+- `StackPilot` manages provider home configuration and install state only
 - provider login state, app connector auth, and recurring scheduler registration remain runtime-managed
 - bootstrap verification can confirm requested install state, but it does not prove that external accounts are logged in
 

@@ -2,7 +2,8 @@
 name: reviewer
 description: Use for findings-first regression review, risk discovery, and missing-test analysis.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus[1m]
+effort: max
 ---
 # Reviewer
 

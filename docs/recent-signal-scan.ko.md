@@ -1,9 +1,9 @@
 # Recent Signal Scan
 
-기준일: `2026-04-09`
+기준일: `2026-04-13`
 
 이 문서는 `X`, `Reddit`, `Hacker News`, `GitHub`, 제품 블로그에서 최근에 반복해서 보이는 흐름을
-`llm-bootstrap` 관점으로 정리한 메모다.
+`StackPilot` 관점으로 정리한 메모다.
 
 목적은 "뭐가 시끄러운가"를 적는 것이 아니라, 실제로 다음 설계에 영향을 줄 만한 신호만 분리하는 것이다.
 
@@ -36,7 +36,8 @@
 
 #### 2. terminal coding agent 경쟁이 더 넓어지고 있다
 
-- OpenCode는 `2026-02-25`에 `OpenCode Go`를 X에서 공개하며 저비용 agentic coding 구독을 밀고 있다.
+- OpenCode 계열은 `2026-02-25`에 `OpenCode Go`를 공개하며 저비용 agentic coding 흐름을 밀었다.
+- 다만 `2026-04-13` 현재 GitHub 기준 `opencode-ai/opencode`는 archived 상태이고, 유지 중인 후속 프로젝트는 `charmbracelet/crush`다.
 - JetBrains는 `2026-02-05`에 `Junie CLI` early access를 X에서 알렸다.
 
 의미:
@@ -65,12 +66,13 @@
 의미:
 
 - 멀티에이전트는 "역할 추가"보다 "handoff와 공유 자원 모델"이 더 중요해지고 있다
-- `llm-bootstrap`도 role 수보다 harness contract와 shared context 전략을 먼저 잡는 편이 맞다
+- `StackPilot`도 role 수보다 harness contract와 shared context 전략을 먼저 잡는 편이 맞다
 
 #### 3. local/open-source coding stack도 계속 실험 중이다
 
-- `2026-04-06`에는 OpenCode를 self-hosted LLM과 테스트한 글이 올라왔고 반응이 컸다.
+- `2026-04-06`에는 OpenCode 계열 runtime을 self-hosted LLM과 테스트한 글이 올라왔고 반응이 컸다.
 - 반대로 `2026-03` 이후 goose/opencode의 버그나 token opacity에 대한 불만 글도 보인다.
+- 그래서 이제는 `OpenCode` 자체보다 `Crush`를 현재형 runtime reference로 보는 편이 맞다.
 
 의미:
 
@@ -140,7 +142,7 @@
 - 장기적으로는 install catalog와 control-plane catalog가 분리될 가능성이 크다
 - 지금은 이 둘을 core가 아니라 advanced lane 참고로 두는 것이 맞다
 
-## llm-bootstrap에 직접 영향 주는 판단
+## StackPilot에 직접 영향 주는 판단
 
 ### 지금 바로 가져갈 신호
 
@@ -186,6 +188,5 @@
 - workflow를 데이터와 contract로 다루는 구조
 - runtime과 control plane을 분리하는 구조
 
-즉 `llm-bootstrap` 기준으로는 "모든 유행 도구를 넣자"가 아니라,
+즉 `StackPilot` 기준으로는 "모든 유행 도구를 넣자"가 아니라,
 "유행하는 구조 신호를 source catalog로 흡수하고 core/optional/advanced로 나누자"가 맞다.
-

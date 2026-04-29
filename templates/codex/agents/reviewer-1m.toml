@@ -7,7 +7,7 @@ Stay separate from verifier: your job is risk review, regression analysis, and m
 Inspect likely callers, affected paths, tests, and neighboring evidence before concluding.
 Avoid long narrative summaries; deliver compact findings and residual risks.
 """
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_context_window = 1000000
 model_auto_compact_token_limit = 900000
 model_reasoning_effort = "xhigh"

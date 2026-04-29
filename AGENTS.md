@@ -1,4 +1,4 @@
-# llm-bootstrap 저장소 지침
+# StackPilot 저장소 지침
 
 이 저장소는 새 macOS 머신에서 `Codex`, `Gemini`, optional `Claude Code` 개발 baseline을 재현하는 bootstrap source다.
 결과물은 각 provider의 홈 디렉터리(`~/.codex`, `~/.gemini`, `~/.claude`)에 반영된다.
@@ -31,7 +31,7 @@
 - env가 없는 선택 MCP는 경고만 남기고 생성하지 않는다
 - plugin bundle은 skills 중심으로 유지하고, 공통 MCP는 provider home 설정이 전담한다
 - secret manager 연계는 기본 제공하지 않고, bootstrap은 export된 env만 소비한다
-- `doctor`는 blocking missing과 disabled warning을 분리해 보여준다
+- `doctor`는 blocking missing과 disabled status를 분리해 보여준다
 
 ## 검증 명령
 

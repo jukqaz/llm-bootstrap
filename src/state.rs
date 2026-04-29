@@ -121,6 +121,8 @@ pub(crate) struct TaskState {
     pub(crate) status: String,
     pub(crate) phase: String,
     pub(crate) owner: Option<String>,
+    pub(crate) summary: Option<String>,
+    pub(crate) checkpoint: Option<String>,
     pub(crate) next_action: Option<String>,
     pub(crate) providers: Vec<String>,
     pub(crate) packs: Vec<String>,
@@ -168,6 +170,14 @@ pub(crate) fn read_task_state(home: &Path) -> Result<Option<TaskState>> {
             .get("owner")
             .and_then(Value::as_str)
             .map(ToOwned::to_owned),
+        summary: value
+            .get("summary")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
+        checkpoint: value
+            .get("checkpoint")
+            .and_then(Value::as_str)
+            .map(ToOwned::to_owned),
         next_action: value
             .get("next_action")
             .and_then(Value::as_str)
@@ -208,6 +218,8 @@ pub(crate) fn write_task_state(home: &Path, state: &TaskState) -> Result<()> {
         "status": state.status,
         "phase": state.phase,
         "owner": state.owner,
+        "summary": state.summary,
+        "checkpoint": state.checkpoint,
         "next_action": state.next_action,
         "providers": state.providers,
         "packs": state.packs,
@@ -235,11 +247,11 @@ pub(crate) fn clear_task_state(home: &Path) -> Result<()> {
 }
 
 fn state_path(root: &Path) -> std::path::PathBuf {
-    root.join("llm-bootstrap-state.json")
+    root.join("stackpilot-state.json")
 }
 
 fn task_state_path(home: &Path) -> std::path::PathBuf {
-    home.join(".llm-bootstrap/task-state.json")
+    home.join(".stackpilot/task-state.json")
 }
 
 fn json_string_array(value: &Value, key: &str) -> Vec<String> {
@@ -264,7 +276,7 @@ mod tests {
     #[test]
     fn task_state_round_trip_and_clear() {
         let home = std::env::temp_dir().join(format!(
-            "llm-bootstrap-task-state-{}",
+            "stackpilot-task-state-{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -276,6 +288,8 @@ mod tests {
             status: "in-progress".to_string(),
             phase: "review".to_string(),
             owner: Some("owner".to_string()),
+            summary: Some("Auth review is blocked on the final probe.".to_string()),
+            checkpoint: Some("Re-run the oauth spec and compare the failing fixture.".to_string()),
             next_action: Some("run probe".to_string()),
             providers: vec!["codex".to_string(), "gemini".to_string()],
             packs: vec!["delivery-pack".to_string()],
@@ -294,6 +308,6 @@ mod tests {
         clear_task_state(&home).unwrap();
         assert!(read_task_state(&home).unwrap().is_none());
 
-        let _ = fs::remove_dir_all(home.join(".llm-bootstrap"));
+        let _ = fs::remove_dir_all(home.join(".stackpilot"));
     }
 }

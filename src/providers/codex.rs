@@ -11,6 +11,9 @@ use crate::layout::{
     codex_managed_paths, codex_managed_paths_for, codex_plugin_asset_paths,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
+use crate::repo_assets::{
+    stackpilot_dev_kit_codex_bundle_root, stackpilot_dev_kit_codex_repo_root,
+};
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
 use crate::state::read_installed_state;
 use anyhow::{Context, Result};
@@ -44,8 +47,8 @@ pub(crate) fn doctor_checks(
                 .into_iter()
                 .flat_map(|relative| {
                     [
-                        root.join("plugins/llm-dev-kit").join(relative),
-                        root.join("plugins/cache/llm-bootstrap/llm-dev-kit/local")
+                        root.join("plugins/stackpilot-dev-kit").join(relative),
+                        root.join("plugins/cache/stackpilot/stackpilot-dev-kit/local")
                             .join(relative),
                     ]
                 }),
@@ -55,8 +58,8 @@ pub(crate) fn doctor_checks(
                 .into_iter()
                 .flat_map(|relative| {
                     [
-                        root.join("plugins/llm-dev-kit").join(relative),
-                        root.join("plugins/cache/llm-bootstrap/llm-dev-kit/local")
+                        root.join("plugins/stackpilot-dev-kit").join(relative),
+                        root.join("plugins/cache/stackpilot/stackpilot-dev-kit/local")
                             .join(relative),
                     ]
                 }),
@@ -86,11 +89,11 @@ pub(crate) fn install(
 ) -> Result<()> {
     let root = home.join(".codex");
     let template_root = repo_root().join("templates/codex");
-    let plugin_root = repo_root().join("plugins/llm-dev-kit");
+    let plugin_root = stackpilot_dev_kit_codex_repo_root();
     let marketplace_path = repo_root().join(".agents/plugins/marketplace.json");
-    let installed_plugin_root = root.join("plugins/cache/llm-bootstrap/llm-dev-kit/local");
+    let installed_plugin_root = root.join("plugins/cache/stackpilot/stackpilot-dev-kit/local");
     let bundle_root = repo_root().join("bundles/full/codex");
-    let bundle_plugin_root = repo_root().join("bundles/full/plugins/llm-dev-kit");
+    let bundle_plugin_root = stackpilot_dev_kit_codex_bundle_root();
     fs::create_dir_all(&root)?;
     let backup_root = create_backup_root(&root, &timestamp_string()?)?;
     println!("[codex] backup {}", backup_root.display());
@@ -147,8 +150,8 @@ pub(crate) fn install(
         )?;
     } else {
         remove_if_exists(&root.join(".agents/plugins/marketplace.json"))?;
-        remove_if_exists(&root.join("plugins/llm-dev-kit"))?;
-        remove_if_exists(&root.join("plugins/cache/llm-bootstrap/llm-dev-kit"))?;
+        remove_if_exists(&root.join("plugins/stackpilot-dev-kit"))?;
+        remove_if_exists(&root.join("plugins/cache/stackpilot/stackpilot-dev-kit"))?;
     }
     for relative in all_codex_bundle_doc_paths() {
         remove_if_exists(&root.join(relative))?;
@@ -161,16 +164,16 @@ pub(crate) fn install(
     )?;
     if plugin_enabled {
         for relative in all_codex_plugin_asset_paths() {
-            remove_if_exists(&root.join("plugins/llm-dev-kit").join(relative))?;
+            remove_if_exists(&root.join("plugins/stackpilot-dev-kit").join(relative))?;
             remove_if_exists(&installed_plugin_root.join(relative))?;
         }
         for relative in all_codex_bundle_plugin_asset_paths() {
-            remove_if_exists(&root.join("plugins/llm-dev-kit").join(relative))?;
+            remove_if_exists(&root.join("plugins/stackpilot-dev-kit").join(relative))?;
             remove_if_exists(&installed_plugin_root.join(relative))?;
         }
         copy_render_relative_entries(
             &plugin_root,
-            &root.join("plugins/llm-dev-kit"),
+            &root.join("plugins/stackpilot-dev-kit"),
             &codex_plugin_asset_paths(active_surfaces),
             home,
         )?;
@@ -182,7 +185,7 @@ pub(crate) fn install(
         )?;
         copy_render_relative_entries(
             &bundle_plugin_root,
-            &root.join("plugins/llm-dev-kit"),
+            &root.join("plugins/stackpilot-dev-kit"),
             &codex_bundle_plugin_asset_paths(active_surfaces),
             home,
         )?;
@@ -243,11 +246,37 @@ pub(crate) fn uninstall(home: &Path, rtk_enabled: bool) -> Result<()> {
 }
 
 fn remove_legacy_paths(root: &Path, backup_root: &Path) -> Result<()> {
-    let removed = backup_and_remove_relative_paths(root, backup_root, CODEX_LEGACY_CLEANUP_PATHS)?;
+    let mut removed =
+        backup_and_remove_relative_paths(root, backup_root, CODEX_LEGACY_CLEANUP_PATHS)?;
+    removed.extend(remove_tmp_plugin_noise(root, backup_root)?);
     if !removed.is_empty() {
         println!("[codex] removed legacy paths: {}", removed.join(","));
     }
     Ok(())
+}
+
+fn remove_tmp_plugin_noise(root: &Path, backup_root: &Path) -> Result<Vec<String>> {
+    let tmp_root = root.join(".tmp");
+    if !tmp_root.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut removed = Vec::new();
+    for entry in
+        fs::read_dir(&tmp_root).with_context(|| format!("failed to read {}", tmp_root.display()))?
+    {
+        let entry = entry?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name == "plugins" || name == "plugins.sha" || name.starts_with("plugins-backup-") {
+            let relative = PathBuf::from(".tmp").join(name.as_ref());
+            backup_relative(root, backup_root, &relative)?;
+            remove_if_exists(&root.join(&relative))?;
+            removed.push(relative.display().to_string());
+        }
+    }
+
+    Ok(removed)
 }
 
 pub(crate) fn restore(home: &Path, backup_name: Option<&str>) -> Result<()> {
@@ -301,8 +330,12 @@ pub(crate) fn mcp_blocks(
     let managed = enabled_mcp
         .iter()
         .map(|mcp| {
+            let env_vars = mcp
+                .env_var()
+                .map(|env_var| format!("\nenv_vars = [\"{env_var}\"]"))
+                .unwrap_or_default();
             format!(
-                "[mcp_servers.{name}]\ncommand = \"{command}\"\nenabled = true",
+                "[mcp_servers.{name}]\ncommand = \"{command}\"\nenabled = true\nstartup_timeout_sec = 20\ntool_timeout_sec = 120{env_vars}",
                 name = toml_table_key(mcp.name()),
                 command = codex_home.join("scripts").join(mcp.script_name()).display()
             )
@@ -318,7 +351,7 @@ pub(crate) fn mcp_blocks(
 
 pub(crate) fn plugin_blocks(plugin_enabled: bool) -> String {
     if plugin_enabled {
-        "[plugins.\"llm-dev-kit@llm-bootstrap\"]\nenabled = true".to_string()
+        "[plugins.\"stackpilot-dev-kit@stackpilot\"]\nenabled = true".to_string()
     } else {
         String::new()
     }
@@ -335,6 +368,7 @@ fn write_codex_config(
     if mode == ApplyMode::Replace || !destination.exists() {
         fs::write(destination, rendered)
             .with_context(|| format!("failed to write {}", destination.display()))?;
+        cleanup_codex_config_compatibility(destination)?;
         return Ok(());
     }
 
@@ -346,19 +380,89 @@ fn write_codex_config(
     let managed = rendered
         .parse::<Value>()
         .with_context(|| format!("failed to parse rendered {}", source.display()))?;
-    let merged = merge_toml_value(managed, existing);
+    let merged = merge_codex_config_value(managed, existing);
     fs::write(destination, toml::to_string(&merged)?)
         .with_context(|| format!("failed to write {}", destination.display()))?;
+    cleanup_codex_config_compatibility(destination)?;
     Ok(())
 }
 
-fn merge_toml_value(managed: Value, existing: Value) -> Value {
+fn cleanup_codex_config_compatibility(path: &Path) -> Result<()> {
+    let raw =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let mut parsed = raw
+        .parse::<Value>()
+        .with_context(|| format!("failed to parse {}", path.display()))?;
+
+    let mut changed = false;
+
+    let Some(root) = parsed.as_table_mut() else {
+        return Ok(());
+    };
+    let multi_agent_v2_enabled = root
+        .get("features")
+        .and_then(Value::as_table)
+        .and_then(|features| features.get("multi_agent_v2"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if multi_agent_v2_enabled
+        && let Some(agents) = root.get_mut("agents").and_then(Value::as_table_mut)
+    {
+        changed |= agents.remove("max_threads").is_some();
+    }
+
+    if let Some(features) = root.get_mut("features").and_then(Value::as_table_mut) {
+        for key in [
+            "apply_patch_freeform",
+            "artifact",
+            "child_agents_md",
+            "code_mode",
+            "codex_git_commit",
+            "enable_fanout",
+            "image_detail_original",
+            "image_generation",
+            "js_repl",
+            "multi_agent_v2",
+            "runtime_metrics",
+            "shell_zsh_fork",
+            "tool_search",
+        ] {
+            changed |= features.remove(key).is_some();
+        }
+    }
+
+    if let Some(memories) = root.get_mut("memories").and_then(Value::as_table_mut) {
+        changed |= memories
+            .remove("no_memories_if_mcp_or_web_search")
+            .is_some();
+    }
+
+    if changed {
+        fs::write(path, toml::to_string(&parsed)?)
+            .with_context(|| format!("failed to write {}", path.display()))?;
+    }
+    Ok(())
+}
+
+fn merge_codex_config_value(managed: Value, existing: Value) -> Value {
+    merge_codex_config_value_at(managed, existing, &[])
+}
+
+fn merge_codex_config_value_at(managed: Value, existing: Value, path: &[String]) -> Value {
+    if existing_codex_preference_wins(path) {
+        return existing;
+    }
+
     match (managed, existing) {
         (Value::Table(managed_table), Value::Table(existing_table)) => {
             let mut merged = existing_table;
             for (key, managed_value) in managed_table {
+                let mut next_path = path.to_vec();
+                next_path.push(key.clone());
                 let next_value = match merged.remove(&key) {
-                    Some(existing_value) => merge_toml_value(managed_value, existing_value),
+                    Some(existing_value) => {
+                        merge_codex_config_value_at(managed_value, existing_value, &next_path)
+                    }
                     None => managed_value,
                 };
                 merged.insert(key, next_value);
@@ -367,6 +471,30 @@ fn merge_toml_value(managed: Value, existing: Value) -> Value {
         }
         (managed_value, _) => managed_value,
     }
+}
+
+fn existing_codex_preference_wins(path: &[String]) -> bool {
+    if path.len() == 1 {
+        return matches!(
+            path[0].as_str(),
+            "model_reasoning_summary"
+                | "model_verbosity"
+                | "personality"
+                | "service_tier"
+                | "web_search"
+                | "zsh_path"
+                | "notify"
+        );
+    }
+
+    if path.first().map(String::as_str) == Some("features") {
+        return path.get(1).is_some_and(|key| key != "memories");
+    }
+
+    matches!(
+        path.first().map(String::as_str),
+        Some("tools" | "history" | "marketplaces" | "projects")
+    )
 }
 
 fn run_rtk_init(home: &Path) -> Result<()> {

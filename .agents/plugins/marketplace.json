@@ -1,14 +1,14 @@
 {
-  "name": "llm-bootstrap",
+  "name": "stackpilot",
   "interface": {
-    "displayName": "LLM Bootstrap"
+    "displayName": "StackPilot"
   },
   "plugins": [
     {
-      "name": "llm-dev-kit",
+      "name": "stackpilot-dev-kit",
       "source": {
         "source": "local",
-        "path": "./plugins/llm-dev-kit"
+        "path": "./plugins/stackpilot-dev-kit"
       },
       "policy": {
         "installation": "INSTALLED_BY_DEFAULT",

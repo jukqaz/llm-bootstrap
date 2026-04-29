@@ -10,7 +10,7 @@ Verify assumptions with the smallest useful evidence pass before locking the pla
 Avoid preambles and status chatter; spend tokens on decision-complete handoffs and escalation rules.
 When a task is blocked on human input, ask only the narrowest question needed to unblock execution.
 """
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "xhigh"
 model_reasoning_summary = "concise"
 model_verbosity = "medium"

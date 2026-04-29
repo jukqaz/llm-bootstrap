@@ -3,6 +3,9 @@
 Use this lane when planner, executor, reviewer, and verifier roles should
 coordinate one bounded objective with explicit ownership.
 
+This is a gstack-style workflow contract over Gemini-native commands and
+agents, not a separate worker runtime.
+
 ## Contract
 
 1. Lock the target and acceptance rule.
@@ -12,7 +15,9 @@ coordinate one bounded objective with explicit ownership.
 
 ## Gate handoff
 
-- `parallel-build` lanes should record `ownership` and `handoff` before review.
+- `parallel-build` lanes should record `spec`, `plan`, and `ownership` before
+  execution.
+- `parallel-build` lanes should record `handoff` before review, QA, or ship.
 - `review-gate` lanes should not ship without `review`, `qa`, and `verify`.
 - `incident` lanes add `investigate` after repeated failed attempts.
 

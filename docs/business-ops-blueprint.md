@@ -1,6 +1,6 @@
 # Business Ops Blueprint
 
-To move `llm-bootstrap` beyond a developer bootstrap and toward a
+To move `StackPilot` beyond a developer bootstrap and toward a
 business-capable operating layer, the product definition has to change.
 
 This document explains the gap between the current repository and tools such as
@@ -9,7 +9,7 @@ just delivery work but broader business operations.
 
 ## Current State
 
-Today `llm-bootstrap` is focused on:
+Today `StackPilot` is focused on:
 
 - provider home bootstrap and recovery
 - minimal MCP baseline management
@@ -75,9 +75,9 @@ Limits:
 - more coding-runtime oriented than business-operations oriented
 - closer to a Codex execution layer than a cross-provider home bootstrap
 
-### Current Position of llm-bootstrap
+### Current Position of stackpilot
 
-`llm-bootstrap` sits below both tools in the stack.
+`StackPilot` sits below both tools in the stack.
 
 - strength: safe baseline, backup and restore, provider consistency, lean MCP
 - weakness: thin execution loop for real work
@@ -106,7 +106,7 @@ a small team."
 
 ## Target Product Definition
 
-The next-stage product definition for `llm-bootstrap` should be:
+The next-stage product definition for `StackPilot` should be:
 
 > A cross-provider operating system that keeps a safe developer-home bootstrap
 > core while adding workflow packs and business connector packs for product,
@@ -387,7 +387,7 @@ Required rules:
 ### Against gstack
 
 `gstack` wins on process strength.
-`llm-bootstrap` should not try to compete by merely adding more skills.
+`StackPilot` should not try to compete by merely adding more skills.
 
 The better differentiation is:
 

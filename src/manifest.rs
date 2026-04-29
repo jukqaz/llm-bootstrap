@@ -393,4 +393,12 @@ impl BaselineMcp {
             BaselineMcp::ChromeDevtools => "chrome-devtools-mcp.sh",
         }
     }
+
+    pub(crate) fn env_var(self) -> Option<&'static str> {
+        match self {
+            BaselineMcp::Context7 => Some("CONTEXT7_API_KEY"),
+            BaselineMcp::Exa => Some("EXA_API_KEY"),
+            BaselineMcp::ChromeDevtools => None,
+        }
+    }
 }

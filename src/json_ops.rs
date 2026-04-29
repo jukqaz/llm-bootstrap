@@ -172,7 +172,7 @@ pub(crate) fn cleanup_extension_enablement(path: &Path) -> Result<()> {
     let Some(root) = enablement.as_object_mut() else {
         return Ok(());
     };
-    root.remove("llm-bootstrap-dev");
+    root.remove("stackpilot-dev");
     write_or_remove_json(path, &enablement)
 }
 

@@ -1,6 +1,6 @@
 # Ralph Plan
 
-Use this file as the active delivery contract for the current `llm-bootstrap`
+Use this file as the active delivery contract for the current `stackpilot`
 program, not as a product surface template.
 
 ## Goal
@@ -24,7 +24,7 @@ remaining work is reduced to routine follow-through, not repeated replanning.
 
 ## Owners
 
-- primary owner: `llm-bootstrap` core delivery loop
+- primary owner: `stackpilot` core delivery loop
 - active harness lanes:
   - `workflow-control-plane`
   - `repo-automation-lane`

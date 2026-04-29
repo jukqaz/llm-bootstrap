@@ -3,9 +3,10 @@ use serde::Deserialize;
 use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
-    name = "llm-bootstrap",
+    name = "stack-pilot",
     version,
-    about = "Bootstrap Codex, Gemini, and optional Claude Code dev homes"
+    about = "StackPilot manager for Codex, Gemini, and optional Claude Code dev homes",
+    after_help = "Core commands: baseline, install, sync, restore, backups, uninstall, doctor, probe, wizard\nAddon command: record\nInternal workflow lanes are hidden from the default help."
 )]
 pub(crate) struct Cli {
     #[command(subcommand)]
@@ -48,18 +49,29 @@ impl Provider {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    #[command(about = "Apply the bootstrap core baseline")]
     Baseline(InstallArgs),
+    #[command(about = "Install or re-apply the bootstrap core baseline")]
     Install(InstallArgs),
+    #[command(about = "Re-render the current bootstrap core state")]
     Sync(InstallArgs),
+    #[command(about = "Restore bootstrap-managed files from a backup")]
     Restore(RestoreArgs),
+    #[command(about = "List available bootstrap backups")]
     Backups(BackupsArgs),
+    #[command(about = "Remove bootstrap-managed files")]
     Uninstall(UninstallArgs),
+    #[command(about = "Check bootstrap core drift and runtime prerequisites")]
     Doctor(DoctorArgs),
+    #[command(about = "Probe provider runtimes with a minimal prompt")]
     Probe(ProbeArgs),
+    #[command(hide = true, about = "Internal addon and workflow lanes")]
     Internal(InternalArgs),
     #[command(hide = true)]
     TaskState(TaskStateArgs),
+    #[command(about = "Addon: create or update operating record artifacts")]
     Record(RecordArgs),
+    #[command(about = "Interactive bootstrap core setup")]
     Wizard(WizardArgs),
 }
 
@@ -78,7 +90,7 @@ pub(crate) struct PackArgs {
     #[arg(
         long,
         conflicts_with = "packs",
-        help = "Preset alias such as light, normal, full, or company"
+        help = "Preset alias such as light, normal, full, all-in-one, or company"
     )]
     pub(crate) preset: Option<String>,
     #[arg(
@@ -180,6 +192,11 @@ pub(crate) struct ProbeArgs {
     pub(crate) prompt: String,
     #[arg(long, help = "Emit probe results as JSON")]
     pub(crate) json: bool,
+    #[arg(
+        long,
+        help = "Also probe optional high-cost optimized runtime paths such as 1M agent models"
+    )]
+    pub(crate) optimize: bool,
 }
 
 #[derive(Subcommand, Clone)]
@@ -362,6 +379,10 @@ pub(crate) struct TaskStateBeginArgs {
     pub(crate) phase: TaskPhase,
     #[arg(long, help = "Task owner")]
     pub(crate) owner: Option<String>,
+    #[arg(long, help = "Compact current-state summary for resume")]
+    pub(crate) summary: Option<String>,
+    #[arg(long, help = "Checkpoint note describing where to resume")]
+    pub(crate) checkpoint: Option<String>,
     #[arg(long = "next-action", help = "Next action to resume work")]
     pub(crate) next_action: Option<String>,
     #[arg(long, help = "Emit task state as JSON")]
@@ -374,6 +395,14 @@ pub(crate) struct TaskStateAdvanceArgs {
     pub(crate) status: Option<TaskStatus>,
     #[arg(long, value_enum, help = "New task phase")]
     pub(crate) phase: Option<TaskPhase>,
+    #[arg(long, help = "Compact current-state summary for resume")]
+    pub(crate) summary: Option<String>,
+    #[arg(long, help = "Clear stored current-state summary")]
+    pub(crate) clear_summary: bool,
+    #[arg(long, help = "Checkpoint note describing where to resume")]
+    pub(crate) checkpoint: Option<String>,
+    #[arg(long, help = "Clear stored checkpoint note")]
+    pub(crate) clear_checkpoint: bool,
     #[arg(long = "next-action", help = "Next action to resume work")]
     pub(crate) next_action: Option<String>,
     #[arg(long, help = "Failure summary")]
@@ -542,7 +571,7 @@ pub(crate) struct RecordArgs {
     pub(crate) surface: RecordSurface,
     #[arg(
         long = "output-dir",
-        default_value = ".llm-bootstrap/records",
+        default_value = ".stackpilot/records",
         help = "Directory for local record markdown files"
     )]
     pub(crate) output_dir: PathBuf,

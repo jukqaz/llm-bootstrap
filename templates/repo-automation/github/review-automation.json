@@ -1,5 +1,5 @@
 {
-  "managed_by": "llm-bootstrap",
+  "managed_by": "stackpilot",
   "default_branch": "__DEFAULT_BRANCH__",
   "pr_review_gate": {
     "required_checks": __PR_REQUIRED_CHECKS_JSON__,

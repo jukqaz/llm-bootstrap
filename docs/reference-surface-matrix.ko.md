@@ -4,7 +4,7 @@
 > 참고 레포 backlog 전체는 [reference-repo-backlog.ko.md](reference-repo-backlog.ko.md)를 따른다.
 > 이 문서는 레포별 "surface"를 기준으로 무엇을 가져올지 고정한다.
 
-`llm-bootstrap`의 다음 단계는 단순 기능 수집이 아니다.
+`StackPilot`의 다음 단계는 단순 기능 수집이 아니다.
 
 - provider-native baseline을 유지하면서
 - 다른 레포의 강한 surface를 capability로 흡수하고
@@ -23,6 +23,15 @@
 4. review/QA를 repo automation lane으로 미는 계약
 5. MCP 확장 UX와 tool catalog 정리
 6. company connector를 app 목록이 아니라 inbox/channel로 보는 관점
+
+채택 기준은 더 좁게 둔다.
+
+1. provider-native surface로 표현 가능해야 한다.
+2. baseline, 개발, 회사 운영 흐름 중 하나를 실제로 단축해야 한다.
+3. auth, session, history, 대화기록을 새 runtime으로 대체하지 않아야 한다.
+4. optional pack으로 분리할 수 있어야 한다.
+5. 제거해도 provider 기본 동작이 깨지지 않아야 한다.
+6. 문서, command, skill 수준으로 충분하면 daemon, tmux, Node runtime은 들여오지 않는다.
 
 반대로 core에 바로 넣으면 안 되는 것도 분명하다.
 
@@ -48,6 +57,7 @@
   - mode alias naming
   - `autopilot`, `team`, `ralph`, `review` 같은 entrypoint 노출 방식
   - skill catalog를 surface별로 잘게 나누는 방식
+  - `deep-init`, `team`, `ultrawork`를 Codex plugin skill로 노출하는 방식
 - capability로만 둘 것:
   - optional `team runtime`
   - optional persistent execution lane
@@ -60,6 +70,14 @@
 `oh-my-codex`는 `Codex CLI` 위에 orchestration runtime을 얹는 제품이다.
 이 저장소는 같은 방향으로 가지 않고,
 `entrypoint layer`와 `team-pack`만 얇게 흡수하는 것이 맞다.
+
+현재 채택 상태:
+
+- `deep-init`은 repo map과 검증 경계 skill로 채택한다.
+- `team`은 `team-plan -> team-scope -> team-exec -> team-verify -> team-fix`
+  단계 계약으로 채택한다.
+- `ultrawork`는 독립 shard 병렬 처리 skill로 채택한다.
+- 자체 session runtime과 provider-native surface를 덮는 독자 실행기는 넣지 않는다.
 
 ### 2. oh-my-gemini
 
@@ -76,6 +94,7 @@
   - hook를 workflow contract로 쓰는 방식
   - keyword 기반 deterministic mode selection
   - plan/spec/task를 얇게 유지하는 context 구조
+  - `deep-init`, `team`, `ultrawork`를 Gemini extension command로 노출하는 방식
 - capability로만 둘 것:
   - Gemini 전용 `hook-pack`
   - optional `task-state` / `track-state`
@@ -90,6 +109,14 @@
 이 저장소가 가져와야 하는 것은 hook script 자체보다
 `gate contract`와 `retry semantics`다.
 
+현재 채택 상태:
+
+- `deep-init`은 repo map과 검증 경계 command로 채택한다.
+- `team`은 `team-plan -> team-scope -> team-exec -> team-verify -> team-fix`
+  단계 계약으로 채택한다.
+- `ultrawork`는 독립 shard 병렬 처리 command로 채택한다.
+- Node hook runtime과 `.omg` state runtime은 기본 baseline에 넣지 않는다.
+
 ### 3. oh-my-claudecode
 
 - 링크: [Yeachan-Heo/oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode)
@@ -103,6 +130,8 @@
   - plugin path와 runtime path를 분리해서 설명하는 방식
   - in-session skill과 terminal command를 분리하는 표면 설계
   - `deep-interview`처럼 요구사항 정리를 먼저 시키는 진입점
+  - native team env와 staged team pipeline
+  - `ultrawork`를 persistence runtime이 아니라 병렬 실행 프로토콜로 다루는 방식
 - capability로만 둘 것:
   - optional `team runtime`
   - optional `deep-interview` lane
@@ -114,6 +143,14 @@
 
 `oh-my-claudecode`는 surface 분리가 가장 명확하다.
 이 저장소도 `baseline 설치 surface`와 `capability 실행 surface`를 더 분명히 나눠야 한다.
+
+현재 채택 상태:
+
+- Claude settings에 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`을 bootstrap-owned
+  baseline으로 둔다.
+- `deep-init`, `team`, `ultrawork`를 Claude user-scope skill로 채택한다.
+- `deep-interview`의 역할은 기존 `office-hours`와 `team-scope`로 흡수한다.
+- tmux worker runtime과 `omc` npm runtime은 기본 baseline에 넣지 않는다.
 
 ### 4. Cline
 

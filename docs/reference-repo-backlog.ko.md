@@ -6,7 +6,7 @@
 > 레포별 surface 채택 기준은 [reference-surface-matrix.ko.md](reference-surface-matrix.ko.md)를 따른다.
 
 이 문서는 기존 `oh-my-*`, `gstack`, `spec-kit`, `GitHub Agentic Workflows` 외에
-추가로 살펴본 참고 레포를 `llm-bootstrap` 계획에 어떻게 반영할지 정리한다.
+추가로 살펴본 참고 레포를 `StackPilot` 계획에 어떻게 반영할지 정리한다.
 
 목적은 단순 수집이 아니다.
 
@@ -51,7 +51,7 @@
 
 판단:
 
-`llm-bootstrap`가 나중에 회사운영 pack을 더 키울 때, connector를 단순 앱 목록이 아니라
+`StackPilot`가 나중에 회사운영 pack을 더 키울 때, connector를 단순 앱 목록이 아니라
 "account / channel / inbox entrypoint"로 볼 수 있게 해주는 참고 레포다.
 
 ### 2. Cline

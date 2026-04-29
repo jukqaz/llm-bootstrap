@@ -1,6 +1,6 @@
 # Ralph Loop 프로그램 계획
 
-이 문서는 현재 `llm-bootstrap` backlog를 몇 개의 하네스 lane으로 고정하고,
+이 문서는 현재 `StackPilot` backlog를 몇 개의 하네스 lane으로 고정하고,
 각 lane을 같은 Ralph loop로 반복 처리하기 위한 실행 계획서다.
 
 핵심 의도는 단순하다.

@@ -2,14 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-BUNDLED_BIN="$SCRIPT_DIR/llm-bootstrap"
+BUNDLED_BIN="$SCRIPT_DIR/stack-pilot"
 
 log() {
-  printf '[llm-bootstrap] %s\n' "$*"
+  printf '[stackpilot] %s\n' "$*"
 }
 
 fail() {
-  printf '[llm-bootstrap] %s\n' "$*" >&2
+  printf '[stackpilot] %s\n' "$*" >&2
   exit 1
 }
 
@@ -17,8 +17,8 @@ resolve_toolchain_home() {
   local current_user toolchain_home
   current_user="$(id -un)"
 
-  if [[ -n "${LLM_BOOTSTRAP_TOOLCHAIN_HOME:-}" ]]; then
-    printf '%s' "$LLM_BOOTSTRAP_TOOLCHAIN_HOME"
+  if [[ -n "${STACKPILOT_TOOLCHAIN_HOME:-}" ]]; then
+    printf '%s' "$STACKPILOT_TOOLCHAIN_HOME"
     return
   fi
 
@@ -81,13 +81,13 @@ if ! command -v cargo >/dev/null 2>&1; then
 fi
 
 if [[ ! -f "$SCRIPT_DIR/Cargo.toml" ]]; then
-  fail "Cargo.toml not found and bundled llm-bootstrap binary is unavailable"
+  fail "Cargo.toml not found and bundled stack-pilot binary is unavailable"
 fi
 
 configure_rust_toolchain_env
 
 if [[ $# -gt 0 && ( "$COMMAND" == "$FIRST_ARG" || "$COMMAND" == "--help" || "$COMMAND" == "-h" ) ]]; then
-  exec cargo run --quiet --manifest-path "$SCRIPT_DIR/Cargo.toml" -- "$@"
+  exec cargo run --quiet --manifest-path "$SCRIPT_DIR/Cargo.toml" --bin stack-pilot -- "$@"
 fi
 
-exec cargo run --quiet --manifest-path "$SCRIPT_DIR/Cargo.toml" -- "$COMMAND" "$@"
+exec cargo run --quiet --manifest-path "$SCRIPT_DIR/Cargo.toml" --bin stack-pilot -- "$COMMAND" "$@"

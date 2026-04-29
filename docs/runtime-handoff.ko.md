@@ -1,6 +1,6 @@
 # Runtime Handoff
 
-이 문서는 `llm-bootstrap`가 어디까지 책임지고, 그 다음 어떤 runtime이
+이 문서는 `StackPilot`가 어디까지 책임지고, 그 다음 어떤 runtime이
 실제 연결과 실행을 이어받는지 정리한다.
 
 핵심 원칙은 단순하다.
@@ -10,12 +10,12 @@
 
 ## 경계
 
-`llm-bootstrap`가 책임지는 것:
+`StackPilot`가 책임지는 것:
 
 - `preset -> pack -> harness -> connectors -> MCP -> provider surface`
 - provider 홈에 필요한 문서, skill, command, script 설치
 - `doctor`를 통한 requested state 와 installed state 비교
-- provider별 `llm-bootstrap-state.json` 기록
+- provider별 `stackpilot-state.json` 기록
 
 runtime이 책임지는 것:
 
@@ -28,7 +28,7 @@ record handoff:
 - 복잡한 업무는 record contract를 남긴 뒤 이어서 처리한다
 - record schema는 [operating-record-model.ko.md](operating-record-model.ko.md)를 따른다
 - GitHub, Linear, CRM, helpdesk, docs, analytics가 source of truth인 데이터는
-  `llm-bootstrap`가 복제하지 않는다
+  `StackPilot`가 복제하지 않는다
 - bootstrap은 어떤 record가 필요하고 어느 runtime이 소유하는지만 설치/표시한다
 
 ## Connector handoff

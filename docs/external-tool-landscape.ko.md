@@ -1,7 +1,7 @@
 # External Tool Landscape
 
 이 문서는 기존 참고 레포(`gstack`, `oh-my-*`)와 별개로,
-현재 `llm-bootstrap` 설계에 참고할 수 있는 외부 도구와 서비스들을 정리한다.
+현재 `StackPilot` 설계에 참고할 수 있는 외부 도구와 서비스들을 정리한다.
 
 목적은 두 가지다.
 
@@ -31,7 +31,7 @@
 - 참고할 점:
   - prompt보다 command output을 줄이는 접근이 실효성이 높다
   - default install에 들어가도 무게 대비 효과가 좋다
-- `llm-bootstrap` 적용 판단:
+- `StackPilot` 적용 판단:
   - `core` 또는 `near-core`
 
 ### Caveman
@@ -45,9 +45,10 @@
 - 참고할 점:
   - "답변을 짧게 만든다"는 축에서 실험 속도가 빠르다
   - 하네스보다 style mode에 가깝다
-- `llm-bootstrap` 적용 판단:
-  - `optional skill pack`
-  - 기본값보다 `terse`, `review-terse`, `commit-terse` 모드 참고용
+- `StackPilot` 적용 판단:
+  - `reference-only`
+  - 별도 Caveman pack을 만들기보다 향후 공통 capability를 설계할 때
+    terse/review/commit 출력 규칙만 참고한다
 
 ### Compresr Context Gateway
 
@@ -59,7 +60,7 @@
 - 참고할 점:
   - 구조상 가장 강력하지만 가장 무겁다
   - 별도 프록시, API 키, 운영 로그, 환경 설정이 필요하다
-- `llm-bootstrap` 적용 판단:
+- `StackPilot` 적용 판단:
   - 기본선 제외
   - `advanced/enterprise lane` 후보
 
@@ -76,7 +77,7 @@
 - 참고할 점:
   - 큰 repo를 여러 agent에 나눠 전달할 때 좋다
   - `MCP`, `compression`, `repo pack`이 한 도구에 같이 있다
-- `llm-bootstrap` 적용 판단:
+- `StackPilot` 적용 판단:
   - `optional context tool`
   - 대형 repo 분석용 pack 후보
 
@@ -90,7 +91,7 @@
 - 참고할 점:
   - Repomix보다 가볍고 단순하다
   - 기능 폭은 좁지만 onboarding 속도가 빠르다
-- `llm-bootstrap` 적용 판단:
+- `StackPilot` 적용 판단:
   - 기본선 제외
   - remote repo triage 참고용
 
@@ -107,8 +108,8 @@
   - token estimate와 selector 기반 rule filtering이 있다
 - 참고할 점:
   - "규칙은 설정 파일에, 현재 작업은 stdout에"라는 분리가 매우 유용하다
-  - 현재 `llm-bootstrap`의 renderer 구조와 잘 맞는다
-- `llm-bootstrap` 적용 판단:
+  - 현재 `StackPilot`의 renderer 구조와 잘 맞는다
+- `StackPilot` 적용 판단:
   - 도구 자체보다 아이디어 채택 가치가 높다
   - source of truth는 공통 harness spec에 두고 renderer가 provider 파일을 쓰는 방향 참고
 
@@ -125,7 +126,7 @@
 - 참고할 점:
   - `omx`식으로 MCP를 별도 관리하고 싶을 때 가장 직접적인 사례다
   - profile 기반 운영은 pack/catalog 구조와 잘 맞는다
-- `llm-bootstrap` 적용 판단:
+- `StackPilot` 적용 판단:
   - `advanced MCP lane`
   - 기본선보다 optional profile management 참고용
 
@@ -142,7 +143,7 @@
 - 참고할 점:
   - 실제 사용자-facing agent CLI가 plugin/MCP/LSP를 어떻게 같이 묶는지 볼 수 있다
   - runtime 참고용이지 bootstrap에 그대로 가져올 대상은 아니다
-- `llm-bootstrap` 적용 판단:
+- `StackPilot` 적용 판단:
   - runtime/reference only
 
 ### OpenHands
@@ -155,7 +156,7 @@
 - 참고할 점:
   - 우리보다 훨씬 무거운 쪽의 runtime reference다
   - multi-user, cloud, issue resolver 쪽 패턴을 볼 수 있다
-- `llm-bootstrap` 적용 판단:
+- `StackPilot` 적용 판단:
   - architecture/reference only
 
 ## 우선순위
@@ -190,10 +191,11 @@
 효과는 크지만 구조가 무겁거나 제품 범위가 넓다.
 기본 bootstrap보다 상위 runtime 참고용으로 두는 편이 맞다.
 
-## llm-bootstrap에 반영할 원칙
+## StackPilot에 반영할 원칙
 
 - output compression은 `RTK` 축으로 유지한다
-- response terseness는 `Caveman`류 optional mode로만 둔다
+- response terseness는 별도 pack으로 늘리지 않고, 필요해지면 공통 capability
+  catalog의 한 옵션으로 흡수한다
 - repo ingest는 `Repomix` 또는 유사 pack으로 optional 제공한다
 - rules/task 분리는 `Coding Context CLI`의 write-rules 아이디어를 흡수한다
 - MCP는 `MCPM`처럼 profile과 client integration을 나눠서 본다
@@ -201,6 +203,6 @@
 
 ## 한 줄 결론
 
-외부 레퍼런스는 많지만, 현재 `llm-bootstrap` 기준으로 바로 가져올 것은
+외부 레퍼런스는 많지만, 현재 `StackPilot` 기준으로 바로 가져올 것은
 `RTK`, `Repomix`, `Coding Context CLI`, `MCPM`이고,
-`Caveman`은 optional mode, `Compresr`와 `OpenHands`는 상위 runtime 참고용이다.
+`Caveman`은 reference-only, `Compresr`와 `OpenHands`는 상위 runtime 참고용이다.

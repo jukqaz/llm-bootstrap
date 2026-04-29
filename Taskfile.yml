@@ -21,6 +21,6 @@ tasks:
       - ./install.sh --mode merge
 
   uninstall:
-    desc: Remove llm-bootstrap managed home artifacts
+    desc: Remove stackpilot managed home artifacts
     cmds:
       - ./uninstall.sh

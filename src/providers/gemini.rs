@@ -14,6 +14,7 @@ use crate::layout::{
     gemini_managed_paths, gemini_managed_paths_for,
 };
 use crate::manifest::{BaselineMcp, BootstrapManifest};
+use crate::repo_assets::stackpilot_dev_kit_gemini_repo_root;
 use crate::runtime::{command_exists, repo_root, run_command_in_home, timestamp_string};
 use crate::state::read_installed_state;
 use anyhow::Result;
@@ -67,6 +68,7 @@ pub(crate) fn install(
 ) -> Result<()> {
     let root = home.join(".gemini");
     let template_root = repo_root().join("templates/gemini");
+    let extension_root = stackpilot_dev_kit_gemini_repo_root();
     let bundle_root = repo_root().join("bundles/full/gemini");
     fs::create_dir_all(&root)?;
     fs::create_dir_all(root.join("hooks"))?;
@@ -127,13 +129,13 @@ pub(crate) fn install(
     }
     if extension_enabled {
         copy_render_relative_entries(
-            &template_root,
+            &extension_root,
             &root,
             &gemini_extension_asset_paths(active_surfaces),
             home,
         )?;
     } else {
-        remove_if_exists(&root.join("extensions/llm-bootstrap-dev"))?;
+        remove_if_exists(&root.join("extensions/stackpilot-dev"))?;
     }
 
     let mut current_settings = match mode {
@@ -141,9 +143,13 @@ pub(crate) fn install(
         ApplyMode::Replace => preserved_gemini_runtime_state(&existing_settings),
     };
     merge_json(&mut current_settings, settings_patch(home, rtk_enabled));
+    if mode == ApplyMode::Merge {
+        preserve_gemini_user_preferences(&mut current_settings, &existing_settings);
+    }
     if !rtk_enabled {
         prune_rtk_gemini_hooks(&mut current_settings);
     }
+    cleanup_gemini_config_compatibility(&mut current_settings);
     current_settings["mcpServers"] = mcp_servers(home, &existing_settings, enabled_mcp, mode);
     write_json_pretty(&settings_path, &current_settings)?;
 
@@ -153,12 +159,12 @@ pub(crate) fn install(
             ApplyMode::Replace => json!({}),
         };
         let override_path = format!("{}/{}", home.display(), "*");
-        enablement["llm-bootstrap-dev"] = json!({
+        enablement["stackpilot-dev"] = json!({
             "overrides": [override_path]
         });
         write_json_pretty(&enablement_path, &enablement)?;
     } else {
-        remove_if_exists(&root.join("extensions/llm-bootstrap-dev"))?;
+        remove_if_exists(&root.join("extensions/stackpilot-dev"))?;
         cleanup_extension_enablement(&enablement_path)?;
     }
 
@@ -315,33 +321,156 @@ fn settings_patch(home: &Path, rtk_enabled: bool) -> Value {
 
     json!({
         "general": {
+            "checkpointing": {
+                "enabled": true
+            },
             "defaultApprovalMode": "plan",
             "enableAutoUpdate": false,
+            "enableAutoUpdateNotification": false,
             "enableNotifications": true,
+            "maxAttempts": 10,
             "plan": {
-                "directory": "",
+                "enabled": true,
                 "modelRouting": true
+            },
+            "retryFetchErrors": true,
+            "sessionRetention": {
+                "enabled": false
             },
             "vimMode": false
         },
         "hooks": hooks,
-        "ideMode": true,
+        "hooksConfig": {
+            "enabled": true,
+            "notifications": true
+        },
+        "skills": {
+            "enabled": true
+        },
+        "experimental": {
+            "autoMemory": true,
+            "contextManagement": true,
+            "memoryV2": true,
+            "modelSteering": true,
+            "topicUpdateNarration": true
+        },
+        "contextManagement": {
+            "historyWindow": {
+                "maxTokens": 150000,
+                "retainedTokens": 40000
+            },
+            "messageLimits": {
+                "normalMaxTokens": 2500,
+                "normalizationHeadRatio": 0.25,
+                "retainedMaxTokens": 12000
+            },
+            "tools": {
+                "distillation": {
+                    "maxOutputTokens": 10000,
+                    "summarizationThresholdTokens": 20000
+                },
+                "outputMasking": {
+                    "minPrunableThresholdTokens": 30000,
+                    "protectLatestTurn": true,
+                    "protectionThresholdTokens": 50000
+                }
+            }
+        },
+        "model": {
+            "compressionThreshold": 0.5,
+            "maxSessionTurns": -1,
+            "name": "auto",
+            "skipNextSpeakerCheck": true
+        },
         "output": {
             "format": "text"
         },
-        "showLineNumbers": false,
-        "showMemoryUsage": true,
         "ui": {
             "autoThemeSwitching": true,
+            "compactToolOutput": true,
             "errorVerbosity": "full",
+            "footer": {
+                "hideContextPercentage": false,
+                "hideModelInfo": false
+            },
+            "hideContextSummary": false,
             "hideTips": true,
             "hideWindowTitle": false,
             "inlineThinkingMode": "full",
             "loadingPhrases": "all",
+            "showCitations": true,
+            "showLineNumbers": true,
             "showMemoryUsage": true,
+            "showModelInfoInChat": true,
             "showStatusInTitle": true
         }
     })
+}
+
+fn preserve_gemini_user_preferences(settings: &mut Value, existing: &Value) {
+    for path in [
+        "/general/enableNotifications",
+        "/general/plan/directory",
+        "/general/vimMode",
+        "/model/name",
+        "/output/format",
+        "/ui/autoThemeSwitching",
+        "/ui/compactToolOutput",
+        "/ui/errorVerbosity",
+        "/ui/footer/hideContextPercentage",
+        "/ui/footer/hideModelInfo",
+        "/ui/hideContextSummary",
+        "/ui/hideTips",
+        "/ui/hideWindowTitle",
+        "/ui/inlineThinkingMode",
+        "/ui/loadingPhrases",
+        "/ui/showCitations",
+        "/ui/showLineNumbers",
+        "/ui/showMemoryUsage",
+        "/ui/showModelInfoInChat",
+        "/ui/showStatusInTitle",
+    ] {
+        preserve_json_pointer(settings, existing, path);
+    }
+}
+
+fn preserve_json_pointer(settings: &mut Value, existing: &Value, path: &str) {
+    let Some(value) = existing.pointer(path).cloned() else {
+        return;
+    };
+    let parts = path.trim_start_matches('/').split('/').collect::<Vec<_>>();
+    let Some((last, parents)) = parts.split_last() else {
+        return;
+    };
+
+    let mut cursor = settings;
+    for part in parents {
+        if !cursor.get(part).is_some_and(Value::is_object) {
+            cursor[part] = json!({});
+        }
+        cursor = &mut cursor[part];
+    }
+    cursor[last] = value;
+}
+
+fn cleanup_gemini_config_compatibility(settings: &mut Value) {
+    let Some(root) = settings.as_object_mut() else {
+        return;
+    };
+
+    root.remove("ideMode");
+    root.remove("showLineNumbers");
+    root.remove("showMemoryUsage");
+
+    if let Some(general) = root.get_mut("general").and_then(Value::as_object_mut) {
+        general.remove("topicUpdateNarration");
+
+        if let Some(plan) = general.get_mut("plan").and_then(Value::as_object_mut)
+            && plan.get("directory").and_then(Value::as_str) == Some("")
+        {
+            plan.remove("directory");
+        }
+    }
 }
 
 fn mcp_servers(
@@ -371,12 +500,17 @@ fn mcp_servers(
     };
 
     for mcp in enabled_mcp {
-        servers.insert(
-            mcp.name().to_string(),
-            json!({
-                "command": gemini_home.join("scripts").join(mcp.script_name()).to_string_lossy().to_string()
-            }),
-        );
+        let mut server = json!({
+            "command": gemini_home.join("scripts").join(mcp.script_name()).to_string_lossy().to_string(),
+            "timeout": 30000,
+            "trust": false
+        });
+        if let Some(env_var) = mcp.env_var() {
+            server["env"] = json!({
+                env_var: format!("${env_var}")
+            });
+        }
+        servers.insert(mcp.name().to_string(), server);
     }
 
     Value::Object(servers)

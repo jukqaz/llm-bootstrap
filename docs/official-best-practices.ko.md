@@ -3,7 +3,7 @@
 기준일: `2026-04-09`
 
 이 문서는 `OpenAI Codex`, `Gemini CLI`, `Claude Code` 공식 사이트에서
-`llm-bootstrap` 설계에 바로 영향을 주는 best-practice 아티클만 추려서 정리한다.
+`StackPilot` 설계에 바로 영향을 주는 best-practice 아티클만 추려서 정리한다.
 
 핵심은 "기능 목록"이 아니라 "공식 문서가 무엇을 권장하는가"다.
 
@@ -28,7 +28,7 @@
 - 문서 검색은 Docs MCP처럼 공식 read-only MCP를 우선 사용한다.
 - production 전환은 권한, billing, org setup, secret handling부터 정리하라고 한다.
 
-### llm-bootstrap에 주는 의미
+### StackPilot에 주는 의미
 
 - Codex renderer는 `config + AGENTS + MCP`를 기본축으로 유지하는 게 맞다.
 - `planner`, `reviewer`, `verifier` 같은 역할 지시도 장황하게 늘리기보다 direct instruction + output contract 쪽이 맞다.
@@ -55,7 +55,7 @@
 - Plan Mode는 승인된 plan artifact를 hook으로 외부 저장소에 보관하는 패턴까지 문서화한다.
 - sandbox는 기본적으로 가장 restrictive한 프로필을 쓰라고 권장한다.
 
-### llm-bootstrap에 주는 의미
+### StackPilot에 주는 의미
 
 - Gemini renderer는 extension-first 방향이 확실히 맞다.
 - hook이나 command를 많이 넣더라도 synchronous cost를 먼저 계산해야 한다.
@@ -82,9 +82,9 @@
 - hooks는 deterministic control layer로 취급하고, security best practices를 별도 섹션으로 둔다.
 - hook은 input sanitization, absolute path, path traversal 차단, sensitive file skip을 권장한다.
 - MCP는 `--scope`, `.mcp.json`, user scope, project scope, approval reset 흐름까지 공식화한다.
-- MCP 출력이 커질 때는 warning threshold와 `MAX_MCP_OUTPUT_TOKENS`를 공식적으로 관리한다.
+- MCP 출력이 커질 때는 output threshold와 `MAX_MCP_OUTPUT_TOKENS`를 공식적으로 관리한다.
 
-### llm-bootstrap에 주는 의미
+### StackPilot에 주는 의미
 
 - Claude는 skill-first보다 `subagent + MCP + hooks/settings` 우선이 맞다.
 - workflow skills는 secondary packaging layer로 두는 현재 방향이 맞다.
@@ -102,7 +102,7 @@
 - runtime magic보다 deterministic hook 또는 approval flow
 - tool 추가보다 output shape와 safety 관리
 
-즉 `llm-bootstrap`가 따라야 할 공식 기준은 아래로 요약된다.
+즉 `StackPilot`가 따라야 할 공식 기준은 아래로 요약된다.
 
 1. 공통 intent는 짧고 구조화된 spec로 유지
 2. provider-native surface를 우선 사용
@@ -117,4 +117,3 @@
 - [catalog/sources/official/openai_codex.toml](../catalog/sources/official/openai_codex.toml)
 - [catalog/sources/official/gemini_cli.toml](../catalog/sources/official/gemini_cli.toml)
 - [catalog/sources/official/claude_code.toml](../catalog/sources/official/claude_code.toml)
-

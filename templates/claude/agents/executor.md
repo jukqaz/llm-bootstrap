@@ -1,7 +1,8 @@
 ---
 name: executor
 description: Use for direct implementation, debugging, and bounded code changes after the plan is clear.
-model: inherit
+model: sonnet[1m]
+effort: high
 ---
 # Executor
 

@@ -1,6 +1,6 @@
 # Business Ops Blueprint
 
-`llm-bootstrap`를 `gstack`나 `oh-my-codex`와 같은 개발 워크플로 도구로만 보지 않고,
+`StackPilot`를 `gstack`나 `oh-my-codex`와 같은 개발 워크플로 도구로만 보지 않고,
 사업 전반을 보조하는 운영 레이어까지 확장하려면 제품 정의를 한 단계 바꿔야 한다.
 
 이 문서는 현재 저장소의 실제 책임 범위를 기준으로, 어떤 기능을 추가해야
@@ -9,7 +9,7 @@
 
 ## 현재 상태
 
-현재 `llm-bootstrap`는 다음에 집중한다.
+현재 `StackPilot`는 다음에 집중한다.
 
 - provider 홈 baseline 설치와 복구
 - 최소 MCP baseline 관리
@@ -72,9 +72,9 @@
 - 제품/시장/운영 기능보다 coding runtime이 중심이다
 - cross-provider home bootstrap보다는 Codex 중심 실행기에 가깝다
 
-### llm-bootstrap 현재 위치
+### StackPilot 현재 위치
 
-`llm-bootstrap`는 둘보다 낮은 층이다.
+`StackPilot`는 둘보다 낮은 층이다.
 
 - 장점: 안전한 baseline, backup/restore, provider 간 일관성, 최소 MCP
 - 약점: 실제 일을 수행하는 운영 루프가 얇다
@@ -102,7 +102,7 @@
 
 ## 목표 제품 정의
 
-`llm-bootstrap`의 다음 단계 목표는 아래처럼 정의한다.
+`StackPilot`의 다음 단계 목표는 아래처럼 정의한다.
 
 > 개발자 홈 baseline을 안전하게 재현하는 core 위에,
 > 역할별 workflow pack과 business connector pack을 조합해
@@ -380,7 +380,7 @@ pack 내부는 공통적으로 아래를 가진다.
 ### gstack 대비
 
 `gstack`이 강한 이유는 process 강제력이다.
-따라서 `llm-bootstrap`는 단순히 skill 개수를 따라가면 안 된다.
+따라서 `StackPilot`는 단순히 skill 개수를 따라가면 안 된다.
 
 대신 아래로 차별화해야 한다.
 

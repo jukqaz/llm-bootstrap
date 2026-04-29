@@ -1,6 +1,6 @@
 # Codex-First Blueprint
 
-`llm-bootstrap` combines ideas from several LLM home bootstrap projects without
+`StackPilot` combines ideas from several LLM home bootstrap projects without
 copying any of them wholesale.
 
 The target support order is:
@@ -122,8 +122,8 @@ The actual implementation lives under `src/`, `templates/`, and `plugins/`.
   - Gemini settings merge and extension renderer
 - `src/providers/claude.rs`
   - Claude user-scope skill and MCP renderer
-- `templates/*` and `plugins/llm-dev-kit/`
-  - provider templates and Codex plugin assets
+- `templates/*` and `addons/stackpilot-dev-kit/`
+  - provider templates and addon assets
 
 ## Current baseline
 

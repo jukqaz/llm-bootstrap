@@ -1,6 +1,6 @@
 # oh-my Family Comparison Report
 
-This document compares the current `llm-bootstrap` repository against the
+This document compares the current `StackPilot` repository against the
 public `oh-my-*` family from one practical angle:
 
 > what is each product actually optimized for?
@@ -12,7 +12,7 @@ The comparison is intentionally split into two layers:
 
 ## Compared projects
 
-- `llm-bootstrap`
+- `StackPilot`
 - `oh-my-codex`
 - `oh-my-claudecode`
 - `oh-my-gemini`
@@ -23,17 +23,17 @@ This is not a pure "which one is better" ranking.
 
 The more useful question is:
 
-> where does `llm-bootstrap` sit in the stack, and where do the `oh-my-*`
+> where does `StackPilot` sit in the stack, and where do the `oh-my-*`
 > products sit?
 
 Working assumption:
 
-- `llm-bootstrap` is primarily a bootstrap and policy renderer
+- `StackPilot` is primarily a bootstrap and policy renderer
 - `oh-my-*` products are primarily orchestration runtimes
 
 ## Summary matrix
 
-| Area | `llm-bootstrap` | `oh-my-codex` | `oh-my-claudecode` | `oh-my-gemini` |
+| Area | `StackPilot` | `oh-my-codex` | `oh-my-claudecode` | `oh-my-gemini` |
 |---|---|---|---|---|
 | Product center | provider-native bootstrap | Codex orchestration runtime | Claude team runtime | Gemini hook-enforced runtime |
 | Primary user question | "How do I align my environment?" | "How do I run many agents?" | "How do I standardize Claude teams?" | "How do I enforce workflow and context?" |
@@ -55,22 +55,22 @@ Working assumption:
 
 | Item | Assessment |
 |---|---|
-| `llm-bootstrap` strength | keeps provider-native surfaces while sharing one pack model |
-| `llm-bootstrap` weakness | immediate "do work for me now" feel is weaker |
+| `StackPilot` strength | keeps provider-native surfaces while sharing one pack model |
+| `StackPilot` weakness | immediate "do work for me now" feel is weaker |
 | `oh-my-*` strength | execution modes are the product surface itself |
 | `oh-my-*` weakness | the runtime becomes thicker and more opinionated |
 
 Judgment:
 
-- `llm-bootstrap` behaves like a foundation layer
+- `StackPilot` behaves like a foundation layer
 - `oh-my-*` behaves like an execution layer
 
 ### 2. Multi-agent and Ralph-style execution
 
 | Item | Assessment |
 |---|---|
-| `llm-bootstrap` strength | has explicit shared harnesses such as `ralph-loop`, `ralph-plan`, `delivery`, `incident`, `founder-loop`, `operating-review` |
-| `llm-bootstrap` weakness | does not own a heavy orchestration runtime end to end |
+| `StackPilot` strength | has explicit shared harnesses such as `ralph-loop`, `ralph-plan`, `delivery`, `incident`, `founder-loop`, `operating-review` |
+| `StackPilot` weakness | does not own a heavy orchestration runtime end to end |
 | `oh-my-codex` strength | public README centers 32 agents, parallel execution, auto routing, session persistence |
 | `oh-my-claudecode` strength | `team-plan -> team-prd -> team-exec -> team-verify -> team-fix` is a very strong execution contract |
 | `oh-my-gemini` strength | hook-enforced workflow, phase gate, `ralph-retry`, and Conductor make behavior deterministic |
@@ -86,50 +86,50 @@ Judgment:
 
 | Item | Assessment |
 |---|---|
-| `llm-bootstrap` strength | Codex, Gemini, and Claude are rendered through their own native surfaces |
-| `llm-bootstrap` weakness | the shared UX is intentionally weaker |
+| `StackPilot` strength | Codex, Gemini, and Claude are rendered through their own native surfaces |
+| `StackPilot` weakness | the shared UX is intentionally weaker |
 | `oh-my-*` strength | each product creates a strong first-run experience on its home provider |
 | `oh-my-*` weakness | the unified runtime can drift away from provider-native behavior |
 
 Judgment:
 
-- for long-term provider alignment, `llm-bootstrap` is better positioned
+- for long-term provider alignment, `StackPilot` is better positioned
 - for immediate orchestration feel inside one provider, `oh-my-*` is stronger
 
 ### 4. Install, backup, doctor, and restore
 
 | Item | Assessment |
 |---|---|
-| `llm-bootstrap` strength | install, replace, uninstall, restore, and doctor are core product contracts |
-| `llm-bootstrap` weakness | it is not trying to be the live execution HUD/runtime |
+| `StackPilot` strength | install, replace, uninstall, restore, and doctor are core product contracts |
+| `StackPilot` weakness | it is not trying to be the live execution HUD/runtime |
 | `oh-my-*` strength | setup paths are fast and user-facing |
 | `oh-my-*` weakness | public positioning emphasizes runtime usability more than home-state safety and reversibility |
 
 Judgment:
 
-- if home state often drifts, `llm-bootstrap` is much stronger
+- if home state often drifts, `StackPilot` is much stronger
 - if the goal is instant orchestration, `oh-my-*` is stronger
 
 ### 5. Company operations
 
 | Item | Assessment |
 |---|---|
-| `llm-bootstrap` strength | already models `founder-pack`, `ops-pack`, connectors, and company automation contracts |
-| `llm-bootstrap` weakness | connector auth and recurring scheduler registration are still runtime-managed boundaries |
+| `StackPilot` strength | already models `founder-pack`, `ops-pack`, connectors, and company automation contracts |
+| `StackPilot` weakness | connector auth and recurring scheduler registration are still runtime-managed boundaries |
 | `oh-my-*` strength | excellent developer-facing orchestration |
 | `oh-my-*` weakness | public READMEs remain overwhelmingly developer-orchestration focused |
 
 Judgment:
 
-- for "development plus company operations", `llm-bootstrap` has the clearer direction
+- for "development plus company operations", `StackPilot` has the clearer direction
 - for "developer orchestration right now", `oh-my-*` still feels stronger
 
 ### 6. Maintenance cost
 
 | Item | Assessment |
 |---|---|
-| `llm-bootstrap` strength | catalog and renderer separation keeps drift more manageable |
-| `llm-bootstrap` weakness | product wow-factor is lower |
+| `StackPilot` strength | catalog and renderer separation keeps drift more manageable |
+| `StackPilot` weakness | product wow-factor is lower |
 | `oh-my-*` strength | modes are memorable and easy to sell |
 | `oh-my-*` weakness | hooks, skills, persistence, analytics, and orchestration runtime raise maintenance cost quickly |
 
@@ -172,7 +172,7 @@ Judgment:
 
 The most accurate framing is this:
 
-- `llm-bootstrap` is not mainly trying to replace `oh-my-*`
+- `StackPilot` is not mainly trying to replace `oh-my-*`
 - it is building a lower and safer layer in the stack
 - `oh-my-*` products are stronger at immediate orchestration
 - this repository is stronger at provider-native alignment, safety, and company-operation extensibility
@@ -186,7 +186,7 @@ Recommended strategy:
 
 One-line summary:
 
-> `oh-my-*` acts like a team lead that pushes work through; `llm-bootstrap`
+> `oh-my-*` acts like a team lead that pushes work through; `StackPilot`
 > acts like the operating baseline that keeps environments, policy, and rollout
 > state from drifting.
 

@@ -1,0 +1,35 @@
+id = "gitingest"
+name = "Gitingest"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["context-pack", "repo-ingest", "remote-repo"]
+weight = "optional"
+summary = "Prompt-friendly remote repository digest tool for quick triage before deeper repo packing."
+
+urls = [
+  "https://github.com/coderamp-labs/gitingest"
+]
+
+capabilities = [
+  "remote repository digest",
+  "prompt-friendly text ingest",
+  "URL-based repo conversion",
+  "fast onboarding for unknown repos"
+]
+
+adoptable_parts = [
+  "remote repo triage lane",
+  "lightweight ingest before heavy pack tools",
+  "simple handoff format for early analysis"
+]
+
+do_not_copy = [
+  "treat remote digests as a replacement for local verification",
+  "make remote ingest a mandatory baseline dependency"
+]
+
+[[evidence]]
+label = "Gitingest README"
+url = "https://github.com/coderamp-labs/gitingest"
+note = "The README describes Gitingest as a prompt-friendly text ingest for any Git repository and highlights replacing 'hub' with 'ingest' in GitHub URLs."

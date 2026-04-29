@@ -12,11 +12,11 @@ Use this lane when the task needs a heavier development harness.
 
 ## Workflow gates
 
-- Keep `llm-bootstrap internal task-state show --json` current when the task spans multiple phases.
-- Check `llm-bootstrap internal gate check --target-phase plan|execute|review|qa|ship --json` before phase changes.
-- Persist finished signals with `llm-bootstrap internal task-state advance --complete spec,plan,...`.
-- Record a failed bounded retry with `llm-bootstrap internal task-state advance --increment-attempt --failure "..."`.
-- Apply the phase move with `llm-bootstrap internal gate apply --target-phase ... --json`.
+- Keep `sp internal task-state show --json` current when the task spans multiple phases.
+- Check `sp internal gate check --target-phase plan|execute|review|qa|ship --json` before phase changes.
+- Persist finished signals with `sp internal task-state advance --complete spec,plan,...`.
+- Record a failed bounded retry with `sp internal task-state advance --increment-attempt --failure "..."`.
+- Apply the phase move with `sp internal gate apply --target-phase ... --json`.
 
 ## Browser-heavy work
 

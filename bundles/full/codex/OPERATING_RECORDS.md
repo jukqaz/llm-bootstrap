@@ -10,8 +10,8 @@ Default record surfaces:
 CLI entrypoint:
 
 ```bash
-llm-bootstrap record --type project --title "MVP scope" --next-action "create first issue"
-llm-bootstrap record --type task --title "Build auth flow" --surface both --github-repo owner/repo
+sp record --type project --title "MVP scope" --next-action "create first issue"
+sp record --type task --title "Build auth flow" --surface both --github-repo owner/repo
 ```
 
 External systems such as Linear, Gmail, Calendar, Drive, Figma, CRM, helpdesk,

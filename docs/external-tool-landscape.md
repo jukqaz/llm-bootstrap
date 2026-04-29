@@ -1,7 +1,7 @@
 # External Tool Landscape
 
 This document tracks external tools that are useful references for
-`llm-bootstrap` beyond the existing inspiration repos such as `gstack` and the
+`StackPilot` beyond the existing inspiration repos such as `gstack` and the
 `oh-my-*` family.
 
 The goal is to keep two things separate:
@@ -42,8 +42,8 @@ We group external tools into five buckets:
   - includes `caveman-compress` for memory-style files
   - ships across skills, plugins, and Codex plugin surfaces
 - How to use it as a reference:
-  - useful as an optional terse-mode pattern
-  - better as a mode or pack than as a baseline default
+  - useful as a terse-output reference only
+  - better folded into a shared common capability than shipped as its own pack
 
 ### Compresr Context Gateway
 
@@ -165,10 +165,11 @@ They are useful, but not strong enough to reshape the baseline by themselves.
 These are valuable for studying upper-layer runtime patterns, but they are not
 good baseline dependencies for a lean bootstrap.
 
-## What This Means for llm-bootstrap
+## What This Means for stackpilot
 
 - keep output compression centered on `RTK`
-- treat terse-response patterns like `Caveman` as optional modes
+- avoid a standalone terse pack; fold terse-response patterns into the common
+  capability catalog only if repeated use proves the need
 - expose repo ingest through an optional pack based on `Repomix`-style ideas
 - absorb the `Coding Context CLI` write-rules idea into shared harness specs and
   provider renderers
@@ -177,7 +178,7 @@ good baseline dependencies for a lean bootstrap.
 
 ## One-Line Conclusion
 
-For the current `llm-bootstrap` direction, the best external references to keep
+For the current `StackPilot` direction, the best external references to keep
 actively in view are `RTK`, `Repomix`, `Coding Context CLI`, and `MCPM`, while
-`Caveman` stays optional and `Compresr`, `OpenHands`, and `GitHub Copilot CLI`
+`Caveman` stays reference-only and `Compresr`, `OpenHands`, and `GitHub Copilot CLI`
 remain higher-level runtime references.

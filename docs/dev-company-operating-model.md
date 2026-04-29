@@ -1,6 +1,6 @@
 # Dev + Company Operating Model
 
-This document defines how `llm-bootstrap` should evolve from a
+This document defines how `StackPilot` should evolve from a
 "developer bootstrap" into a bootstrap for both
 "software delivery and company operations."
 
@@ -405,7 +405,7 @@ Given the current repository, the correct next moves are:
 
 ## Final Judgment
 
-`llm-bootstrap` should evolve into:
+`StackPilot` should evolve into:
 
 - a small bootstrap core
 - a shared harness layer

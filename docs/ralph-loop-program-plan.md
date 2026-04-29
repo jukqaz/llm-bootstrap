@@ -1,6 +1,6 @@
 # Ralph Loop Program Plan
 
-This document turns the current `llm-bootstrap` backlog into a small set of
+This document turns the current `StackPilot` backlog into a small set of
 delivery harness lanes that can run through the same Ralph loop repeatedly.
 
 The intent is simple:

@@ -1,6 +1,6 @@
 # Runtime Handoff
 
-This document defines where `llm-bootstrap` stops and where the target runtime
+This document defines where `StackPilot` stops and where the target runtime
 takes over.
 
 The rule is simple:
@@ -10,12 +10,12 @@ The rule is simple:
 
 ## Boundary
 
-`llm-bootstrap` owns:
+`StackPilot` owns:
 
 - `preset -> pack -> harness -> connectors -> MCP -> provider surface`
 - installing the required docs, skills, commands, and scripts into provider homes
 - comparing requested state and installed state through `doctor`
-- recording provider state in `llm-bootstrap-state.json`
+- recording provider state in `stackpilot-state.json`
 
 The runtime owns:
 

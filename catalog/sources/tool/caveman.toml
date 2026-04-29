@@ -1,0 +1,36 @@
+id = "caveman"
+name = "Caveman"
+source_type = "tool"
+status = "active"
+provider_scope = ["cross-provider"]
+categories = ["compression", "style-mode", "token-efficiency"]
+weight = "optional"
+summary = "Reference-only terse-output plugin family for Codex, Gemini CLI, and Claude Code."
+
+urls = [
+  "https://github.com/JuliusBrussee/caveman"
+]
+
+capabilities = [
+  "terse response mode",
+  "commit and review terse helpers",
+  "session compression helper",
+  "cross-agent skill packaging"
+]
+
+adoptable_parts = [
+  "terse response constraints for a future common capability",
+  "cross-provider skill packaging patterns"
+]
+
+do_not_copy = [
+  "install Caveman automatically",
+  "ship a separate terse pack before common capabilities are factored",
+  "force terse output into baseline defaults",
+  "optimize token count at the expense of clarity"
+]
+
+[[evidence]]
+label = "Caveman README"
+url = "https://github.com/JuliusBrussee/caveman"
+note = "The README presents Caveman as a Claude Code skill and Codex plugin with Gemini install support and token-compression helpers."
