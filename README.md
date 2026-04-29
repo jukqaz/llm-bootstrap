@@ -16,7 +16,7 @@ integration.
 
 ## Install
 
-Current release: `v0.3.5`
+Current release: `v0.3.6`
 
 Default path: run the wizard first.
 
@@ -186,7 +186,7 @@ To pin a specific release with the curl installer:
 
 ```bash
 curl -fsSL https://github.com/jukqaz/stack-pilot/releases/latest/download/install-release.sh | \
-  STACKPILOT_VERSION=v0.3.5 bash -s -- --providers codex,gemini
+  STACKPILOT_VERSION=v0.3.6 bash -s -- --providers codex,gemini
 ```
 
 For source-based development, clone the repo and run from source:
