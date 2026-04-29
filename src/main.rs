@@ -4420,9 +4420,11 @@ fn installed_pack_selection_for_doctor(
     let mut selections = Vec::new();
     for provider in providers {
         let installed_state = read_installed_state(&provider_root(home, *provider))?;
-        if let Some(selection) = pack_selection_from_installed_state(manifest, &installed_state)? {
-            selections.push(selection);
-        }
+        let Some(selection) = pack_selection_from_installed_state(manifest, &installed_state)
+        else {
+            return Ok(None);
+        };
+        selections.push(selection);
     }
 
     let Some(first) = selections.first().cloned() else {
@@ -4439,35 +4441,39 @@ fn installed_pack_selection_for_doctor(
 fn pack_selection_from_installed_state(
     manifest: &BootstrapManifest,
     installed_state: &state::InstalledState,
-) -> Result<Option<ResolvedPackSelection>> {
+) -> Option<ResolvedPackSelection> {
     if let Some(preset) = &installed_state.active_preset
-        && manifest
+        && let Some(preset_definition) = manifest
             .presets
             .iter()
-            .any(|candidate| candidate.name == *preset)
+            .find(|candidate| candidate.name == *preset)
     {
-        return selected_pack_names(
-            &PackArgs {
-                preset: Some(preset.clone()),
-                packs: None,
-            },
-            manifest,
-        )
-        .map(Some);
+        return Some(ResolvedPackSelection {
+            preset: Some(preset_definition.name.clone()),
+            packs: preset_definition.packs.clone(),
+        });
     }
 
     if installed_state.active_packs.is_empty() {
-        return Ok(None);
+        return None;
     }
 
-    selected_pack_names(
-        &PackArgs {
-            preset: None,
-            packs: Some(installed_state.active_packs.clone()),
-        },
-        manifest,
-    )
-    .map(Some)
+    let mut selected = IndexSet::new();
+    for pack in &installed_state.active_packs {
+        if !manifest
+            .packs
+            .iter()
+            .any(|candidate| candidate.name == *pack)
+        {
+            return None;
+        }
+        selected.insert(pack.clone());
+    }
+
+    Some(ResolvedPackSelection {
+        preset: None,
+        packs: selected.into_iter().collect(),
+    })
 }
 
 fn build_resolved_plan(
@@ -6168,6 +6174,76 @@ mod tests {
                 "ops-pack".to_string(),
                 "review-automation-pack".to_string()
             ]
+        );
+    }
+
+    #[test]
+    fn doctor_plan_falls_back_when_any_provider_has_no_installed_selection() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        let root = super::provider_root(&home, super::Provider::Codex);
+        fs::create_dir_all(&root).unwrap();
+        crate::state::write_installed_state(
+            &root,
+            &[],
+            &crate::state::InstalledState {
+                active_preset: Some("all-in-one".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let plan = super::resolve_doctor_plan(
+            &home,
+            &[super::Provider::Codex, super::Provider::Gemini],
+            &manifest,
+            &super::PackArgs {
+                preset: None,
+                packs: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(plan.selection.preset, Some("normal".to_string()));
+        assert_eq!(
+            plan.selection.packs,
+            vec!["delivery-pack".to_string(), "incident-pack".to_string()]
+        );
+    }
+
+    #[test]
+    fn doctor_plan_falls_back_when_installed_pack_is_stale() {
+        let home = temp_home();
+        let manifest = test_manifest();
+        for provider in [super::Provider::Codex, super::Provider::Gemini] {
+            let root = super::provider_root(&home, provider);
+            fs::create_dir_all(&root).unwrap();
+            crate::state::write_installed_state(
+                &root,
+                &[],
+                &crate::state::InstalledState {
+                    active_packs: vec!["removed-pack".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        }
+
+        let plan = super::resolve_doctor_plan(
+            &home,
+            &[super::Provider::Codex, super::Provider::Gemini],
+            &manifest,
+            &super::PackArgs {
+                preset: None,
+                packs: None,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(plan.selection.preset, Some("normal".to_string()));
+        assert_eq!(
+            plan.selection.packs,
+            vec!["delivery-pack".to_string(), "incident-pack".to_string()]
         );
     }
 
